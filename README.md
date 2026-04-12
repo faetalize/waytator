@@ -4,6 +4,10 @@
 
 `niri` user? Check below on how to integrate niri screenshots with this tool
 
+<p  align="center"><img width="500"  alt="image" src="https://github.com/user-attachments/assets/2c51bebd-fc99-4c75-a530-00e11c07829e"/>
+<img width="500"  alt="image" src="https://github.com/user-attachments/assets/6ecd04d2-5e98-4f9b-b3f9-6b048e590a58" /></p>
+
+
 ## Build
 
 Required build dependencies:
