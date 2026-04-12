@@ -1,0 +1,236 @@
+window {
+  background: #0f1115;
+}
+
+.canvas-scroller,
+.canvas-scroller > viewport {
+  background: #0f1115;
+}
+
+.canvas-empty {
+  padding: 48px;
+}
+
+.overlay-pill {
+  color: white;
+  background: alpha(black, 0.58);
+  border: 1px solid alpha(white, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 10px 32px alpha(black, 0.18);
+}
+
+@keyframes icon-spin {
+  from {
+    transform: rotate(0turn);
+  }
+
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.overlay-button {
+  padding: 0 14px;
+  min-height: 32px;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.overlay-button:hover {
+  background: alpha(white, 0.08);
+}
+
+.overlay-readout {
+  padding: 4px;
+}
+
+.overlay-readout label {
+  color: white;
+}
+
+.tool-group,
+.overlay-action-group,
+.zoom-group,
+.settings-group,
+.open-group {
+  padding: 4px;
+}
+
+.settings-group.has-slider {
+  padding: 0 0 0 4px;
+}
+
+.tool-group togglebutton.flat,
+.tool-group menubutton > button,
+.overlay-action-group button,
+.zoom-group button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.zoom-group button:last-child {
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.tool-group togglebutton.flat:hover,
+.tool-group menubutton > button:hover,
+.overlay-action-group button:hover,
+.zoom-group button:hover {
+  background: alpha(white, 0.08);
+}
+
+.overlay-action-group .spinning-icon {
+  animation: icon-spin 0.8s linear infinite;
+}
+
+.tool-group togglebutton.flat:checked {
+  background: alpha(white, 0.16);
+  background-color: alpha(white, 0.16);
+  background-image: none;
+}
+
+.tool-group togglebutton.flat:checked:hover {
+  background: alpha(white, 0.16);
+  background-color: alpha(white, 0.16);
+  background-image: none;
+}
+
+.tool-group menubutton.selected-tool > button {
+  background: alpha(white, 0.16);
+  background-color: alpha(white, 0.16);
+  background-image: none;
+}
+
+.tool-group menubutton.selected-tool > button:hover {
+  background: alpha(white, 0.16);
+  background-color: alpha(white, 0.16);
+  background-image: none;
+}
+
+.tool-group image,
+.overlay-action-group image,
+.zoom-group image {
+  -gtk-icon-size: 16px;
+}
+
+.zoom-label {
+  color: white;
+  font-weight: 600;
+  margin: 0 4px;
+}
+
+.overlay-window-controls {
+  color: white;
+  padding: 4px;
+}
+
+.overlay-window-controls button {
+  color: white;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 10px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.overlay-window-controls button:hover {
+  background: alpha(white, 0.08);
+}
+
+.shape-grid {
+  margin: 0;
+}
+
+.shape-choice {
+  padding: 0;
+}
+
+.save-popover button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
+.caption-heading {
+  color: alpha(white, 0.72);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.ocr-panel {
+  padding: 14px;
+}
+
+.ocr-panel-close {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 8px;
+}
+
+.ocr-tabs button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  margin-right: 6px;
+}
+
+.ocr-tabs button:last-child {
+  margin-right: 0;
+}
+
+.ocr-text-view {
+  color: white;
+  background: alpha(white, 0.06);
+  border-radius: 10px;
+}
+
+.ocr-text-view text {
+  color: white;
+  background: transparent;
+}
+
+.ocr-text-view selection {
+  color: white;
+  background-color: alpha(#8ab4ff, 0.62);
+}
+
+.ocr-overlay-box {
+  min-height: 0;
+  padding: 0;
+  background: alpha(#8ab4ff, 0.16);
+  border: 1px solid alpha(#d5e2ff, 0.24);
+  border-radius: 7px;
+  box-shadow: none;
+  background-image: none;
+}
+
+.ocr-overlay-box:hover {
+  background: alpha(#8ab4ff, 0.24);
+  border-color: alpha(#d5e2ff, 0.48);
+}
+
+.ocr-overlay-box.selected,
+.ocr-overlay-box:checked,
+.ocr-overlay-box:focus-visible {
+  background: alpha(#8ab4ff, 0.3);
+  border-color: alpha(#dce8ff, 0.82);
+}
+
+.ocr-overlay-box label,
+.ocr-overlay-box image {
+  color: transparent;
+}

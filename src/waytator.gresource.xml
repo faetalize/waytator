@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/dev/waytator/Waytator">
+    <file>ui/window.ui</file>
+    <file>ui/style.css</file>
+    <file>ui/icons/hand-openyay-symbolic.svg</file>
+    <file>ui/icons/pencil-symbolic.svg</file>
+    <file>ui/icons/marker-symbolic.svg</file>
+    <file>ui/icons/eraser-symbolic.svg</file>
+    <file>ui/icons/shapes-symbolic.svg</file>
+    <file>ui/icons/shape-square-symbolic.svg</file>
+    <file>ui/icons/shape-circle-symbolic.svg</file>
+    <file>ui/icons/shape-line-symbolic.svg</file>
+    <file>ui/icons/shape-arrow-symbolic.svg</file>
+    <file>ui/icons/text-insert2-symbolic.svg</file>
+    <file>ui/icons/blur-symbolic.svg</file>
+  </gresource>
+  <gresource prefix="/dev/waytator/Waytator/icons/hicolor/scalable/actions">
+    <file alias="tool-pan-symbolic.svg">ui/icons/hand-openyay-symbolic.svg</file>
+    <file alias="pencil-symbolic.svg">ui/icons/pencil-symbolic.svg</file>
+    <file alias="tool-highlight-symbolic.svg">ui/icons/marker-symbolic.svg</file>
+    <file alias="tool-eraser-symbolic.svg">ui/icons/eraser-symbolic.svg</file>
+    <file alias="shapes-symbolic.svg">ui/icons/shapes-symbolic.svg</file>
+    <file alias="tool-rectangle-symbolic.svg">ui/icons/shape-square-symbolic.svg</file>
+    <file alias="tool-circle-symbolic.svg">ui/icons/shape-circle-symbolic.svg</file>
+    <file alias="tool-line-symbolic.svg">ui/icons/shape-line-symbolic.svg</file>
+    <file alias="tool-arrow-symbolic.svg">ui/icons/shape-arrow-symbolic.svg</file>
+    <file alias="text-insert2-symbolic.svg">ui/icons/text-insert2-symbolic.svg</file>
+    <file alias="tool-blur-symbolic.svg">ui/icons/blur-symbolic.svg</file>
+  </gresource>
+  <gresource prefix="/dev/waytator/Waytator/icons/hicolor">
+    <file alias="index.theme">ui/icons/index.theme</file>
+  </gresource>
+</gresources>
