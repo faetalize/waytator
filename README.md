@@ -21,6 +21,8 @@ Recommended runtime dependency:
 
 Build locally:
 
+(it's preferable you just run the install script, as instructed in the Install section)
+
 ```bash
 meson setup build --buildtype=release
 meson compile -C build
@@ -43,7 +45,7 @@ Override the target if needed:
 PREFIX=/usr/local ./scripts/install.sh
 ```
 
-If `~/.local/bin` is not already on your `PATH`, add it in your shell profile.
+If `~/.local/bin` is not already on your `PATH`, add it in your shell profile, or the install script will prompt you to.
 
 ## Usage
 
