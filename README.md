@@ -2,23 +2,7 @@
 
 `waytator` is a screenshot annotator and lightweight image editor
 
-Most of the time you run it like this, piping `stdin` into it:
-
-```bash
-grim -g "$(slurp)" - | waytator
-```
-
-It also accepts a file path:
-
-```bash
-waytator screenshot.png
-```
-
-or it can be run independently:
-
-```bash
-waytator
-```
+`niri` user? Check below on how to integrate niri screenshots with this tool
 
 ## Build
 
@@ -80,6 +64,14 @@ Open an existing image:
 ```bash
 waytator path/to/image.png
 ```
+
+It can also be run independently:
+
+```bash
+waytator
+```
+
+If you're on niri, just bind your screenshot keybind to `./scripts/sceenshot-to-waytator.sh`, this will automatically open screenshots into `waytator` after they are captured for editing.
 
 ## License
 
