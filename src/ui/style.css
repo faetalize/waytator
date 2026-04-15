@@ -1,10 +1,12 @@
 window {
-  background: #0f1115;
+  background: alpha(black, 0.55);
+  backdrop-filter: blur(18px);
 }
 
 .canvas-scroller,
 .canvas-scroller > viewport {
-  background: #0f1115;
+  background: alpha(black, 0.55);
+  backdrop-filter: blur(18px);
 }
 
 .canvas-empty {
