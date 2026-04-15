@@ -17,6 +17,8 @@ static void waytator_window_show_error(WaytatorWindow *self,
                                        const char     *message);
 static gboolean waytator_window_has_unsaved_changes(WaytatorWindow *self);
 
+static void waytator_window_update_window_controls(WaytatorWindow *self);
+
 static const char *
 waytator_window_eraser_style_label(WaytatorEraserStyle style)
 {
@@ -67,6 +69,34 @@ waytator_window_preferences_eraser_style_changed(AdwComboRow          *row,
 
   adw_preferences_group_set_description(group,
                                         waytator_window_eraser_style_description(adw_combo_row_get_selected(row)));
+}
+
+static void
+waytator_window_window_controls_changed(GListModel     *model,
+                                        guint           position,
+                                        guint           removed,
+                                        guint           added,
+                                        WaytatorWindow *self)
+{
+  (void) model;
+  (void) position;
+  (void) removed;
+  (void) added;
+
+  waytator_window_update_window_controls(self);
+}
+
+static void
+waytator_window_update_window_controls(WaytatorWindow *self)
+{
+  const gboolean has_start_controls = self->start_window_controls_children != NULL
+                                   && g_list_model_get_n_items(self->start_window_controls_children) > 0;
+  const gboolean has_end_controls = self->end_window_controls_children != NULL
+                                 && g_list_model_get_n_items(self->end_window_controls_children) > 0;
+
+  gtk_widget_set_visible(GTK_WIDGET(self->start_window_controls), has_start_controls);
+  gtk_widget_set_visible(self->start_window_controls_pill, has_start_controls);
+  gtk_widget_set_visible(GTK_WIDGET(self->end_window_controls), has_end_controls);
 }
 
 static void
@@ -1133,6 +1163,8 @@ waytator_window_dispose(GObject *object)
     g_source_remove(self->save_feedback_timeout_id);
   waytator_window_clear_history(self);
   g_clear_pointer(&self->document, waytator_document_free);
+  g_clear_object(&self->start_window_controls_children);
+  g_clear_object(&self->end_window_controls_children);
 
   G_OBJECT_CLASS(waytator_window_parent_class)->dispose(object);
 }
@@ -1159,6 +1191,9 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, ocr_selected_text_view);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, ocr_all_text_view);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, start_actions);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, start_window_controls_pill);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, start_window_controls);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, open_actions);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, file_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, file_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, file_label);
@@ -1191,6 +1226,7 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, save_copy_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, app_menu_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, end_window_controls);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_icon_stack);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_default_icon);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_success_icon);
@@ -1282,6 +1318,24 @@ waytator_window_setup_ocr_panel(WaytatorWindow *self)
 }
 
 static void
+waytator_window_setup_window_controls(WaytatorWindow *self)
+{
+  self->start_window_controls_children = gtk_widget_observe_children(GTK_WIDGET(self->start_window_controls));
+  self->end_window_controls_children = gtk_widget_observe_children(GTK_WIDGET(self->end_window_controls));
+
+  g_signal_connect(self->start_window_controls_children,
+                   "items-changed",
+                   G_CALLBACK(waytator_window_window_controls_changed),
+                   self);
+  g_signal_connect(self->end_window_controls_children,
+                   "items-changed",
+                   G_CALLBACK(waytator_window_window_controls_changed),
+                   self);
+
+  waytator_window_update_window_controls(self);
+}
+
+static void
 waytator_window_class_init(WaytatorWindowClass *klass)
 {
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
@@ -1309,6 +1363,7 @@ waytator_window_init(WaytatorWindow *self)
                                  self,
                                  NULL);
   waytator_window_setup_ocr_panel(self);
+  waytator_window_setup_window_controls(self);
   waytator_window_setup_controllers(self);
   waytator_window_setup_signals(self);
   g_signal_connect(self->save_overwrite_button, "clicked", G_CALLBACK(waytator_window_save_overwrite_clicked), self);

@@ -142,7 +142,26 @@
                     <property name="spacing">10</property>
 
                     <child>
-                      <object class="GtkBox">
+                      <object class="GtkBox" id="start_window_controls_pill">
+                        <property name="visible">False</property>
+                        <style>
+                          <class name="overlay-pill"/>
+                          <class name="app-chrome-group"/>
+                        </style>
+
+                        <child>
+                          <object class="GtkWindowControls" id="start_window_controls">
+                            <property name="side">start</property>
+                            <style>
+                              <class name="overlay-window-controls"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkBox" id="open_actions">
                         <property name="valign">center</property>
                         <style>
                           <class name="overlay-pill"/>
@@ -517,7 +536,7 @@
                         </child>
 
                         <child>
-                          <object class="GtkWindowControls">
+                          <object class="GtkWindowControls" id="end_window_controls">
                             <property name="side">end</property>
                             <style>
                               <class name="overlay-window-controls"/>

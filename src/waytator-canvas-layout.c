@@ -335,8 +335,7 @@ waytator_window_sync_state(WaytatorWindow *self)
 
   gtk_stack_set_visible_child(self->canvas_stack,
                               has_image ? GTK_WIDGET(self->canvas_scroller) : self->empty_page);
-  if (self->start_actions != NULL && gtk_widget_get_first_child(self->start_actions) != NULL)
-    gtk_widget_set_visible(gtk_widget_get_first_child(self->start_actions), has_image);
+  gtk_widget_set_visible(self->open_actions, has_image);
   gtk_widget_set_visible(self->tool_group, has_image);
   gtk_widget_set_visible(self->history_actions, has_image);
   gtk_widget_set_visible(self->document_actions, has_image);

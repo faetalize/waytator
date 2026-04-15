@@ -26,6 +26,10 @@ struct _WaytatorWindow {
   GtkTextView *ocr_selected_text_view;
   GtkTextView *ocr_all_text_view;
   GtkWidget *start_actions;
+  GtkWidget *start_window_controls_pill;
+  GtkWindowControls *start_window_controls;
+  GListModel *start_window_controls_children;
+  GtkWidget *open_actions;
   GtkWidget *file_group;
   GtkButton *file_button;
   GtkLabel *file_label;
@@ -58,6 +62,8 @@ struct _WaytatorWindow {
   GtkButton *save_copy_button;
   GtkButton *copy_button;
   GtkMenuButton *app_menu_button;
+  GtkWindowControls *end_window_controls;
+  GListModel *end_window_controls_children;
   GtkStack *copy_icon_stack;
   GtkImage *copy_default_icon;
   GtkImage *copy_success_icon;
