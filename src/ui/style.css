@@ -1,6 +1,5 @@
 window {
-  background: alpha(black, 0.55);
-  backdrop-filter: blur(18px);
+  background: alpha(black, 0.80);
 }
 
 .canvas-scroller,
