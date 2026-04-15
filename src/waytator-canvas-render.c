@@ -48,7 +48,9 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
 
   cairo_restore(cr);
 
-  if (self->pointer_in && !self->drawing && !waytator_tool_is_non_drawing(self->active_tool)) {
+  if (self->pointer_in
+      && (!self->drawing || self->active_tool == WAYTATOR_TOOL_ERASER)
+      && !waytator_tool_is_non_drawing(self->active_tool)) {
     cairo_save(cr);
     cairo_rectangle(cr, display_x, display_y, display_width, display_height);
     cairo_clip(cr);
@@ -69,10 +71,7 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
 
       if (self->active_tool == WAYTATOR_TOOL_ERASER) {
         cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.5);
-        cairo_fill_preserve(cr);
-        cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 1.0);
-        cairo_set_line_width(cr, 1.0 / (display_width / image_width));
-        cairo_stroke(cr);
+        cairo_fill(cr);
       } else if (self->active_tool == WAYTATOR_TOOL_MARKER) {
         cairo_set_source_rgba(cr, tool_color.red, tool_color.green, tool_color.blue, 0.45);
         cairo_fill(cr);

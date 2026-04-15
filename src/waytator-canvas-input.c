@@ -244,6 +244,8 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
   self->drawing = TRUE;
 
   if (self->active_tool == WAYTATOR_TOOL_ERASER) {
+    self->pointer_x = self->last_draw_x;
+    self->pointer_y = self->last_draw_y;
     waytator_window_record_undo_step(self);
     waytator_window_erase_strokes(self,
                                   self->last_draw_x,
@@ -295,6 +297,8 @@ waytator_window_draw_update(GtkGestureDrag *gesture,
     return;
 
   if (self->active_tool == WAYTATOR_TOOL_ERASER) {
+    self->pointer_x = image_x;
+    self->pointer_y = image_y;
     waytator_window_erase_strokes(self,
                                   self->last_draw_x,
                                   self->last_draw_y,
@@ -358,8 +362,6 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
   if (self->active_tool == WAYTATOR_TOOL_TEXT) {
     GtkWidget *popover = gtk_popover_new();
     GtkWidget *entry = gtk_entry_new();
-    GtkAdjustment *hadjustment = gtk_scrolled_window_get_hadjustment(self->canvas_scroller);
-    GtkAdjustment *vadjustment = gtk_scrolled_window_get_vadjustment(self->canvas_scroller);
     GdkRectangle rect;
     const int img_w = gdk_paintable_get_intrinsic_width(GDK_PAINTABLE(self->texture));
     const int img_h = gdk_paintable_get_intrinsic_height(GDK_PAINTABLE(self->texture));
@@ -370,7 +372,7 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
     const WaytatorPoint *p = &g_array_index(self->current_stroke->points, WaytatorPoint, 0);
 
     gtk_popover_set_child(GTK_POPOVER(popover), entry);
-    gtk_widget_set_parent(popover, GTK_WIDGET(self->canvas_scroller));
+    gtk_widget_set_parent(popover, self->canvas_surface);
 
     waytator_window_get_display_rect(self,
                                      gtk_widget_get_width(GTK_WIDGET(self->drawing_area)),
@@ -380,8 +382,8 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
                                      &disp_w,
                                      &disp_h);
 
-    rect.x = (disp_x + p->x * (disp_w / img_w)) - gtk_adjustment_get_value(hadjustment);
-    rect.y = (disp_y + p->y * (disp_h / img_h)) - gtk_adjustment_get_value(vadjustment);
+    rect.x = (int) lround(disp_x + p->x * (disp_w / img_w));
+    rect.y = (int) lround(disp_y + p->y * (disp_h / img_h));
     rect.width = 1;
     rect.height = 1;
 
