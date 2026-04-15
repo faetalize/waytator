@@ -109,6 +109,8 @@ void waytator_window_reset_save_button(WaytatorWindow *self);
 void waytator_window_update_history_buttons(WaytatorWindow *self);
 void waytator_window_clear_history(WaytatorWindow *self);
 void waytator_window_record_undo_step(WaytatorWindow *self);
+void waytator_window_restore_strokes(WaytatorWindow *self,
+                                     GPtrArray      *strokes);
 
 gboolean waytator_window_get_display_rect(WaytatorWindow *self,
                                           double          widget_width,
@@ -117,12 +119,32 @@ gboolean waytator_window_get_display_rect(WaytatorWindow *self,
                                           double         *display_y,
                                           double         *display_width,
                                           double         *display_height);
+gboolean waytator_window_get_image_point(WaytatorWindow *self,
+                                         double          widget_x,
+                                         double          widget_y,
+                                         gboolean        clamp_to_image,
+                                         double         *image_x,
+                                         double         *image_y);
+void waytator_window_set_adjustment_clamped(GtkAdjustment *adjustment,
+                                            double         value);
+gboolean waytator_window_get_pointer_viewport_position(WaytatorWindow *self,
+                                                       double         *x,
+                                                       double         *y);
+void waytator_window_get_viewport_center(WaytatorWindow *self,
+                                         double         *x,
+                                         double         *y);
 double waytator_window_get_effective_zoom(WaytatorWindow *self);
 void waytator_window_apply_zoom_mode(WaytatorWindow *self);
 void waytator_window_update_picture_size(WaytatorWindow *self);
+void waytator_window_set_zoom_at(WaytatorWindow *self,
+                                 double          zoom,
+                                 double          viewport_x,
+                                 double          viewport_y);
 void waytator_window_update_tool_ui(WaytatorWindow *self);
 void waytator_window_queue_fit_zoom(WaytatorWindow *self);
 void waytator_window_sync_state(WaytatorWindow *self);
+void waytator_window_install_history_actions(GtkWidgetClass *widget_class);
+void waytator_window_setup_tool_signals(WaytatorWindow *self);
 void waytator_window_install_canvas_actions(GtkWidgetClass *widget_class);
 void waytator_window_setup_controllers(WaytatorWindow *self);
 void waytator_window_setup_signals(WaytatorWindow *self);

@@ -1,6 +1,9 @@
 waytator_sources = files(
   'main.c',
-  'waytator-canvas.c',
+  'waytator-canvas-input.c',
+  'waytator-canvas-layout.c',
+  'waytator-canvas-render.c',
+  'waytator-canvas-state.c',
   'waytator-document.c',
   'waytator-document.h',
   'waytator-export.c',
