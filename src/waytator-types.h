@@ -17,6 +17,12 @@ typedef enum {
   WAYTATOR_TOOL_BLUR,
 } WaytatorTool;
 
+typedef enum {
+  WAYTATOR_ERASER_STYLE_DUAL_RING,
+  WAYTATOR_ERASER_STYLE_DASHED_RING,
+  WAYTATOR_ERASER_STYLE_PATTERN,
+} WaytatorEraserStyle;
+
 typedef struct {
   double x;
   double y;

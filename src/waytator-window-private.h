@@ -55,6 +55,7 @@ struct _WaytatorWindow {
   GtkButton *save_overwrite_button;
   GtkButton *save_copy_button;
   GtkButton *copy_button;
+  GtkMenuButton *app_menu_button;
   GtkStack *copy_icon_stack;
   GtkImage *copy_default_icon;
   GtkImage *copy_success_icon;
@@ -96,6 +97,7 @@ struct _WaytatorWindow {
   double tool_widths[WAYTATOR_TOOL_BLUR + 1];
   GdkRGBA tool_colors[WAYTATOR_TOOL_BLUR + 1];
   int blur_type;
+  WaytatorEraserStyle eraser_style;
   GPtrArray *ocr_lines;
   WaytatorOcrLine *selected_ocr_line;
   char *ocr_all_text;

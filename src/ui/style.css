@@ -53,6 +53,7 @@ window {
 
 .tool-group,
 .overlay-action-group,
+.app-menu-group,
 .zoom-group,
 .settings-group,
 .open-group {
@@ -66,6 +67,7 @@ window {
 .tool-group togglebutton.flat,
 .tool-group menubutton > button,
 .overlay-action-group button,
+.app-menu-group button,
 .zoom-group button {
   min-width: 32px;
   min-height: 32px;
@@ -86,8 +88,25 @@ window {
 .tool-group togglebutton.flat:hover,
 .tool-group menubutton > button:hover,
 .overlay-action-group button:hover,
+.app-menu-group button:hover,
 .zoom-group button:hover {
   background: alpha(white, 0.08);
+}
+
+.app-menu-group {
+  background: alpha(black, 0.7);
+  border-color: alpha(white, 0.16);
+}
+
+.app-menu-group menubutton > button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 10px;
+}
+
+.app-menu-group menubutton > button:hover {
+  background: alpha(white, 0.1);
 }
 
 .overlay-action-group .spinning-icon {
@@ -120,6 +139,7 @@ window {
 
 .tool-group image,
 .overlay-action-group image,
+.app-menu-group image,
 .zoom-group image {
   -gtk-icon-size: 16px;
 }

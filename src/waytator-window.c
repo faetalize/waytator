@@ -17,6 +17,140 @@ static void waytator_window_show_error(WaytatorWindow *self,
                                        const char     *message);
 static gboolean waytator_window_has_unsaved_changes(WaytatorWindow *self);
 
+static const char *
+waytator_window_eraser_style_label(WaytatorEraserStyle style)
+{
+  switch (style) {
+  case WAYTATOR_ERASER_STYLE_DUAL_RING:
+    return "Dual ring";
+  case WAYTATOR_ERASER_STYLE_DASHED_RING:
+    return "Dashed ring";
+  case WAYTATOR_ERASER_STYLE_PATTERN:
+    return "Pattern fill";
+  default:
+    return "Dual ring";
+  }
+}
+
+static const char *
+waytator_window_eraser_style_description(WaytatorEraserStyle style)
+{
+  switch (style) {
+  case WAYTATOR_ERASER_STYLE_DUAL_RING:
+    return "High-contrast inner and outer outlines.";
+  case WAYTATOR_ERASER_STYLE_DASHED_RING:
+    return "A lighter footprint with alternating dashes.";
+  case WAYTATOR_ERASER_STYLE_PATTERN:
+    return "Translucent fill with diagonal stripes and no border.";
+  default:
+    return "High-contrast inner and outer outlines.";
+  }
+}
+
+static void
+waytator_window_eraser_style_changed(AdwComboRow    *row,
+                                     GParamSpec     *pspec,
+                                     WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->eraser_style = adw_combo_row_get_selected(row);
+  gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+}
+
+static void
+waytator_window_preferences_eraser_style_changed(AdwComboRow          *row,
+                                                 GParamSpec           *pspec,
+                                                 AdwPreferencesGroup  *group)
+{
+  (void) pspec;
+
+  adw_preferences_group_set_description(group,
+                                        waytator_window_eraser_style_description(adw_combo_row_get_selected(row)));
+}
+
+static void
+waytator_window_show_preferences(WaytatorWindow *self)
+{
+  AdwPreferencesDialog *dialog;
+  AdwPreferencesPage *page;
+  AdwPreferencesGroup *group;
+  AdwComboRow *row;
+  GtkStringList *model;
+
+  dialog = ADW_PREFERENCES_DIALOG(adw_preferences_dialog_new());
+  page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
+  group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
+  row = ADW_COMBO_ROW(adw_combo_row_new());
+  model = gtk_string_list_new((const char *[]) {
+    waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_DUAL_RING),
+    waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_DASHED_RING),
+    waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_PATTERN),
+    NULL,
+  });
+
+  adw_preferences_page_set_title(page, "General");
+  adw_preferences_group_set_title(group, "Eraser cursor");
+  adw_preferences_group_set_description(group,
+                                        waytator_window_eraser_style_description(self->eraser_style));
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Preview style");
+  adw_combo_row_set_model(row, G_LIST_MODEL(model));
+  adw_combo_row_set_selected(row, self->eraser_style);
+
+  adw_preferences_group_add(group, GTK_WIDGET(row));
+  adw_preferences_page_add(page, group);
+  adw_preferences_dialog_add(dialog, page);
+  adw_dialog_set_title(ADW_DIALOG(dialog), "Preferences");
+  adw_preferences_dialog_set_search_enabled(dialog, FALSE);
+  adw_dialog_set_content_width(ADW_DIALOG(dialog), 420);
+
+  g_signal_connect(row, "notify::selected", G_CALLBACK(waytator_window_eraser_style_changed), self);
+  g_signal_connect(row,
+                   "notify::selected",
+                   G_CALLBACK(waytator_window_preferences_eraser_style_changed),
+                   group);
+
+  adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(self));
+  g_object_unref(model);
+}
+
+static void
+waytator_window_show_about(WaytatorWindow *self)
+{
+  adw_show_about_dialog(GTK_WIDGET(self),
+                        "application-name", "Waytator",
+                        "application-icon", "dev.waytator.Waytator",
+                        "version", "0.1.0",
+                        "developer-name", "Waytator contributors",
+                        "developers", (const char *[]) { "Waytator contributors", NULL },
+                        "issue-url", "https://github.com/elu0/waytator/issues",
+                        "license-type", GTK_LICENSE_GPL_3_0,
+                        "website", "https://github.com/elu0/waytator",
+                        NULL);
+}
+
+static void
+waytator_window_preferences_action(GtkWidget  *widget,
+                                   const char *action_name,
+                                   GVariant   *parameter)
+{
+  (void) action_name;
+  (void) parameter;
+
+  waytator_window_show_preferences(WAYTATOR_WINDOW(widget));
+}
+
+static void
+waytator_window_about_action(GtkWidget  *widget,
+                             const char *action_name,
+                             GVariant   *parameter)
+{
+  (void) action_name;
+  (void) parameter;
+
+  waytator_window_show_about(WAYTATOR_WINDOW(widget));
+}
+
 GPtrArray *
 waytator_window_strokes(WaytatorWindow *self)
 {
@@ -1054,6 +1188,7 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, save_overwrite_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, save_copy_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, app_menu_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_icon_stack);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_default_icon);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_success_icon);
@@ -1070,6 +1205,8 @@ waytator_window_install_actions(GtkWidgetClass *widget_class)
 {
   gtk_widget_class_install_action(widget_class, "win.open", NULL, waytator_window_open_action);
   gtk_widget_class_install_action(widget_class, "win.open-current-file", NULL, waytator_window_open_current_file_action);
+  gtk_widget_class_install_action(widget_class, "win.preferences", NULL, waytator_window_preferences_action);
+  gtk_widget_class_install_action(widget_class, "win.about", NULL, waytator_window_about_action);
   waytator_window_install_canvas_actions(widget_class);
 }
 
@@ -1088,6 +1225,7 @@ waytator_window_init_state(WaytatorWindow *self)
   self->ocr_all_text = NULL;
   self->pinch_start_zoom = 1.0;
   self->pointer_in = FALSE;
+  self->eraser_style = WAYTATOR_ERASER_STYLE_DUAL_RING;
 
   for (i = 0; i <= WAYTATOR_TOOL_BLUR; i++) {
     self->tool_widths[i] = waytator_tool_width(i);

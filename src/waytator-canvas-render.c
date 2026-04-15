@@ -2,6 +2,92 @@
 
 #include "waytator-stroke.h"
 
+static void
+waytator_window_draw_eraser_dual_ring(cairo_t *cr,
+                                      double   x,
+                                      double   y,
+                                      double   radius,
+                                      double   scale)
+{
+  const double outer_width = 2.5 / scale;
+  const double inner_width = 1.25 / scale;
+
+  cairo_arc(cr, x, y, radius, 0.0, 2.0 * G_PI);
+  cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.95);
+  cairo_set_line_width(cr, outer_width);
+  cairo_stroke_preserve(cr);
+  cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.95);
+  cairo_set_line_width(cr, inner_width);
+  cairo_stroke(cr);
+}
+
+static void
+waytator_window_draw_eraser_dashed_ring(cairo_t *cr,
+                                        double   x,
+                                        double   y,
+                                        double   radius,
+                                        double   scale)
+{
+  const double line_width = 2.0 / scale;
+  const double dash[] = { 8.0 / scale, 5.0 / scale };
+
+  cairo_arc(cr, x, y, radius, 0.0, 2.0 * G_PI);
+  cairo_set_line_width(cr, line_width);
+  cairo_set_dash(cr, dash, G_N_ELEMENTS(dash), 0.0);
+  cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.95);
+  cairo_stroke_preserve(cr);
+  cairo_set_dash(cr, dash, G_N_ELEMENTS(dash), dash[0]);
+  cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.95);
+  cairo_stroke(cr);
+  cairo_set_dash(cr, NULL, 0, 0.0);
+}
+
+static void
+waytator_window_draw_eraser_pattern(cairo_t *cr,
+                                    double   x,
+                                    double   y,
+                                    double   radius,
+                                    double   scale)
+{
+  const double stripe_spacing = 7.0 / scale;
+  const double stripe_width = 1.5 / scale;
+  const double extent = radius * 2.0 + stripe_spacing * 2.0;
+
+  cairo_arc(cr, x, y, radius, 0.0, 2.0 * G_PI);
+  cairo_clip_preserve(cr);
+  cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.28);
+  cairo_fill(cr);
+
+  for (double offset = -extent; offset <= extent; offset += stripe_spacing) {
+    cairo_move_to(cr, x - radius + offset, y + radius);
+    cairo_line_to(cr, x + radius + offset, y - radius);
+  }
+
+  cairo_set_line_width(cr, stripe_width);
+  cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.55);
+  cairo_stroke(cr);
+}
+
+static void
+waytator_window_draw_eraser_preview(WaytatorWindow *self,
+                                    cairo_t        *cr,
+                                    double          scale,
+                                    double          radius)
+{
+  switch (self->eraser_style) {
+  case WAYTATOR_ERASER_STYLE_DASHED_RING:
+    waytator_window_draw_eraser_dashed_ring(cr, self->pointer_x, self->pointer_y, radius, scale);
+    break;
+  case WAYTATOR_ERASER_STYLE_PATTERN:
+    waytator_window_draw_eraser_pattern(cr, self->pointer_x, self->pointer_y, radius, scale);
+    break;
+  case WAYTATOR_ERASER_STYLE_DUAL_RING:
+  default:
+    waytator_window_draw_eraser_dual_ring(cr, self->pointer_x, self->pointer_y, radius, scale);
+    break;
+  }
+}
+
 void
 waytator_window_drawing_area_draw(GtkDrawingArea *area,
                                   cairo_t        *cr,
@@ -59,6 +145,7 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
 
     double tool_width = self->tool_widths[self->active_tool];
     GdkRGBA tool_color = self->tool_colors[self->active_tool];
+    const double scale = display_width / image_width;
 
     if (self->active_tool == WAYTATOR_TOOL_TEXT) {
       cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
@@ -67,18 +154,18 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
       cairo_set_source_rgba(cr, tool_color.red, tool_color.green, tool_color.blue, tool_color.alpha);
       cairo_show_text(cr, "T");
     } else {
-      cairo_arc(cr, self->pointer_x, self->pointer_y, tool_width / 2.0, 0.0, 2.0 * G_PI);
-
       if (self->active_tool == WAYTATOR_TOOL_ERASER) {
-        cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.5);
-        cairo_fill(cr);
+        waytator_window_draw_eraser_preview(self, cr, scale, tool_width / 2.0);
       } else if (self->active_tool == WAYTATOR_TOOL_MARKER) {
+        cairo_arc(cr, self->pointer_x, self->pointer_y, tool_width / 2.0, 0.0, 2.0 * G_PI);
         cairo_set_source_rgba(cr, tool_color.red, tool_color.green, tool_color.blue, 0.45);
         cairo_fill(cr);
       } else if (self->active_tool == WAYTATOR_TOOL_BLUR) {
+        cairo_arc(cr, self->pointer_x, self->pointer_y, tool_width / 2.0, 0.0, 2.0 * G_PI);
         cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.6);
         cairo_fill(cr);
       } else {
+        cairo_arc(cr, self->pointer_x, self->pointer_y, tool_width / 2.0, 0.0, 2.0 * G_PI);
         cairo_set_source_rgba(cr, tool_color.red, tool_color.green, tool_color.blue, tool_color.alpha);
         cairo_fill(cr);
       }

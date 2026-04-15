@@ -3,6 +3,19 @@
   <requires lib="gtk" version="4.0"/>
   <requires lib="Adw" version="1.0"/>
 
+  <menu id="app_menu_model">
+    <section>
+      <item>
+        <attribute name="label">Preferences</attribute>
+        <attribute name="action">win.preferences</attribute>
+      </item>
+      <item>
+        <attribute name="label">About Waytator</attribute>
+        <attribute name="action">win.about</attribute>
+      </item>
+    </section>
+  </menu>
+
   <template class="WaytatorWindow" parent="AdwApplicationWindow">
     <property name="default-width">1120</property>
     <property name="default-height">760</property>
@@ -126,17 +139,50 @@
                 <property name="start-widget">
                   <object class="GtkBox">
                     <property name="valign">center</property>
-                    <style>
-                      <class name="overlay-pill"/>
-                      <class name="open-group"/>
-                    </style>
+                    <property name="spacing">10</property>
+
                     <child>
-                      <object class="GtkButton">
-                        <property name="action-name">win.open</property>
-                        <property name="label">Open</property>
+                      <object class="GtkBox">
+                        <property name="valign">center</property>
                         <style>
-                          <class name="overlay-button"/>
+                          <class name="overlay-pill"/>
+                          <class name="open-group"/>
                         </style>
+                        <child>
+                          <object class="GtkButton">
+                            <property name="action-name">win.open</property>
+                            <property name="label">Open</property>
+                            <style>
+                              <class name="overlay-button"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkBox" id="history_actions">
+                        <property name="spacing">4</property>
+                        <style>
+                          <class name="overlay-pill"/>
+                          <class name="overlay-action-group"/>
+                        </style>
+
+                        <child>
+                          <object class="GtkButton" id="undo_button">
+                            <property name="tooltip-text">Undo</property>
+                            <property name="sensitive">False</property>
+                            <property name="icon-name">edit-undo-symbolic</property>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="GtkButton" id="redo_button">
+                            <property name="tooltip-text">Redo</property>
+                            <property name="sensitive">False</property>
+                            <property name="icon-name">edit-redo-symbolic</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -343,36 +389,10 @@
                   </object>
                 </property>
 
-            <property name="end-widget">
+                <property name="end-widget">
                   <object class="GtkBox">
                     <property name="valign">center</property>
                     <property name="spacing">10</property>
-
-                    <child>
-                      <object class="GtkBox" id="history_actions">
-                        <property name="spacing">4</property>
-                        <style>
-                          <class name="overlay-pill"/>
-                          <class name="overlay-action-group"/>
-                        </style>
-
-                        <child>
-                          <object class="GtkButton" id="undo_button">
-                            <property name="tooltip-text">Undo</property>
-                            <property name="sensitive">False</property>
-                            <property name="icon-name">edit-undo-symbolic</property>
-                          </object>
-                        </child>
-
-                        <child>
-                          <object class="GtkButton" id="redo_button">
-                            <property name="tooltip-text">Redo</property>
-                            <property name="sensitive">False</property>
-                            <property name="icon-name">edit-redo-symbolic</property>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
 
                     <child>
                       <object class="GtkBox" id="document_actions">
@@ -467,6 +487,32 @@
                                 </child>
                               </object>
                             </property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkBox">
+                        <property name="spacing">4</property>
+                        <style>
+                          <class name="overlay-pill"/>
+                          <class name="app-menu-group"/>
+                        </style>
+
+                        <child>
+                          <object class="GtkMenuButton" id="app_menu_button">
+                            <property name="always-show-arrow">False</property>
+                            <property name="tooltip-text">More</property>
+                            <property name="menu-model">app_menu_model</property>
+                            <property name="child">
+                              <object class="GtkImage">
+                                <property name="icon-name">view-more-symbolic</property>
+                              </object>
+                            </property>
+                            <style>
+                              <class name="flat"/>
+                            </style>
                           </object>
                         </child>
                       </object>
