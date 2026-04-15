@@ -1158,6 +1158,8 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, ocr_all_page);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, ocr_selected_text_view);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, ocr_all_text_view);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, start_actions);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, file_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, file_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, file_label);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, zoom_label);

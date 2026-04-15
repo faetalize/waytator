@@ -137,7 +137,7 @@
                 <property name="margin-top">16</property>
 
                 <property name="start-widget">
-                  <object class="GtkBox">
+                  <object class="GtkBox" id="start_actions">
                     <property name="valign">center</property>
                     <property name="spacing">10</property>
 
@@ -493,11 +493,11 @@
                     </child>
 
                     <child>
-                      <object class="GtkBox">
+                      <object class="GtkBox" id="app_chrome_group">
                         <property name="spacing">4</property>
                         <style>
                           <class name="overlay-pill"/>
-                          <class name="app-menu-group"/>
+                          <class name="app-chrome-group"/>
                         </style>
 
                         <child>
@@ -515,16 +515,15 @@
                             </style>
                           </object>
                         </child>
-                      </object>
-                    </child>
 
-                    <child>
-                      <object class="GtkWindowControls">
-                        <property name="side">end</property>
-                        <style>
-                          <class name="overlay-pill"/>
-                          <class name="overlay-window-controls"/>
-                        </style>
+                        <child>
+                          <object class="GtkWindowControls">
+                            <property name="side">end</property>
+                            <style>
+                              <class name="overlay-window-controls"/>
+                            </style>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -580,11 +579,12 @@
 
                 <child>
                   <object class="GtkStack" id="ocr_panel_stack">
+                    <property name="hhomogeneous">False</property>
+                    <property name="vhomogeneous">False</property>
                     <property name="transition-type">crossfade</property>
 
                     <child>
                       <object class="GtkScrolledWindow" id="ocr_selected_page">
-                        <property name="min-content-height">96</property>
                         <property name="max-content-height">128</property>
                         <property name="hscrollbar-policy">never</property>
                         <property name="propagate-natural-height">True</property>
@@ -608,7 +608,6 @@
 
                     <child>
                       <object class="GtkScrolledWindow" id="ocr_all_page">
-                        <property name="min-content-height">128</property>
                         <property name="max-content-height">196</property>
                         <property name="hscrollbar-policy">never</property>
                         <property name="propagate-natural-height">True</property>
@@ -645,7 +644,7 @@
             <property name="margin-bottom">16</property>
 
             <property name="start-widget">
-              <object class="GtkBox">
+              <object class="GtkBox" id="file_group">
                 <style>
                   <class name="overlay-pill"/>
                   <class name="overlay-readout"/>

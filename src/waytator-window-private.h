@@ -25,6 +25,8 @@ struct _WaytatorWindow {
   GtkScrolledWindow *ocr_all_page;
   GtkTextView *ocr_selected_text_view;
   GtkTextView *ocr_all_text_view;
+  GtkWidget *start_actions;
+  GtkWidget *file_group;
   GtkButton *file_button;
   GtkLabel *file_label;
   GtkLabel *zoom_label;
