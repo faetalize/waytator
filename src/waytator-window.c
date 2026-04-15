@@ -240,7 +240,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_preferences_page_set_title(page, "General");
   adw_preferences_group_set_title(group, "General");
   adw_preferences_group_set_title(window_group, "Window appearance");
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Erasor Styling");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Eraser Styling");
   adw_combo_row_set_model(row, G_LIST_MODEL(model));
   adw_combo_row_set_selected(row, self->eraser_style);
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(transparency_row), "Transparent background");
