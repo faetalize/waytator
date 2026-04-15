@@ -73,6 +73,7 @@ struct _WaytatorWindow {
   GtkScale *width_scale;
   GtkSpinButton *text_size_spin;
   GtkDropDown *blur_type_dropdown;
+  GtkCssProvider *window_css_provider;
 
   GFile *current_file;
   char *source_name;
@@ -101,7 +102,9 @@ struct _WaytatorWindow {
   double pointer_widget_x;
   double pointer_widget_y;
   gboolean pointer_in;
+  gboolean window_transparency_enabled;
   gboolean updating_ui;
+  double window_background_opacity;
   double tool_widths[WAYTATOR_TOOL_BLUR + 1];
   GdkRGBA tool_colors[WAYTATOR_TOOL_BLUR + 1];
   int blur_type;

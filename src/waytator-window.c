@@ -10,6 +10,9 @@
 
 G_DEFINE_FINAL_TYPE(WaytatorWindow, waytator_window, ADW_TYPE_APPLICATION_WINDOW)
 
+#define WAYTATOR_SETTINGS_GROUP "preferences"
+#define WAYTATOR_SETTINGS_FILE "waytator/settings.ini"
+
 static void waytator_window_clear_ocr_results(WaytatorWindow *self);
 static void waytator_window_set_ocr_panel_visible(WaytatorWindow *self,
                                                   gboolean        visible);
@@ -18,6 +21,88 @@ static void waytator_window_show_error(WaytatorWindow *self,
 static gboolean waytator_window_has_unsaved_changes(WaytatorWindow *self);
 
 static void waytator_window_update_window_controls(WaytatorWindow *self);
+static void waytator_window_update_window_background(WaytatorWindow *self);
+static void waytator_window_save_preferences(WaytatorWindow *self);
+
+static char *
+waytator_window_preferences_path(void)
+{
+  return g_build_filename(g_get_user_config_dir(), WAYTATOR_SETTINGS_FILE, NULL);
+}
+
+static void
+waytator_window_load_preferences(WaytatorWindow *self)
+{
+  g_autofree char *path = waytator_window_preferences_path();
+  g_autoptr(GKeyFile) key_file = g_key_file_new();
+  g_autoptr(GError) error = NULL;
+
+  if (!g_key_file_load_from_file(key_file, path, G_KEY_FILE_NONE, &error)) {
+    if (!g_error_matches(error, G_FILE_ERROR, G_FILE_ERROR_NOENT))
+      g_warning("Failed to load preferences from %s: %s", path, error->message);
+    return;
+  }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "eraser_style", NULL)) {
+    const int eraser_style = g_key_file_get_integer(key_file,
+                                                    WAYTATOR_SETTINGS_GROUP,
+                                                    "eraser_style",
+                                                    NULL);
+
+    if (eraser_style >= WAYTATOR_ERASER_STYLE_DUAL_RING
+        && eraser_style <= WAYTATOR_ERASER_STYLE_PATTERN)
+      self->eraser_style = eraser_style;
+  }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "window_transparency_enabled", NULL))
+    self->window_transparency_enabled = g_key_file_get_boolean(key_file,
+                                                               WAYTATOR_SETTINGS_GROUP,
+                                                               "window_transparency_enabled",
+                                                               NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "window_background_opacity", NULL)) {
+    const double opacity = g_key_file_get_double(key_file,
+                                                 WAYTATOR_SETTINGS_GROUP,
+                                                 "window_background_opacity",
+                                                 NULL);
+
+    if (opacity >= 0.1 && opacity <= 1.0)
+      self->window_background_opacity = opacity;
+  }
+}
+
+static void
+waytator_window_save_preferences(WaytatorWindow *self)
+{
+  g_autofree char *path = waytator_window_preferences_path();
+  g_autofree char *directory = g_path_get_dirname(path);
+  g_autoptr(GKeyFile) key_file = g_key_file_new();
+  g_autofree char *data = NULL;
+  gsize data_length = 0;
+  g_autoptr(GError) error = NULL;
+
+  g_key_file_set_integer(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "eraser_style",
+                         self->eraser_style);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "window_transparency_enabled",
+                         self->window_transparency_enabled);
+  g_key_file_set_double(key_file,
+                        WAYTATOR_SETTINGS_GROUP,
+                        "window_background_opacity",
+                        self->window_background_opacity);
+
+  if (g_mkdir_with_parents(directory, 0700) != 0) {
+    g_warning("Failed to create preferences directory %s", directory);
+    return;
+  }
+
+  data = g_key_file_to_data(key_file, &data_length, NULL);
+  if (!g_file_set_contents(path, data, data_length, &error))
+    g_warning("Failed to save preferences to %s: %s", path, error->message);
+}
 
 static const char *
 waytator_window_eraser_style_label(WaytatorEraserStyle style)
@@ -34,21 +119,6 @@ waytator_window_eraser_style_label(WaytatorEraserStyle style)
   }
 }
 
-static const char *
-waytator_window_eraser_style_description(WaytatorEraserStyle style)
-{
-  switch (style) {
-  case WAYTATOR_ERASER_STYLE_DUAL_RING:
-    return "High-contrast inner and outer outlines.";
-  case WAYTATOR_ERASER_STYLE_DASHED_RING:
-    return "A lighter footprint with alternating dashes.";
-  case WAYTATOR_ERASER_STYLE_PATTERN:
-    return "Translucent fill with diagonal stripes and no border.";
-  default:
-    return "High-contrast inner and outer outlines.";
-  }
-}
-
 static void
 waytator_window_eraser_style_changed(AdwComboRow    *row,
                                      GParamSpec     *pspec,
@@ -57,18 +127,8 @@ waytator_window_eraser_style_changed(AdwComboRow    *row,
   (void) pspec;
 
   self->eraser_style = adw_combo_row_get_selected(row);
+  waytator_window_save_preferences(self);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
-}
-
-static void
-waytator_window_preferences_eraser_style_changed(AdwComboRow          *row,
-                                                 GParamSpec           *pspec,
-                                                 AdwPreferencesGroup  *group)
-{
-  (void) pspec;
-
-  adw_preferences_group_set_description(group,
-                                        waytator_window_eraser_style_description(adw_combo_row_get_selected(row)));
 }
 
 static void
@@ -100,18 +160,76 @@ waytator_window_update_window_controls(WaytatorWindow *self)
 }
 
 static void
+waytator_window_transparency_switch_changed(GObject         *object,
+                                            GParamSpec      *pspec,
+                                            WaytatorWindow  *self)
+{
+  GtkSwitch *toggle = GTK_SWITCH(object);
+  GtkWidget *opacity_row;
+
+  (void) pspec;
+
+  self->window_transparency_enabled = gtk_switch_get_active(toggle);
+  opacity_row = g_object_get_data(G_OBJECT(toggle), "opacity-row");
+  if (opacity_row != NULL)
+    gtk_widget_set_sensitive(opacity_row, self->window_transparency_enabled);
+  waytator_window_save_preferences(self);
+  waytator_window_update_window_background(self);
+}
+
+static void
+waytator_window_transparency_opacity_changed(GtkSpinButton  *spin_button,
+                                             WaytatorWindow *self)
+{
+  self->window_background_opacity = gtk_spin_button_get_value(spin_button);
+  waytator_window_save_preferences(self);
+  waytator_window_update_window_background(self);
+}
+
+static void
+waytator_window_update_window_background(WaytatorWindow *self)
+{
+  g_autofree char *css = NULL;
+
+  if (self->window_css_provider == NULL)
+    return;
+
+  if (!self->window_transparency_enabled) {
+    gtk_css_provider_load_from_string(self->window_css_provider, "");
+    return;
+  }
+
+  css = g_strdup_printf("window.waytator-window { background: alpha(black, %.1f); background: alpha(@window_bg_color, %.1f); }",
+                        self->window_background_opacity,
+                        self->window_background_opacity);
+  gtk_css_provider_load_from_string(self->window_css_provider, css);
+}
+
+static void
 waytator_window_show_preferences(WaytatorWindow *self)
 {
   AdwPreferencesDialog *dialog;
   AdwPreferencesPage *page;
   AdwPreferencesGroup *group;
+  AdwPreferencesGroup *window_group;
   AdwComboRow *row;
+  AdwActionRow *transparency_row;
+  AdwActionRow *opacity_row;
   GtkStringList *model;
+  GtkAdjustment *opacity_adjustment;
+  GtkSwitch *transparency_switch;
+  GtkSpinButton *opacity_spin_button;
 
   dialog = ADW_PREFERENCES_DIALOG(adw_preferences_dialog_new());
   page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
   group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
+  window_group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
   row = ADW_COMBO_ROW(adw_combo_row_new());
+  transparency_row = ADW_ACTION_ROW(adw_action_row_new());
+  opacity_row = ADW_ACTION_ROW(adw_action_row_new());
+  transparency_switch = GTK_SWITCH(gtk_switch_new());
+  opacity_adjustment = gtk_adjustment_new(self->window_background_opacity, 0.1, 1.0, 0.1, 0.1, 0.0);
+  opacity_spin_button = GTK_SPIN_BUTTON(gtk_spin_button_new(opacity_adjustment, 0.1, 1));
   model = gtk_string_list_new((const char *[]) {
     waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_DUAL_RING),
     waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_DASHED_RING),
@@ -120,25 +238,46 @@ waytator_window_show_preferences(WaytatorWindow *self)
   });
 
   adw_preferences_page_set_title(page, "General");
-  adw_preferences_group_set_title(group, "Eraser cursor");
-  adw_preferences_group_set_description(group,
-                                        waytator_window_eraser_style_description(self->eraser_style));
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Preview style");
+  adw_preferences_group_set_title(group, "General");
+  adw_preferences_group_set_title(window_group, "Window appearance");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Erasor Styling");
   adw_combo_row_set_model(row, G_LIST_MODEL(model));
   adw_combo_row_set_selected(row, self->eraser_style);
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(transparency_row), "Transparent background");
+  adw_action_row_set_subtitle(transparency_row, "Use a translucent window background when supported by the compositor.");
+  gtk_switch_set_active(transparency_switch, self->window_transparency_enabled);
+  gtk_widget_set_valign(GTK_WIDGET(transparency_switch), GTK_ALIGN_CENTER);
+  adw_action_row_add_suffix(transparency_row, GTK_WIDGET(transparency_switch));
+  adw_action_row_set_activatable_widget(transparency_row, GTK_WIDGET(transparency_switch));
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(opacity_row), "Opacity");
+  adw_action_row_set_subtitle(opacity_row, "Lower values show more of the background.");
+  gtk_spin_button_set_numeric(opacity_spin_button, TRUE);
+  gtk_widget_set_valign(GTK_WIDGET(opacity_spin_button), GTK_ALIGN_CENTER);
+  gtk_widget_set_size_request(GTK_WIDGET(opacity_spin_button), 88, -1);
+  adw_action_row_add_suffix(opacity_row, GTK_WIDGET(opacity_spin_button));
+  adw_action_row_set_activatable_widget(opacity_row, GTK_WIDGET(opacity_spin_button));
+  gtk_widget_set_sensitive(GTK_WIDGET(opacity_row), self->window_transparency_enabled);
+  g_object_set_data(G_OBJECT(transparency_switch), "opacity-row", opacity_row);
 
   adw_preferences_group_add(group, GTK_WIDGET(row));
+  adw_preferences_group_add(window_group, GTK_WIDGET(transparency_row));
+  adw_preferences_group_add(window_group, GTK_WIDGET(opacity_row));
   adw_preferences_page_add(page, group);
+  adw_preferences_page_add(page, window_group);
   adw_preferences_dialog_add(dialog, page);
   adw_dialog_set_title(ADW_DIALOG(dialog), "Preferences");
   adw_preferences_dialog_set_search_enabled(dialog, FALSE);
   adw_dialog_set_content_width(ADW_DIALOG(dialog), 420);
 
   g_signal_connect(row, "notify::selected", G_CALLBACK(waytator_window_eraser_style_changed), self);
-  g_signal_connect(row,
-                   "notify::selected",
-                   G_CALLBACK(waytator_window_preferences_eraser_style_changed),
-                   group);
+  g_signal_connect(transparency_switch,
+                   "notify::active",
+                   G_CALLBACK(waytator_window_transparency_switch_changed),
+                   self);
+  g_signal_connect(opacity_spin_button,
+                   "value-changed",
+                   G_CALLBACK(waytator_window_transparency_opacity_changed),
+                   self);
 
   adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(self));
   g_object_unref(model);
@@ -1165,6 +1304,10 @@ waytator_window_dispose(GObject *object)
   g_clear_pointer(&self->document, waytator_document_free);
   g_clear_object(&self->start_window_controls_children);
   g_clear_object(&self->end_window_controls_children);
+  if (self->window_css_provider != NULL && gdk_display_get_default() != NULL)
+    gtk_style_context_remove_provider_for_display(gdk_display_get_default(),
+                                                  GTK_STYLE_PROVIDER(self->window_css_provider));
+  g_clear_object(&self->window_css_provider);
 
   G_OBJECT_CLASS(waytator_window_parent_class)->dispose(object);
 }
@@ -1264,6 +1407,9 @@ waytator_window_init_state(WaytatorWindow *self)
   self->pinch_start_zoom = 1.0;
   self->pointer_in = FALSE;
   self->eraser_style = WAYTATOR_ERASER_STYLE_DUAL_RING;
+  self->window_transparency_enabled = FALSE;
+  self->window_background_opacity = 0.8;
+  waytator_window_load_preferences(self);
 
   for (i = 0; i <= WAYTATOR_TOOL_BLUR; i++) {
     self->tool_widths[i] = waytator_tool_width(i);
@@ -1272,6 +1418,17 @@ waytator_window_init_state(WaytatorWindow *self)
   self->tool_colors[WAYTATOR_TOOL_MARKER] = (GdkRGBA){1.0, 0.91, 0.2, 1.0};
   self->tool_colors[WAYTATOR_TOOL_BLUR] = (GdkRGBA){0.0, 0.0, 0.0, 1.0};
   self->tool_colors[WAYTATOR_TOOL_ERASER] = (GdkRGBA){1.0, 1.0, 1.0, 1.0};
+}
+
+static void
+waytator_window_setup_window_background(WaytatorWindow *self)
+{
+  self->window_css_provider = gtk_css_provider_new();
+  gtk_widget_add_css_class(GTK_WIDGET(self), "waytator-window");
+  gtk_style_context_add_provider_for_display(gdk_display_get_default(),
+                                             GTK_STYLE_PROVIDER(self->window_css_provider),
+                                             GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+  waytator_window_update_window_background(self);
 }
 
 static void
@@ -1356,6 +1513,7 @@ waytator_window_init(WaytatorWindow *self)
   waytator_window_ensure_icons_registered();
 
   gtk_widget_init_template(GTK_WIDGET(self));
+  waytator_window_setup_window_background(self);
   waytator_window_ensure_css_loaded();
 
   gtk_drawing_area_set_draw_func(self->drawing_area,
