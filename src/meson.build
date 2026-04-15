@@ -1,5 +1,6 @@
 waytator_sources = files(
   'main.c',
+  'waytator-canvas.c',
   'waytator-document.c',
   'waytator-document.h',
   'waytator-export.c',
@@ -11,6 +12,7 @@ waytator_sources = files(
   'waytator-types.h',
   'waytator-window.c',
   'waytator-window.h',
+  'waytator-window-private.h',
 )
 
 waytator_resources = gnome.compile_resources(
