@@ -1,90 +1,18 @@
 #include "waytator-window.h"
 
+#include "waytator-document.h"
+#include "waytator-export.h"
+#include "waytator-ocr.h"
+#include "waytator-stroke.h"
+#include "waytator-types.h"
+
 #include <cairo.h>
 #include <math.h>
 #include <string.h>
-#include <unistd.h>
 
 #define WAYTATOR_MIN_ZOOM 0.10
 #define WAYTATOR_MAX_ZOOM 8.00
 #define WAYTATOR_ZOOM_STEP 1.15
-#define WAYTATOR_HISTORY_LIMIT 50
-
-typedef enum {
-  WAYTATOR_TOOL_PAN,
-  WAYTATOR_TOOL_BRUSH,
-  WAYTATOR_TOOL_MARKER,
-  WAYTATOR_TOOL_ERASER,
-  WAYTATOR_TOOL_RECTANGLE,
-  WAYTATOR_TOOL_CIRCLE,
-  WAYTATOR_TOOL_LINE,
-  WAYTATOR_TOOL_ARROW,
-  WAYTATOR_TOOL_OCR,
-  WAYTATOR_TOOL_TEXT,
-  WAYTATOR_TOOL_BLUR,
-} WaytatorTool;
-
-typedef struct {
-  double x;
-  double y;
-} WaytatorPoint;
-
-typedef struct {
-  WaytatorTool tool;
-  double width;
-  double r;
-  double g;
-  double b;
-  double a;
-  int blur_type;
-  GArray *points;
-  char *text;
-} WaytatorStroke;
-
-typedef enum {
-  WAYTATOR_EXPORT_COPY,
-  WAYTATOR_EXPORT_SAVE,
-} WaytatorExportKind;
-
-typedef struct {
-  WaytatorExportKind kind;
-  int width;
-  int height;
-  gsize stride;
-  guchar *pixels;
-  GPtrArray *strokes;
-  GFile *file;
-  char *copy_format;
-} WaytatorExportRequest;
-
-typedef struct {
-  const char *mime_type;
-  GBytes *bytes;
-  GdkTexture *texture;
-} WaytatorCopyResult;
-
-typedef struct {
-  int left;
-  int top;
-  int width;
-  int height;
-  char *text;
-  GtkWidget *button;
-} WaytatorOcrLine;
-
-typedef struct {
-  guint generation;
-  int width;
-  int height;
-  gsize stride;
-  guchar *pixels;
-} WaytatorOcrRequest;
-
-typedef struct {
-  guint generation;
-  GPtrArray *lines;
-} WaytatorOcrResult;
-
 struct _WaytatorWindow {
   AdwApplicationWindow parent_instance;
 
@@ -150,10 +78,7 @@ struct _WaytatorWindow {
   char *source_name;
   GdkTexture *texture;
   cairo_surface_t *image_surface;
-  GPtrArray *strokes;
-  GPtrArray *saved_strokes;
-  GQueue *undo_history;
-  GQueue *redo_history;
+  WaytatorDocument *document;
   WaytatorStroke *current_stroke;
   double zoom;
   gboolean fit_mode;
@@ -197,8 +122,6 @@ static gboolean waytator_window_get_display_rect(WaytatorWindow *self,
                                                  double         *display_y,
                                                  double         *display_width,
                                                  double         *display_height);
-static void waytator_window_render_stroke(cairo_t *cr, WaytatorStroke *stroke, cairo_surface_t *source_surface);
-static void waytator_stroke_free(WaytatorStroke *stroke);
 static void waytator_window_update_ocr_overlay(WaytatorWindow *self);
 static void waytator_window_clear_ocr_results(WaytatorWindow *self);
 static void waytator_window_maybe_start_ocr(WaytatorWindow *self);
@@ -209,53 +132,10 @@ static void waytator_window_show_error(WaytatorWindow *self,
                                        const char     *message);
 static gboolean waytator_window_has_unsaved_changes(WaytatorWindow *self);
 
-static void
-waytator_ocr_line_free(WaytatorOcrLine *line)
+static GPtrArray *
+waytator_window_strokes(WaytatorWindow *self)
 {
-  if (line == NULL)
-    return;
-
-  if (line->button != NULL && GTK_IS_FIXED(gtk_widget_get_parent(line->button)))
-    gtk_fixed_remove(GTK_FIXED(gtk_widget_get_parent(line->button)), line->button);
-  g_clear_pointer(&line->text, g_free);
-  g_free(line);
-}
-
-static void
-waytator_ocr_request_free(WaytatorOcrRequest *request)
-{
-  if (request == NULL)
-    return;
-
-  g_clear_pointer(&request->pixels, g_free);
-  g_free(request);
-}
-
-static void
-waytator_ocr_result_free(WaytatorOcrResult *result)
-{
-  if (result == NULL)
-    return;
-
-  g_clear_pointer(&result->lines, g_ptr_array_unref);
-  g_free(result);
-}
-
-static WaytatorOcrLine *
-waytator_ocr_line_new(int         left,
-                      int         top,
-                      int         width,
-                      int         height,
-                      const char *text)
-{
-  WaytatorOcrLine *line = g_new0(WaytatorOcrLine, 1);
-
-  line->left = left;
-  line->top = top;
-  line->width = width;
-  line->height = height;
-  line->text = g_strdup(text);
-  return line;
+  return waytator_document_get_strokes(self->document);
 }
 
 static void
@@ -365,12 +245,6 @@ waytator_window_clear_ocr_results(WaytatorWindow *self)
   gtk_widget_set_visible(self->ocr_panel_toggle_container, FALSE);
   gtk_toggle_button_set_active(self->ocr_panel_toggle_button, FALSE);
   waytator_window_update_ocr_panel(self);
-}
-
-static gboolean
-waytator_tool_is_non_drawing(WaytatorTool tool)
-{
-  return tool == WAYTATOR_TOOL_PAN || tool == WAYTATOR_TOOL_OCR;
 }
 
 static gboolean
@@ -528,244 +402,6 @@ waytator_window_ocr_panel_close_clicked(GtkButton *button,
   waytator_window_set_ocr_panel_visible(self, FALSE);
 }
 
-static WaytatorOcrRequest *
-waytator_window_create_ocr_request(WaytatorWindow *self)
-{
-  WaytatorOcrRequest *request;
-
-  if (self->texture == NULL)
-    return NULL;
-
-  request = g_new0(WaytatorOcrRequest, 1);
-  request->generation = self->ocr_generation;
-  request->width = gdk_texture_get_width(self->texture);
-  request->height = gdk_texture_get_height(self->texture);
-  request->stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, request->width);
-  request->pixels = g_malloc(request->stride * request->height);
-  gdk_texture_download(self->texture, request->pixels, request->stride);
-  return request;
-}
-
-static gboolean
-waytator_window_parse_ocr_tsv(const char  *tsv,
-                              GPtrArray  **lines_out,
-                              GError     **error)
-{
-  g_auto(GStrv) rows = NULL;
-  GPtrArray *lines;
-  GString *current_text = NULL;
-  int current_page = -1;
-  int current_block = -1;
-  int current_par = -1;
-  int current_line = -1;
-  int current_left = 0;
-  int current_top = 0;
-  int current_right = 0;
-  int current_bottom = 0;
-  gboolean have_current = FALSE;
-  guint i;
-
-  rows = g_strsplit(tsv, "\n", -1);
-  lines = g_ptr_array_new_with_free_func((GDestroyNotify) waytator_ocr_line_free);
-  current_text = g_string_new(NULL);
-
-  for (i = 1; rows[i] != NULL; i++) {
-    g_auto(GStrv) columns = NULL;
-    g_autofree char *text = NULL;
-    const int expected_columns = 12;
-    int level;
-    int page_num;
-    int block_num;
-    int par_num;
-    int line_num;
-    int left;
-    int top;
-    int width;
-    int height;
-    int conf;
-
-    if (rows[i][0] == '\0')
-      continue;
-
-    columns = g_strsplit(rows[i], "\t", expected_columns);
-    if ((int) g_strv_length(columns) < expected_columns)
-      continue;
-
-    level = (int) g_ascii_strtoll(columns[0], NULL, 10);
-    if (level != 5)
-      continue;
-
-    conf = (int) g_ascii_strtoll(columns[10], NULL, 10);
-    text = g_strstrip(g_strdup(columns[11]));
-    if (text[0] == '\0' || conf < 0)
-      continue;
-
-    page_num = (int) g_ascii_strtoll(columns[1], NULL, 10);
-    block_num = (int) g_ascii_strtoll(columns[2], NULL, 10);
-    par_num = (int) g_ascii_strtoll(columns[3], NULL, 10);
-    line_num = (int) g_ascii_strtoll(columns[4], NULL, 10);
-    left = (int) g_ascii_strtoll(columns[6], NULL, 10);
-    top = (int) g_ascii_strtoll(columns[7], NULL, 10);
-    width = (int) g_ascii_strtoll(columns[8], NULL, 10);
-    height = (int) g_ascii_strtoll(columns[9], NULL, 10);
-
-    if (!have_current
-        || page_num != current_page
-        || block_num != current_block
-        || par_num != current_par
-        || line_num != current_line) {
-      if (have_current && current_text->len > 0) {
-        g_ptr_array_add(lines,
-                        waytator_ocr_line_new(current_left,
-                                              current_top,
-                                              MAX(1, current_right - current_left),
-                                              MAX(1, current_bottom - current_top),
-                                              current_text->str));
-      }
-
-      g_string_truncate(current_text, 0);
-      current_page = page_num;
-      current_block = block_num;
-      current_par = par_num;
-      current_line = line_num;
-      current_left = left;
-      current_top = top;
-      current_right = left + width;
-      current_bottom = top + height;
-      have_current = TRUE;
-    } else {
-      current_left = MIN(current_left, left);
-      current_top = MIN(current_top, top);
-      current_right = MAX(current_right, left + width);
-      current_bottom = MAX(current_bottom, top + height);
-    }
-
-    if (current_text->len > 0)
-      g_string_append_c(current_text, ' ');
-    g_string_append(current_text, text);
-  }
-
-  if (have_current && current_text->len > 0) {
-    g_ptr_array_add(lines,
-                    waytator_ocr_line_new(current_left,
-                                          current_top,
-                                          MAX(1, current_right - current_left),
-                                          MAX(1, current_bottom - current_top),
-                                          current_text->str));
-  }
-
-  g_string_free(current_text, TRUE);
-
-  if (lines->len == 0) {
-    g_ptr_array_unref(lines);
-    g_set_error(error,
-                G_IO_ERROR,
-                G_IO_ERROR_NOT_FOUND,
-                "No selectable text was detected in the current image");
-    return FALSE;
-  }
-
-  *lines_out = lines;
-  return TRUE;
-}
-
-static void
-waytator_window_ocr_task(GTask        *task,
-                         gpointer      source_object,
-                         gpointer      task_data,
-                         GCancellable *cancellable)
-{
-  WaytatorOcrRequest *request = task_data;
-  cairo_surface_t *surface;
-  g_autofree char *png_path = NULL;
-  g_autofree char *stdout_data = NULL;
-  g_autofree char *stderr_data = NULL;
-  g_autoptr(GError) error = NULL;
-  gint wait_status = 0;
-  int fd;
-  gchar *argv[] = {
-    (gchar *) "tesseract",
-    NULL,
-    (gchar *) "stdout",
-    (gchar *) "--psm",
-    (gchar *) "11",
-    (gchar *) "tsv",
-    NULL,
-  };
-  WaytatorOcrResult *result;
-  GPtrArray *lines = NULL;
-
-  (void) source_object;
-  (void) cancellable;
-
-  fd = g_file_open_tmp("waytator-ocr-XXXXXX.png", &png_path, &error);
-  if (fd == -1) {
-    g_task_return_error(task, g_steal_pointer(&error));
-    return;
-  }
-  close(fd);
-
-  surface = cairo_image_surface_create_for_data(request->pixels,
-                                                CAIRO_FORMAT_ARGB32,
-                                                request->width,
-                                                request->height,
-                                                request->stride);
-  if (cairo_surface_write_to_png(surface, png_path) != CAIRO_STATUS_SUCCESS) {
-    cairo_surface_destroy(surface);
-    unlink(png_path);
-    g_task_return_new_error(task,
-                            G_IO_ERROR,
-                            G_IO_ERROR_FAILED,
-                            "Could not prepare the current image for OCR");
-    return;
-  }
-  cairo_surface_destroy(surface);
-
-  argv[1] = png_path;
-
-  if (!g_spawn_sync(NULL,
-                    argv,
-                    NULL,
-                    G_SPAWN_SEARCH_PATH,
-                    NULL,
-                    NULL,
-                    &stdout_data,
-                    &stderr_data,
-                    &wait_status,
-                    &error)) {
-    unlink(png_path);
-    g_task_return_new_error(task,
-                            G_IO_ERROR,
-                            G_IO_ERROR_NOT_FOUND,
-                            "Tesseract is required for OCR. Install the `tesseract` binary to use this tool.");
-    return;
-  }
-
-  unlink(png_path);
-
-  if (!g_spawn_check_wait_status(wait_status, &error)) {
-    const char *message = stderr_data != NULL && *stderr_data != '\0'
-                        ? stderr_data
-                        : error->message;
-    g_task_return_new_error(task,
-                            G_IO_ERROR,
-                            G_IO_ERROR_FAILED,
-                            "%s",
-                            message);
-    return;
-  }
-
-  if (!waytator_window_parse_ocr_tsv(stdout_data != NULL ? stdout_data : "", &lines, &error)) {
-    g_task_return_error(task, g_steal_pointer(&error));
-    return;
-  }
-
-  result = g_new0(WaytatorOcrResult, 1);
-  result->generation = request->generation;
-  result->lines = lines;
-  g_task_return_pointer(task, result, (GDestroyNotify) waytator_ocr_result_free);
-}
-
 static void
 waytator_window_ocr_ready(GObject      *source_object,
                           GAsyncResult *result,
@@ -815,7 +451,7 @@ waytator_window_maybe_start_ocr(WaytatorWindow *self)
   if (self->texture == NULL || self->ocr_running || self->ocr_lines != NULL)
     return;
 
-  request = waytator_window_create_ocr_request(self);
+  request = waytator_ocr_request_new(self->texture, self->ocr_generation);
   if (request == NULL)
     return;
 
@@ -823,7 +459,7 @@ waytator_window_maybe_start_ocr(WaytatorWindow *self)
   waytator_window_update_ocr_panel(self);
   task = g_task_new(self, NULL, waytator_window_ocr_ready, g_object_ref(self));
   g_task_set_task_data(task, request, (GDestroyNotify) waytator_ocr_request_free);
-  g_task_run_in_thread(task, waytator_window_ocr_task);
+  g_task_run_in_thread(task, waytator_ocr_run_task);
 }
 
 static void waytator_window_save_copy_ready(GObject *source_object, GAsyncResult *result, gpointer user_data);
@@ -932,97 +568,6 @@ waytator_window_finish_save_feedback(WaytatorWindow *self)
                                                 g_object_ref(self));
 }
 
-static const char *
-waytator_window_format_from_path(const char *path)
-{
-  const char *dot = strrchr(path, '.');
-
-  if (dot == NULL)
-    return "png";
-
-  dot++;
-  if (g_ascii_strcasecmp(dot, "jpg") == 0 || g_ascii_strcasecmp(dot, "jpeg") == 0)
-    return "jpeg";
-  if (g_ascii_strcasecmp(dot, "png") == 0)
-    return "png";
-  if (g_ascii_strcasecmp(dot, "webp") == 0)
-    return "webp";
-  if (g_ascii_strcasecmp(dot, "bmp") == 0)
-    return "bmp";
-  if (g_ascii_strcasecmp(dot, "tif") == 0 || g_ascii_strcasecmp(dot, "tiff") == 0)
-    return "tiff";
-
-  return "png";
-}
-
-static const char *
-waytator_window_copy_format(WaytatorWindow *self)
-{
-  (void) self;
-  return "png";
-}
-
-static const char *
-waytator_window_copy_mime_type(const char *format)
-{
-  return g_strcmp0(format, "jpeg") == 0 ? "image/jpeg" : "image/png";
-}
-
-static void
-waytator_window_export_options(const char  *format,
-                               char       **option_keys,
-                               char       **option_values)
-{
-  option_keys[0] = NULL;
-  option_values[0] = NULL;
-
-  if (g_strcmp0(format, "jpeg") == 0) {
-    option_keys[0] = "quality";
-    option_values[0] = "92";
-    return;
-  }
-
-  if (g_strcmp0(format, "png") == 0) {
-    option_keys[0] = "compression";
-    option_values[0] = "9";
-  }
-}
-
-static GdkPixbuf *
-waytator_window_prepare_pixbuf_for_format(GdkPixbuf   *pixbuf,
-                                          const char  *format)
-{
-  GdkPixbuf *flattened;
-  const guchar *src_pixels;
-  guchar *dst_pixels;
-  const int width = gdk_pixbuf_get_width(pixbuf);
-  const int height = gdk_pixbuf_get_height(pixbuf);
-  const int src_stride = gdk_pixbuf_get_rowstride(pixbuf);
-  int y;
-
-  if (g_strcmp0(format, "jpeg") != 0 || !gdk_pixbuf_get_has_alpha(pixbuf))
-    return g_object_ref(pixbuf);
-
-  flattened = gdk_pixbuf_new(GDK_COLORSPACE_RGB, FALSE, 8, width, height);
-  if (flattened == NULL)
-    return NULL;
-
-  src_pixels = gdk_pixbuf_get_pixels(pixbuf);
-  dst_pixels = gdk_pixbuf_get_pixels(flattened);
-
-  for (y = 0; y < height; y++) {
-    const guchar *src = src_pixels + y * src_stride;
-    guchar *dst = dst_pixels + y * gdk_pixbuf_get_rowstride(flattened);
-    int x;
-
-    for (x = 0; x < width; x++) {
-      dst[x * 3] = src[x * 4];
-      dst[x * 3 + 1] = src[x * 4 + 1];
-      dst[x * 3 + 2] = src[x * 4 + 2];
-    }
-  }
-  return flattened;
-}
 
 static void
 waytator_window_show_error(WaytatorWindow *self,
@@ -1064,98 +609,16 @@ waytator_window_error_is_user_dismissed(const GError *error)
       && g_ascii_strcasecmp(error->message, "Dismissed by user") == 0;
 }
 
-static WaytatorStroke *
-waytator_stroke_copy(WaytatorStroke *stroke)
-{
-  WaytatorStroke *copy = g_new0(WaytatorStroke, 1);
-
-  copy->tool = stroke->tool;
-  copy->width = stroke->width;
-  copy->r = stroke->r;
-  copy->g = stroke->g;
-  copy->b = stroke->b;
-  copy->a = stroke->a;
-  copy->blur_type = stroke->blur_type;
-  copy->points = g_array_sized_new(FALSE, FALSE, sizeof(WaytatorPoint), stroke->points->len);
-  g_array_append_vals(copy->points, stroke->points->data, stroke->points->len);
-  if (stroke->text) copy->text = g_strdup(stroke->text);
-  return copy;
-}
-
-static GPtrArray *
-waytator_stroke_array_copy(GPtrArray *strokes)
-{
-  GPtrArray *copy;
-  guint i;
-
-  copy = g_ptr_array_new_with_free_func((GDestroyNotify) waytator_stroke_free);
-  if (strokes == NULL)
-    return copy;
-
-  for (i = 0; i < strokes->len; i++)
-    g_ptr_array_add(copy, waytator_stroke_copy(g_ptr_array_index(strokes, i)));
-
-  return copy;
-}
-
-static gboolean
-waytator_stroke_equal(WaytatorStroke *left,
-                      WaytatorStroke *right)
-{
-  if (left == right)
-    return TRUE;
-
-  if (left == NULL || right == NULL)
-    return FALSE;
-
-  if (left->tool != right->tool
-      || left->width != right->width
-      || left->r != right->r
-      || left->g != right->g
-      || left->b != right->b
-      || left->a != right->a
-      || left->blur_type != right->blur_type
-      || left->points->len != right->points->len
-      || g_strcmp0(left->text, right->text) != 0)
-    return FALSE;
-
-  return memcmp(left->points->data,
-                right->points->data,
-                left->points->len * sizeof(WaytatorPoint)) == 0;
-}
-
-static gboolean
-waytator_stroke_array_equal(GPtrArray *left,
-                            GPtrArray *right)
-{
-  guint i;
-
-  if (left == right)
-    return TRUE;
-
-  if (left == NULL || right == NULL || left->len != right->len)
-    return FALSE;
-
-  for (i = 0; i < left->len; i++) {
-    if (!waytator_stroke_equal(g_ptr_array_index(left, i),
-                               g_ptr_array_index(right, i)))
-      return FALSE;
-  }
-
-  return TRUE;
-}
-
 static gboolean
 waytator_window_has_unsaved_changes(WaytatorWindow *self)
 {
-  return self->texture != NULL && !waytator_stroke_array_equal(self->strokes, self->saved_strokes);
+  return self->texture != NULL && waytator_document_has_unsaved_changes(self->document);
 }
 
 static void
 waytator_window_mark_saved(WaytatorWindow *self)
 {
-  g_clear_pointer(&self->saved_strokes, g_ptr_array_unref);
-  self->saved_strokes = waytator_stroke_array_copy(self->strokes);
+  waytator_document_mark_saved(self->document);
 }
 
 static void
@@ -1163,38 +626,21 @@ waytator_window_update_history_buttons(WaytatorWindow *self)
 {
   const gboolean has_image = self->texture != NULL;
 
-  gtk_widget_set_sensitive(GTK_WIDGET(self->undo_button), has_image && !g_queue_is_empty(self->undo_history));
-  gtk_widget_set_sensitive(GTK_WIDGET(self->redo_button), has_image && !g_queue_is_empty(self->redo_history));
-}
-
-static void
-waytator_window_trim_history(GQueue *history)
-{
-  while (g_queue_get_length(history) > WAYTATOR_HISTORY_LIMIT) {
-    GPtrArray *snapshot = g_queue_pop_head(history);
-
-    g_ptr_array_unref(snapshot);
-  }
+  gtk_widget_set_sensitive(GTK_WIDGET(self->undo_button), has_image && waytator_document_can_undo(self->document));
+  gtk_widget_set_sensitive(GTK_WIDGET(self->redo_button), has_image && waytator_document_can_redo(self->document));
 }
 
 static void
 waytator_window_clear_history(WaytatorWindow *self)
 {
-  if (self->undo_history != NULL)
-    g_queue_clear_full(self->undo_history, (GDestroyNotify) g_ptr_array_unref);
-
-  if (self->redo_history != NULL)
-    g_queue_clear_full(self->redo_history, (GDestroyNotify) g_ptr_array_unref);
-
+  waytator_document_clear_history(self->document);
   waytator_window_update_history_buttons(self);
 }
 
 static void
 waytator_window_record_undo_step(WaytatorWindow *self)
 {
-  g_queue_push_tail(self->undo_history, waytator_stroke_array_copy(self->strokes));
-  waytator_window_trim_history(self->undo_history);
-  g_queue_clear_full(self->redo_history, (GDestroyNotify) g_ptr_array_unref);
+  waytator_document_record_undo_step(self->document);
   waytator_window_reset_save_button(self);
   waytator_window_update_history_buttons(self);
 }
@@ -1203,51 +649,12 @@ static void
 waytator_window_restore_strokes(WaytatorWindow *self,
                                 GPtrArray      *strokes)
 {
-  g_clear_pointer(&self->strokes, g_ptr_array_unref);
-  self->strokes = strokes;
+  waytator_document_set_strokes(self->document, strokes);
   self->current_stroke = NULL;
   self->drawing = FALSE;
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   waytator_window_reset_save_button(self);
   waytator_window_update_history_buttons(self);
-}
-
-static void
-waytator_stroke_array_render(GPtrArray       *strokes,
-                             cairo_t         *cr,
-                             cairo_surface_t *source_surface)
-{
-  guint i;
-
-  if (strokes == NULL)
-    return;
-
-  for (i = 0; i < strokes->len; i++)
-    waytator_window_render_stroke(cr, g_ptr_array_index(strokes, i), source_surface);
-}
-
-static void
-waytator_export_request_free(WaytatorExportRequest *request)
-{
-  if (request == NULL)
-    return;
-
-  g_clear_pointer(&request->pixels, g_free);
-  g_clear_pointer(&request->strokes, g_ptr_array_unref);
-  g_clear_object(&request->file);
-  g_clear_pointer(&request->copy_format, g_free);
-  g_free(request);
-}
-
-static void
-waytator_copy_result_free(WaytatorCopyResult *result)
-{
-  if (result == NULL)
-    return;
-
-  g_clear_pointer(&result->bytes, g_bytes_unref);
-  g_clear_object(&result->texture);
-  g_free(result);
 }
 
 static void
@@ -1263,191 +670,6 @@ waytator_window_log_formats(const char      *label,
 
   description = gdk_content_formats_to_string(formats);
   g_debug("%s: %s", label, description);
-}
-
-static WaytatorExportRequest *
-waytator_window_create_export_request(WaytatorWindow     *self,
-                                      WaytatorExportKind  kind,
-                                      GFile              *file,
-                                      GError            **error)
-{
-  WaytatorExportRequest *request;
-  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
-  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
-  guint i;
-
-  if (width <= 0 || height <= 0) {
-    g_set_error(error,
-                G_IO_ERROR,
-                G_IO_ERROR_FAILED,
-                "Could not render the current image");
-    return NULL;
-  }
-
-  request = g_new0(WaytatorExportRequest, 1);
-  request->kind = kind;
-  request->width = width;
-  request->height = height;
-  request->stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
-  request->pixels = g_malloc(request->stride * height);
-  request->strokes = g_ptr_array_new_with_free_func((GDestroyNotify) waytator_stroke_free);
-
-  gdk_texture_download(self->texture, request->pixels, request->stride);
-
-  for (i = 0; i < self->strokes->len; i++)
-    g_ptr_array_add(request->strokes, waytator_stroke_copy(g_ptr_array_index(self->strokes, i)));
-
-  if (file != NULL)
-    request->file = g_object_ref(file);
-
-  if (kind == WAYTATOR_EXPORT_COPY)
-    request->copy_format = g_strdup(waytator_window_copy_format(self));
-
-  return request;
-}
-
-static void
-waytator_export_task(GTask        *task,
-                     gpointer      source_object,
-                     gpointer      task_data,
-                     GCancellable *cancellable)
-{
-  WaytatorExportRequest *request = task_data;
-  cairo_surface_t *surface;
-  cairo_t *cr;
-
-  (void) source_object;
-  (void) cancellable;
-
-  surface = cairo_image_surface_create_for_data(request->pixels,
-                                                CAIRO_FORMAT_ARGB32,
-                                                request->width,
-                                                request->height,
-                                                request->stride);
-  cr = cairo_create(surface);
-  waytator_stroke_array_render(request->strokes, cr, surface);
-  cairo_destroy(cr);
-  cairo_surface_flush(surface);
-
-  if (request->kind == WAYTATOR_EXPORT_COPY) {
-    g_autoptr(GdkPixbuf) pixbuf = NULL;
-    g_autoptr(GdkPixbuf) encoded_pixbuf = NULL;
-    g_autoptr(GBytes) texture_bytes = NULL;
-    g_autoptr(GError) error = NULL;
-    char *buffer = NULL;
-    gsize length = 0;
-    char *option_keys[] = { NULL, NULL };
-    char *option_values[] = { NULL, NULL };
-    WaytatorCopyResult *result = g_new0(WaytatorCopyResult, 1);
-
-    pixbuf = gdk_pixbuf_get_from_surface(surface, 0, 0, request->width, request->height);
-    cairo_surface_destroy(surface);
-
-    if (pixbuf == NULL) {
-      g_free(result);
-      g_task_return_new_error(task,
-                              G_IO_ERROR,
-                              G_IO_ERROR_FAILED,
-                              "Could not encode the current image");
-      return;
-    }
-
-    texture_bytes = g_bytes_new(request->pixels, request->stride * request->height);
-    result->texture = gdk_memory_texture_new(request->width,
-                                             request->height,
-                                             GDK_MEMORY_DEFAULT,
-                                             texture_bytes,
-                                             request->stride);
-
-    waytator_window_export_options(request->copy_format, option_keys, option_values);
-    encoded_pixbuf = waytator_window_prepare_pixbuf_for_format(pixbuf, request->copy_format);
-    if (encoded_pixbuf == NULL) {
-      g_free(result);
-      g_task_return_new_error(task,
-                              G_IO_ERROR,
-                              G_IO_ERROR_FAILED,
-                              "Could not prepare the current image for export");
-      return;
-    }
-
-    if (!gdk_pixbuf_save_to_bufferv(encoded_pixbuf,
-                                    &buffer,
-                                    &length,
-                                    request->copy_format,
-                                    option_keys,
-                                    option_values,
-                                    &error)) {
-      g_free(result);
-      g_task_return_error(task, g_steal_pointer(&error));
-      return;
-    }
-
-    result->mime_type = waytator_window_copy_mime_type(request->copy_format);
-    result->bytes = g_bytes_new_take(buffer, length);
-    g_task_return_pointer(task, result, (GDestroyNotify) waytator_copy_result_free);
-    return;
-  }
-
-  g_autofree char *path = g_file_get_path(request->file);
-  g_autoptr(GError) error = NULL;
-  g_autoptr(GdkPixbuf) pixbuf = NULL;
-  g_autoptr(GdkPixbuf) encoded_pixbuf = NULL;
-  char *option_keys[] = { NULL, NULL };
-  char *option_values[] = { NULL, NULL };
-  const char *format;
-
-  if (path == NULL) {
-    cairo_surface_destroy(surface);
-    g_task_return_new_error(task,
-                            G_IO_ERROR,
-                            G_IO_ERROR_NOT_SUPPORTED,
-                            "Saving to non-local files is not supported yet");
-    return;
-  }
-
-  pixbuf = gdk_pixbuf_get_from_surface(surface, 0, 0, request->width, request->height);
-  cairo_surface_destroy(surface);
-
-  if (pixbuf == NULL) {
-    g_task_return_new_error(task,
-                            G_IO_ERROR,
-                            G_IO_ERROR_FAILED,
-                            "Could not encode the current image");
-    return;
-  }
-
-  format = waytator_window_format_from_path(path);
-  waytator_window_export_options(format, option_keys, option_values);
-  encoded_pixbuf = waytator_window_prepare_pixbuf_for_format(pixbuf, format);
-
-  if (encoded_pixbuf == NULL) {
-    g_task_return_new_error(task,
-                            G_IO_ERROR,
-                            G_IO_ERROR_FAILED,
-                            "Could not prepare the current image for export");
-    return;
-  }
-
-  if (option_keys[0] != NULL) {
-    if (!gdk_pixbuf_savev(encoded_pixbuf,
-                          path,
-                          format,
-                          option_keys,
-                          option_values,
-                          &error)) {
-      g_task_return_error(task, g_steal_pointer(&error));
-      return;
-    }
-  } else if (!gdk_pixbuf_save(encoded_pixbuf,
-                              path,
-                              format,
-                              &error,
-                              NULL)) {
-    g_task_return_error(task, g_steal_pointer(&error));
-    return;
-  }
-
-  g_task_return_boolean(task, TRUE);
 }
 
 static void
@@ -1553,7 +775,15 @@ waytator_window_save_copy_ready(GObject      *source_object,
     return;
   }
 
-  request = waytator_window_create_export_request(self, WAYTATOR_EXPORT_SAVE, file, &error);
+  request = waytator_export_request_new(self->texture,
+                                        waytator_window_strokes(self),
+                                        WAYTATOR_EXPORT_SAVE,
+                                        file,
+                                        NULL,
+                                        waytator_stroke_copy,
+                                        (GDestroyNotify) waytator_stroke_free,
+                                        waytator_stroke_render,
+                                        &error);
   if (request == NULL) {
     waytator_window_show_error(self, error->message);
     g_object_unref(self);
@@ -1563,7 +793,7 @@ waytator_window_save_copy_ready(GObject      *source_object,
   waytator_window_begin_save_feedback(self);
   task = g_task_new(self, NULL, waytator_window_save_export_ready, g_object_ref(self));
   g_task_set_task_data(task, request, (GDestroyNotify) waytator_export_request_free);
-  g_task_run_in_thread(task, waytator_export_task);
+  g_task_run_in_thread(task, waytator_export_run_task);
 
   g_object_unref(self);
 }
@@ -1584,7 +814,15 @@ waytator_window_save_overwrite_clicked(GtkButton *button,
   if (self->current_file == NULL)
     return;
 
-  request = waytator_window_create_export_request(self, WAYTATOR_EXPORT_SAVE, self->current_file, &error);
+  request = waytator_export_request_new(self->texture,
+                                        waytator_window_strokes(self),
+                                        WAYTATOR_EXPORT_SAVE,
+                                        self->current_file,
+                                        NULL,
+                                        waytator_stroke_copy,
+                                        (GDestroyNotify) waytator_stroke_free,
+                                        waytator_stroke_render,
+                                        &error);
   if (request == NULL) {
     waytator_window_show_error(self, error->message);
     return;
@@ -1593,7 +831,7 @@ waytator_window_save_overwrite_clicked(GtkButton *button,
   waytator_window_begin_save_feedback(self);
   task = g_task_new(self, NULL, waytator_window_save_export_ready, g_object_ref(self));
   g_task_set_task_data(task, request, (GDestroyNotify) waytator_export_request_free);
-  g_task_run_in_thread(task, waytator_export_task);
+  g_task_run_in_thread(task, waytator_export_run_task);
 }
 
 static void
@@ -1635,7 +873,15 @@ waytator_window_copy_clicked(GtkButton *button,
 
   (void) button;
 
-  request = waytator_window_create_export_request(self, WAYTATOR_EXPORT_COPY, NULL, &error);
+  request = waytator_export_request_new(self->texture,
+                                        waytator_window_strokes(self),
+                                        WAYTATOR_EXPORT_COPY,
+                                        NULL,
+                                        "png",
+                                        waytator_stroke_copy,
+                                        (GDestroyNotify) waytator_stroke_free,
+                                        waytator_stroke_render,
+                                        &error);
   if (request == NULL) {
     waytator_window_show_error(self, error->message);
     return;
@@ -1643,78 +889,13 @@ waytator_window_copy_clicked(GtkButton *button,
 
   task = g_task_new(self, NULL, waytator_window_copy_export_ready, g_object_ref(self));
   g_task_set_task_data(task, request, (GDestroyNotify) waytator_export_request_free);
-  g_task_run_in_thread(task, waytator_export_task);
-}
-
-static void
-waytator_stroke_free(WaytatorStroke *stroke)
-{
-  if (stroke == NULL)
-    return;
-
-  g_clear_pointer(&stroke->points, g_array_unref);
-  g_free(stroke->text);
-  g_free(stroke);
-}
-
-static double
-waytator_tool_width(WaytatorTool tool)
-{
-  switch (tool) {
-  case WAYTATOR_TOOL_PAN:
-    return 0.0;
-  case WAYTATOR_TOOL_MARKER:
-    return 24.0;
-  case WAYTATOR_TOOL_ERASER:
-    return 28.0;
-  case WAYTATOR_TOOL_RECTANGLE:
-  case WAYTATOR_TOOL_CIRCLE:
-  case WAYTATOR_TOOL_LINE:
-  case WAYTATOR_TOOL_ARROW:
-    return 6.0;
-  case WAYTATOR_TOOL_BLUR:
-    return 32.0;
-  case WAYTATOR_TOOL_TEXT:
-    return 24.0;
-  case WAYTATOR_TOOL_BRUSH:
-  default:
-    return 6.0;
-  }
-}
-
-static gboolean
-waytator_tool_is_shape(WaytatorTool tool)
-{
-  return tool == WAYTATOR_TOOL_RECTANGLE
-      || tool == WAYTATOR_TOOL_CIRCLE
-      || tool == WAYTATOR_TOOL_LINE
-      || tool == WAYTATOR_TOOL_ARROW
-      || tool == WAYTATOR_TOOL_BLUR;
-}
-
-static WaytatorStroke *
-waytator_stroke_new(WaytatorWindow *self, WaytatorTool tool)
-{
-  WaytatorStroke *stroke = g_new0(WaytatorStroke, 1);
-
-  stroke->tool = tool;
-  stroke->width = self->tool_widths[tool];
-  stroke->r = self->tool_colors[tool].red;
-  stroke->g = self->tool_colors[tool].green;
-  stroke->b = self->tool_colors[tool].blue;
-  stroke->a = self->tool_colors[tool].alpha;
-  stroke->blur_type = self->blur_type;
-  stroke->points = g_array_new(FALSE, FALSE, sizeof(WaytatorPoint));
-  return stroke;
+  g_task_run_in_thread(task, waytator_export_run_task);
 }
 
 static void
 waytator_window_clear_annotations(WaytatorWindow *self)
 {
-  if (self->strokes == NULL)
-    return;
-
-  g_ptr_array_set_size(self->strokes, 0);
+  waytator_document_clear_annotations(self->document);
   self->current_stroke = NULL;
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   waytator_window_update_history_buttons(self);
@@ -1795,44 +976,6 @@ waytator_window_get_image_point(WaytatorWindow *self,
   return TRUE;
 }
 
-static void
-waytator_stroke_add_point(WaytatorStroke *stroke,
-                          double          x,
-                          double          y)
-{
-  const guint len = stroke->points->len;
-  WaytatorPoint point = { x, y };
-
-  if (len > 0) {
-    const WaytatorPoint *last = &g_array_index(stroke->points, WaytatorPoint, len - 1);
-
-    if (fabs(last->x - x) < 0.5 && fabs(last->y - y) < 0.5)
-      return;
-  }
-
-  g_array_append_val(stroke->points, point);
-}
-
-static void
-waytator_stroke_set_last_point(WaytatorStroke *stroke,
-                               double          x,
-                               double          y)
-{
-  WaytatorPoint point = { x, y };
-
-  if (stroke->points->len == 0) {
-    g_array_append_val(stroke->points, point);
-    return;
-  }
-
-  if (stroke->points->len == 1) {
-    g_array_append_val(stroke->points, point);
-    return;
-  }
-
-  g_array_index(stroke->points, WaytatorPoint, stroke->points->len - 1) = point;
-}
-
 static const char *
 waytator_tool_icon_name(WaytatorTool tool)
 {
@@ -1905,314 +1048,6 @@ waytator_window_update_tool_ui(WaytatorWindow *self)
 }
 
 static void
-waytator_window_render_stroke(cairo_t         *cr,
-                              WaytatorStroke  *stroke,
-                              cairo_surface_t *source_surface)
-{
-  const guint len = stroke->points->len;
-  guint i;
-
-  if (len == 0)
-    return;
-
-  cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
-  cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-  cairo_set_line_width(cr, stroke->width);
-
-  switch (stroke->tool) {
-  case WAYTATOR_TOOL_MARKER:
-    cairo_set_source_rgba(cr, stroke->r, stroke->g, stroke->b, 0.45);
-    break;
-  case WAYTATOR_TOOL_BLUR:
-    cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.6);
-    break;
-  case WAYTATOR_TOOL_TEXT:
-    cairo_set_source_rgba(cr, stroke->r, stroke->g, stroke->b, stroke->a);
-    break;
-  case WAYTATOR_TOOL_RECTANGLE:
-  case WAYTATOR_TOOL_CIRCLE:
-  case WAYTATOR_TOOL_LINE:
-  case WAYTATOR_TOOL_ARROW:
-  case WAYTATOR_TOOL_BRUSH:
-  default:
-    cairo_set_source_rgba(cr, stroke->r, stroke->g, stroke->b, stroke->a);
-    break;
-  }
-
-  if (stroke->tool == WAYTATOR_TOOL_TEXT) {
-    if (stroke->text != NULL && len >= 1) {
-      const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, 0);
-
-      cairo_save(cr);
-      cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
-      cairo_set_font_size(cr, stroke->width);
-
-      cairo_move_to(cr, point->x, point->y);
-      cairo_show_text(cr, stroke->text);
-      cairo_restore(cr);
-    }
-    return;
-  }
-
-  if (waytator_tool_is_shape(stroke->tool) && len >= 2) {
-    const WaytatorPoint *start = &g_array_index(stroke->points, WaytatorPoint, 0);
-    const WaytatorPoint *end = &g_array_index(stroke->points, WaytatorPoint, len - 1);
-    const double left = MIN(start->x, end->x);
-    const double top = MIN(start->y, end->y);
-    const double rect_width = fabs(end->x - start->x);
-    const double rect_height = fabs(end->y - start->y);
-
-    switch (stroke->tool) {
-    case WAYTATOR_TOOL_RECTANGLE:
-      cairo_rectangle(cr, left, top, rect_width, rect_height);
-      cairo_stroke(cr);
-      return;
-    case WAYTATOR_TOOL_CIRCLE: {
-      const double radius_x = rect_width / 2.0;
-      const double radius_y = rect_height / 2.0;
-
-      cairo_save(cr);
-      cairo_translate(cr, left + radius_x, top + radius_y);
-      cairo_scale(cr, MAX(radius_x, 0.0001), MAX(radius_y, 0.0001));
-      cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2.0 * G_PI);
-      cairo_restore(cr);
-      cairo_stroke(cr);
-      return;
-    }
-    case WAYTATOR_TOOL_LINE:
-      cairo_move_to(cr, start->x, start->y);
-      cairo_line_to(cr, end->x, end->y);
-      cairo_stroke(cr);
-      return;
-    case WAYTATOR_TOOL_ARROW: {
-      const double angle = atan2(end->y - start->y, end->x - start->x);
-      const double arrow_size = MAX(12.0, stroke->width * 3.0);
-
-      cairo_move_to(cr, start->x, start->y);
-      cairo_line_to(cr, end->x, end->y);
-      cairo_stroke(cr);
-
-      cairo_move_to(cr, end->x, end->y);
-      cairo_line_to(cr,
-                    end->x - arrow_size * cos(angle - G_PI / 6.0),
-                    end->y - arrow_size * sin(angle - G_PI / 6.0));
-      cairo_move_to(cr, end->x, end->y);
-      cairo_line_to(cr,
-                    end->x - arrow_size * cos(angle + G_PI / 6.0),
-                    end->y - arrow_size * sin(angle + G_PI / 6.0));
-      cairo_stroke(cr);
-      return;
-    }
-    case WAYTATOR_TOOL_BLUR: {
-      if (source_surface == NULL || cairo_surface_get_type(source_surface) != CAIRO_SURFACE_TYPE_IMAGE)
-        return;
-
-      int block_size = MAX(2, (int)stroke->width);
-      const int b_left = floor(left / block_size) * block_size;
-      const int b_top = floor(top / block_size) * block_size;
-      const int b_right = ceil((left + rect_width) / block_size) * block_size;
-      const int b_bottom = ceil((top + rect_height) / block_size) * block_size;
-      
-      cairo_surface_flush(source_surface);
-      int src_w = cairo_image_surface_get_width(source_surface);
-      int src_h = cairo_image_surface_get_height(source_surface);
-      int src_stride = cairo_image_surface_get_stride(source_surface);
-      unsigned char *src_data = cairo_image_surface_get_data(source_surface);
-
-      if (src_data == NULL || src_w <= 0 || src_h <= 0)
-        return;
-
-      int tw = b_right - b_left;
-      int th = b_bottom - b_top;
-      if (tw <= 0 || th <= 0) return;
-
-      cairo_surface_t *temp_surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, tw, th);
-      unsigned char *dst_data = cairo_image_surface_get_data(temp_surf);
-      int dst_stride = cairo_image_surface_get_stride(temp_surf);
-
-      if (stroke->blur_type == 1) {
-        // Pixelate
-        for (int y = 0; y < th; y += block_size) {
-          for (int x = 0; x < tw; x += block_size) {
-            int cx = CLAMP(b_left + x + block_size / 2, 0, src_w - 1);
-            int cy = CLAMP(b_top + y + block_size / 2, 0, src_h - 1);
-            uint32_t pixel = *(uint32_t *)(src_data + cy * src_stride + cx * 4);
-
-            for (int by = 0; by < block_size && y + by < th; by++) {
-              uint32_t *dst_row = (uint32_t *)(dst_data + (y + by) * dst_stride);
-              for (int bx = 0; bx < block_size && x + bx < tw; bx++) {
-                dst_row[x + bx] = pixel;
-              }
-            }
-          }
-        }
-      } else {
-        // Blur
-        int kernel_size = MAX(2, (int)stroke->width);
-        int step = MAX(1, kernel_size / 4);
-        for (int y = 0; y < th; y += step) {
-          for (int x = 0; x < tw; x += step) {
-            int sum_r = 0, sum_g = 0, sum_b = 0, sum_a = 0, count = 0;
-            for (int dy = -kernel_size/2; dy <= kernel_size/2; dy += step) {
-              for (int dx = -kernel_size/2; dx <= kernel_size/2; dx += step) {
-                int cx = CLAMP(b_left + x + dx, 0, src_w - 1);
-                int cy = CLAMP(b_top + y + dy, 0, src_h - 1);
-                uint32_t pixel = *(uint32_t *)(src_data + cy * src_stride + cx * 4);
-                sum_b += (pixel & 0xFF);
-                sum_g += ((pixel >> 8) & 0xFF);
-                sum_r += ((pixel >> 16) & 0xFF);
-                sum_a += ((pixel >> 24) & 0xFF);
-                count++;
-              }
-            }
-            uint32_t out_pixel = 0;
-            if (count > 0) {
-              out_pixel = ((sum_a / count) << 24) | ((sum_r / count) << 16) | ((sum_g / count) << 8) | (sum_b / count);
-            }
-            for (int by = 0; by < step && y + by < th; by++) {
-              uint32_t *dst_row = (uint32_t *)(dst_data + (y + by) * dst_stride);
-              for (int bx = 0; bx < step && x + bx < tw; bx++) {
-                dst_row[x + bx] = out_pixel;
-              }
-            }
-          }
-        }
-      }
-
-      cairo_surface_mark_dirty(temp_surf);
-      cairo_save(cr);
-      cairo_rectangle(cr, left, top, rect_width, rect_height);
-      cairo_clip(cr);
-      cairo_set_source_surface(cr, temp_surf, b_left, b_top);
-      cairo_paint(cr);
-      cairo_restore(cr);
-      cairo_surface_destroy(temp_surf);
-      return;
-    }
-    default:
-      break;
-    }
-  }
-
-  if (len == 1) {
-    const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, 0);
-
-    cairo_arc(cr, point->x, point->y, stroke->width / 2.0, 0.0, 2.0 * G_PI);
-    cairo_fill(cr);
-    return;
-  }
-
-  cairo_move_to(cr,
-                g_array_index(stroke->points, WaytatorPoint, 0).x,
-                g_array_index(stroke->points, WaytatorPoint, 0).y);
-
-  for (i = 1; i < len; i++) {
-    const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
-
-    cairo_line_to(cr, point->x, point->y);
-  }
-
-  cairo_stroke(cr);
-}
-
-static double
-waytator_distance_to_segment(double px,
-                             double py,
-                             double x0,
-                             double y0,
-                             double x1,
-                             double y1)
-{
-  const double dx = x1 - x0;
-  const double dy = y1 - y0;
-  const double length_squared = dx * dx + dy * dy;
-
-  if (length_squared <= 0.0001)
-    return hypot(px - x0, py - y0);
-
-  const double t = CLAMP(((px - x0) * dx + (py - y0) * dy) / length_squared, 0.0, 1.0);
-  const double closest_x = x0 + t * dx;
-  const double closest_y = y0 + t * dy;
-
-  return hypot(px - closest_x, py - closest_y);
-}
-
-static gboolean
-waytator_stroke_intersects_segment(WaytatorStroke *stroke,
-                                   double          x0,
-                                   double          y0,
-                                   double          x1,
-                                   double          y1,
-                                   double          radius)
-{
-  guint i;
-
-  if (waytator_tool_is_shape(stroke->tool) && stroke->points->len >= 2) {
-    const WaytatorPoint *start = &g_array_index(stroke->points, WaytatorPoint, 0);
-    const WaytatorPoint *end = &g_array_index(stroke->points, WaytatorPoint, stroke->points->len - 1);
-    const double left = MIN(start->x, end->x);
-    const double right = MAX(start->x, end->x);
-    const double top = MIN(start->y, end->y);
-    const double bottom = MAX(start->y, end->y);
-
-    switch (stroke->tool) {
-    case WAYTATOR_TOOL_LINE:
-    case WAYTATOR_TOOL_ARROW:
-    case WAYTATOR_TOOL_BLUR:
-      return waytator_distance_to_segment(start->x, start->y, x0, y0, x1, y1) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(end->x, end->y, x0, y0, x1, y1) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, start->x, start->y, end->x, end->y) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, start->x, start->y, end->x, end->y) <= radius + stroke->width / 2.0;
-    case WAYTATOR_TOOL_RECTANGLE:
-      return waytator_distance_to_segment(x0, y0, left, top, right, top) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, right, top, right, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, right, bottom, left, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, left, bottom, left, top) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, left, top, right, top) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, right, top, right, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, right, bottom, left, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, left, bottom, left, top) <= radius + stroke->width / 2.0;
-    case WAYTATOR_TOOL_CIRCLE: {
-      const double center_x = (start->x + end->x) / 2.0;
-      const double center_y = (start->y + end->y) / 2.0;
-      const double radius_x = MAX(fabs(end->x - start->x) / 2.0, 0.0001);
-      const double radius_y = MAX(fabs(end->y - start->y) / 2.0, 0.0001);
-      const WaytatorPoint candidates[] = {
-        { x0, y0 },
-        { x1, y1 },
-      };
-      guint j;
-
-      for (j = 0; j < G_N_ELEMENTS(candidates); j++) {
-        const double dx = (candidates[j].x - center_x) / radius_x;
-        const double dy = (candidates[j].y - center_y) / radius_y;
-        const double distance = fabs(hypot(dx, dy) - 1.0) * MIN(radius_x, radius_y);
-
-        if (distance <= radius + stroke->width / 2.0)
-          return TRUE;
-      }
-
-      return FALSE;
-    }
-    default:
-      break;
-    }
-  }
-
-  if (stroke->points->len == 0)
-    return FALSE;
-
-  for (i = 0; i < stroke->points->len; i++) {
-    const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
-
-    if (waytator_distance_to_segment(point->x, point->y, x0, y0, x1, y1) <= radius + stroke->width / 2.0)
-      return TRUE;
-  }
-
-  return FALSE;
-}
-
-static void
 waytator_window_erase_strokes(WaytatorWindow *self,
                               double          x0,
                               double          y0,
@@ -2220,16 +1055,17 @@ waytator_window_erase_strokes(WaytatorWindow *self,
                               double          y1)
 {
   const double radius = self->tool_widths[WAYTATOR_TOOL_ERASER] / 2.0;
+  GPtrArray *strokes = waytator_window_strokes(self);
   guint i;
 
-  if (self->strokes == NULL)
+  if (strokes == NULL)
     return;
 
-  for (i = self->strokes->len; i > 0; i--) {
-    WaytatorStroke *stroke = g_ptr_array_index(self->strokes, i - 1);
+  for (i = strokes->len; i > 0; i--) {
+    WaytatorStroke *stroke = g_ptr_array_index(strokes, i - 1);
 
     if (waytator_stroke_intersects_segment(stroke, x0, y0, x1, y1, radius))
-      g_ptr_array_remove_index(self->strokes, i - 1);
+      g_ptr_array_remove_index(strokes, i - 1);
   }
 
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
@@ -2244,12 +1080,10 @@ waytator_window_undo_clicked(GtkButton *button,
 
   (void) button;
 
-  if (g_queue_is_empty(self->undo_history))
+  if (!waytator_document_can_undo(self->document))
     return;
 
-  g_queue_push_tail(self->redo_history, waytator_stroke_array_copy(self->strokes));
-  waytator_window_trim_history(self->redo_history);
-  snapshot = g_queue_pop_tail(self->undo_history);
+  snapshot = waytator_document_undo(self->document);
   waytator_window_restore_strokes(self, snapshot);
 }
 
@@ -2262,12 +1096,10 @@ waytator_window_redo_clicked(GtkButton *button,
 
   (void) button;
 
-  if (g_queue_is_empty(self->redo_history))
+  if (!waytator_document_can_redo(self->document))
     return;
 
-  g_queue_push_tail(self->undo_history, waytator_stroke_array_copy(self->strokes));
-  waytator_window_trim_history(self->undo_history);
-  snapshot = g_queue_pop_tail(self->redo_history);
+  snapshot = waytator_document_redo(self->document);
   waytator_window_restore_strokes(self, snapshot);
 }
 
@@ -2311,11 +1143,12 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
   double display_y;
   double display_width;
   double display_height;
+  GPtrArray *strokes = waytator_window_strokes(self);
   guint i;
 
   (void) area;
 
-  if (self->strokes == NULL || width <= 0 || height <= 0 || image_width <= 0 || image_height <= 0)
+  if (strokes == NULL || width <= 0 || height <= 0 || image_width <= 0 || image_height <= 0)
     return;
 
   if (!waytator_window_get_display_rect(self,
@@ -2333,8 +1166,8 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
   cairo_translate(cr, display_x, display_y);
   cairo_scale(cr, display_width / image_width, display_height / image_height);
 
-  for (i = 0; i < self->strokes->len; i++)
-    waytator_window_render_stroke(cr, g_ptr_array_index(self->strokes, i), self->image_surface);
+  for (i = 0; i < strokes->len; i++)
+    waytator_stroke_render(cr, g_ptr_array_index(strokes, i), self->image_surface);
 
   cairo_restore(cr);
 
@@ -3134,13 +1967,16 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
   }
 
   waytator_window_record_undo_step(self);
-  self->current_stroke = waytator_stroke_new(self, self->active_tool);
+  self->current_stroke = waytator_stroke_new(self->active_tool,
+                                             self->tool_widths[self->active_tool],
+                                             &self->tool_colors[self->active_tool],
+                                             self->blur_type);
   waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
 
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
 
-  g_ptr_array_add(self->strokes, self->current_stroke);
+  g_ptr_array_add(waytator_window_strokes(self), self->current_stroke);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
 
@@ -3369,10 +2205,7 @@ waytator_window_dispose(GObject *object)
   if (self->save_feedback_timeout_id != 0)
     g_source_remove(self->save_feedback_timeout_id);
   waytator_window_clear_history(self);
-  g_clear_pointer(&self->strokes, g_ptr_array_unref);
-  g_clear_pointer(&self->saved_strokes, g_ptr_array_unref);
-  g_clear_pointer(&self->undo_history, g_queue_free);
-  g_clear_pointer(&self->redo_history, g_queue_free);
+  g_clear_pointer(&self->document, waytator_document_free);
 
   G_OBJECT_CLASS(waytator_window_parent_class)->dispose(object);
 }
@@ -3473,15 +2306,8 @@ waytator_window_pointer_motion(GtkEventControllerMotion *controller,
 }
 
 static void
-waytator_window_class_init(WaytatorWindowClass *klass)
+waytator_window_bind_template_children(GtkWidgetClass *widget_class)
 {
-  GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
-  GObjectClass *object_class = G_OBJECT_CLASS(klass);
-
-  object_class->dispose = waytator_window_dispose;
-
-  gtk_widget_class_set_template_from_resource(widget_class, "/dev/waytator/Waytator/ui/window.ui");
-
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_stack);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_scroller);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, empty_page);
@@ -3539,7 +2365,11 @@ waytator_window_class_init(WaytatorWindowClass *klass)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, width_scale);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, text_size_spin);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, blur_type_dropdown);
+}
 
+static void
+waytator_window_install_actions(GtkWidgetClass *widget_class)
+{
   gtk_widget_class_install_action(widget_class, "win.open", NULL, waytator_window_open_action);
   gtk_widget_class_install_action(widget_class, "win.open-current-file", NULL, waytator_window_open_current_file_action);
   gtk_widget_class_install_action(widget_class, "win.undo", NULL, waytator_window_undo_action);
@@ -3550,28 +2380,15 @@ waytator_window_class_init(WaytatorWindowClass *klass)
 }
 
 static void
-waytator_window_init(WaytatorWindow *self)
+waytator_window_init_state(WaytatorWindow *self)
 {
-  static gboolean css_loaded = FALSE;
-  static gboolean icons_registered = FALSE;
-  GtkEventController *scroll;
-  GtkGesture *drag;
-  GtkGesture *pan_drag;
-  GtkGesture *draw;
-  GtkGesture *zoom;
-  GtkEventController *motion;
-  GtkAdjustment *hadjustment;
-  GtkAdjustment *vadjustment;
   int i;
 
   self->zoom = 1.0;
   self->fit_mode = TRUE;
   self->active_tool = WAYTATOR_TOOL_BRUSH;
   self->drawing = FALSE;
-  self->strokes = g_ptr_array_new_with_free_func((GDestroyNotify) waytator_stroke_free);
-  self->saved_strokes = g_ptr_array_new_with_free_func((GDestroyNotify) waytator_stroke_free);
-  self->undo_history = g_queue_new();
-  self->redo_history = g_queue_new();
+  self->document = waytator_document_new();
   self->ocr_lines = NULL;
   self->selected_ocr_line = NULL;
   self->ocr_all_text = NULL;
@@ -3585,6 +2402,12 @@ waytator_window_init(WaytatorWindow *self)
   self->tool_colors[WAYTATOR_TOOL_MARKER] = (GdkRGBA){1.0, 0.91, 0.2, 1.0};
   self->tool_colors[WAYTATOR_TOOL_BLUR] = (GdkRGBA){0.0, 0.0, 0.0, 1.0};
   self->tool_colors[WAYTATOR_TOOL_ERASER] = (GdkRGBA){1.0, 1.0, 1.0, 1.0};
+}
+
+static void
+waytator_window_ensure_icons_registered(void)
+{
+  static gboolean icons_registered = FALSE;
 
   if (!icons_registered) {
     GtkIconTheme *icon_theme = gtk_icon_theme_get_for_display(gdk_display_get_default());
@@ -3592,8 +2415,12 @@ waytator_window_init(WaytatorWindow *self)
     gtk_icon_theme_add_resource_path(icon_theme, "/dev/waytator/Waytator/icons/hicolor");
     icons_registered = TRUE;
   }
+}
 
-  gtk_widget_init_template(GTK_WIDGET(self));
+static void
+waytator_window_ensure_css_loaded(void)
+{
+  static gboolean css_loaded = FALSE;
 
   if (!css_loaded) {
     GtkCssProvider *provider = gtk_css_provider_new();
@@ -3606,11 +2433,11 @@ waytator_window_init(WaytatorWindow *self)
 
     css_loaded = TRUE;
   }
+}
 
-  gtk_drawing_area_set_draw_func(self->drawing_area,
-                                 waytator_window_drawing_area_draw,
-                                 self,
-                                 NULL);
+static void
+waytator_window_setup_ocr_panel(WaytatorWindow *self)
+{
   gtk_text_view_set_monospace(self->ocr_selected_text_view, FALSE);
   gtk_text_view_set_monospace(self->ocr_all_text_view, FALSE);
   gtk_stack_page_set_name(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_selected_page)), "selected");
@@ -3618,6 +2445,17 @@ waytator_window_init(WaytatorWindow *self)
   gtk_stack_page_set_name(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_all_page)), "all");
   gtk_stack_page_set_title(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_all_page)), "All detected text");
   gtk_stack_set_visible_child_name(self->ocr_panel_stack, "all");
+}
+
+static void
+waytator_window_setup_controllers(WaytatorWindow *self)
+{
+  GtkEventController *scroll;
+  GtkGesture *drag;
+  GtkGesture *pan_drag;
+  GtkGesture *draw;
+  GtkGesture *zoom;
+  GtkEventController *motion;
 
   drag = gtk_gesture_drag_new();
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(drag), GDK_BUTTON_MIDDLE);
@@ -3653,119 +2491,83 @@ waytator_window_init(WaytatorWindow *self)
   scroll = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
   g_signal_connect(scroll, "scroll", G_CALLBACK(waytator_window_scroll_zoom), self);
   gtk_widget_add_controller(GTK_WIDGET(self->canvas_scroller), scroll);
+}
 
-  hadjustment = gtk_scrolled_window_get_hadjustment(self->canvas_scroller);
-  vadjustment = gtk_scrolled_window_get_vadjustment(self->canvas_scroller);
+static void
+waytator_window_connect_tool_toggle(WaytatorWindow  *self,
+                                    GtkToggleButton *button)
+{
+  g_signal_connect(button, "toggled", G_CALLBACK(waytator_window_tool_toggled), self);
+}
 
-  g_signal_connect(self->canvas_scroller,
-                   "notify::width",
-                   G_CALLBACK(waytator_window_canvas_size_changed),
-                   self);
-  g_signal_connect(self->canvas_scroller,
-                   "notify::height",
-                   G_CALLBACK(waytator_window_canvas_size_changed),
-                   self);
-  g_signal_connect(hadjustment,
-                   "notify::page-size",
-                   G_CALLBACK(waytator_window_viewport_changed),
-                   self);
-  g_signal_connect(vadjustment,
-                   "notify::page-size",
-                   G_CALLBACK(waytator_window_viewport_changed),
-                   self);
-  g_signal_connect(self->pan_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->brush_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->highlighter_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->eraser_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->rectangle_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->circle_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->line_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->arrow_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->ocr_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->text_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->blur_tool_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_tool_toggled),
-                   self);
-  g_signal_connect(self->save_overwrite_button,
-                   "clicked",
-                   G_CALLBACK(waytator_window_save_overwrite_clicked),
-                   self);
-  g_signal_connect(self->save_copy_button,
-                   "clicked",
-                   G_CALLBACK(waytator_window_save_copy_clicked),
-                   self);
-  g_signal_connect(self->copy_button,
-                   "clicked",
-                   G_CALLBACK(waytator_window_copy_clicked),
-                   self);
-  g_signal_connect(self->undo_button,
-                   "clicked",
-                   G_CALLBACK(waytator_window_undo_clicked),
-                   self);
-  g_signal_connect(self->redo_button,
-                   "clicked",
-                   G_CALLBACK(waytator_window_redo_clicked),
-                   self);
-  g_signal_connect(self->ocr_panel_toggle_button,
-                   "toggled",
-                   G_CALLBACK(waytator_window_ocr_panel_toggled),
-                   self);
-  g_signal_connect(self->ocr_panel_close_button,
-                   "clicked",
-                   G_CALLBACK(waytator_window_ocr_panel_close_clicked),
-                   self);
+static void
+waytator_window_setup_signals(WaytatorWindow *self)
+{
+  GtkAdjustment *hadjustment = gtk_scrolled_window_get_hadjustment(self->canvas_scroller);
+  GtkAdjustment *vadjustment = gtk_scrolled_window_get_vadjustment(self->canvas_scroller);
 
-  g_signal_connect(self->width_scale,
-                   "value-changed",
-                   G_CALLBACK(waytator_window_width_changed),
-                   self);
-  gtk_scale_set_format_value_func(self->width_scale,
-                                  waytator_window_format_width_value,
-                                  self,
-                                  NULL);
-  g_signal_connect(self->text_size_spin,
-                   "value-changed",
-                   G_CALLBACK(waytator_window_text_size_changed),
-                   self);
-  g_signal_connect(self->blur_type_dropdown,
-                   "notify::selected",
-                   G_CALLBACK(waytator_window_blur_type_changed),
-                   self);
-  g_signal_connect(self->color_button,
-                   "notify::rgba",
-                   G_CALLBACK(waytator_window_color_changed),
-                   self);
+  g_signal_connect(self->canvas_scroller, "notify::width", G_CALLBACK(waytator_window_canvas_size_changed), self);
+  g_signal_connect(self->canvas_scroller, "notify::height", G_CALLBACK(waytator_window_canvas_size_changed), self);
+  g_signal_connect(hadjustment, "notify::page-size", G_CALLBACK(waytator_window_viewport_changed), self);
+  g_signal_connect(vadjustment, "notify::page-size", G_CALLBACK(waytator_window_viewport_changed), self);
+
+  waytator_window_connect_tool_toggle(self, self->pan_tool_button);
+  waytator_window_connect_tool_toggle(self, self->brush_tool_button);
+  waytator_window_connect_tool_toggle(self, self->highlighter_tool_button);
+  waytator_window_connect_tool_toggle(self, self->eraser_tool_button);
+  waytator_window_connect_tool_toggle(self, self->rectangle_tool_button);
+  waytator_window_connect_tool_toggle(self, self->circle_tool_button);
+  waytator_window_connect_tool_toggle(self, self->line_tool_button);
+  waytator_window_connect_tool_toggle(self, self->arrow_tool_button);
+  waytator_window_connect_tool_toggle(self, self->ocr_tool_button);
+  waytator_window_connect_tool_toggle(self, self->text_tool_button);
+  waytator_window_connect_tool_toggle(self, self->blur_tool_button);
+
+  g_signal_connect(self->save_overwrite_button, "clicked", G_CALLBACK(waytator_window_save_overwrite_clicked), self);
+  g_signal_connect(self->save_copy_button, "clicked", G_CALLBACK(waytator_window_save_copy_clicked), self);
+  g_signal_connect(self->copy_button, "clicked", G_CALLBACK(waytator_window_copy_clicked), self);
+  g_signal_connect(self->undo_button, "clicked", G_CALLBACK(waytator_window_undo_clicked), self);
+  g_signal_connect(self->redo_button, "clicked", G_CALLBACK(waytator_window_redo_clicked), self);
+  g_signal_connect(self->ocr_panel_toggle_button, "toggled", G_CALLBACK(waytator_window_ocr_panel_toggled), self);
+  g_signal_connect(self->ocr_panel_close_button, "clicked", G_CALLBACK(waytator_window_ocr_panel_close_clicked), self);
+
+  g_signal_connect(self->width_scale, "value-changed", G_CALLBACK(waytator_window_width_changed), self);
+  gtk_scale_set_format_value_func(self->width_scale, waytator_window_format_width_value, self, NULL);
+  g_signal_connect(self->text_size_spin, "value-changed", G_CALLBACK(waytator_window_text_size_changed), self);
+  g_signal_connect(self->blur_type_dropdown, "notify::selected", G_CALLBACK(waytator_window_blur_type_changed), self);
+  g_signal_connect(self->color_button, "notify::rgba", G_CALLBACK(waytator_window_color_changed), self);
+}
+
+static void
+waytator_window_class_init(WaytatorWindowClass *klass)
+{
+  GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
+  GObjectClass *object_class = G_OBJECT_CLASS(klass);
+
+  object_class->dispose = waytator_window_dispose;
+
+  gtk_widget_class_set_template_from_resource(widget_class, "/dev/waytator/Waytator/ui/window.ui");
+
+  waytator_window_bind_template_children(widget_class);
+  waytator_window_install_actions(widget_class);
+}
+
+static void
+waytator_window_init(WaytatorWindow *self)
+{
+  waytator_window_init_state(self);
+  waytator_window_ensure_icons_registered();
+
+  gtk_widget_init_template(GTK_WIDGET(self));
+  waytator_window_ensure_css_loaded();
+
+  gtk_drawing_area_set_draw_func(self->drawing_area,
+                                 waytator_window_drawing_area_draw,
+                                 self,
+                                 NULL);
+  waytator_window_setup_ocr_panel(self);
+  waytator_window_setup_controllers(self);
+  waytator_window_setup_signals(self);
 
   waytator_window_update_tool_ui(self);
   waytator_window_sync_state(self);

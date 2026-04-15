@@ -1,5 +1,14 @@
 waytator_sources = files(
   'main.c',
+  'waytator-document.c',
+  'waytator-document.h',
+  'waytator-export.c',
+  'waytator-export.h',
+  'waytator-ocr.c',
+  'waytator-ocr.h',
+  'waytator-stroke.c',
+  'waytator-stroke.h',
+  'waytator-types.h',
   'waytator-window.c',
   'waytator-window.h',
 )
