@@ -1,5 +1,5 @@
 window {
-  background: alpha(black, 0.80);
+  background: alpha(@window_bg_color, 0.8);
 }
 
 .canvas-scroller,
