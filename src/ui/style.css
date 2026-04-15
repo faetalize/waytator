@@ -5,8 +5,17 @@ window {
 
 .canvas-scroller,
 .canvas-scroller > viewport {
-  background: alpha(black, 0.55);
-  backdrop-filter: blur(18px);
+  background: transparent;
+  background-color: transparent;
+  backdrop-filter: none;
+}
+
+.canvas-surface,
+.canvas-surface > picture,
+.canvas-surface > drawingarea,
+.canvas-surface > fixed {
+  background: transparent;
+  background-color: transparent;
 }
 
 .canvas-empty {
