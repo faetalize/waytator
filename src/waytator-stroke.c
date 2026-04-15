@@ -392,6 +392,107 @@ waytator_distance_to_segment(double px,
   return hypot(px - closest_x, py - closest_y);
 }
 
+static gboolean
+waytator_segment_intersects_rect(double x0,
+                                 double y0,
+                                 double x1,
+                                 double y1,
+                                 double left,
+                                 double top,
+                                 double right,
+                                 double bottom)
+{
+  double t0 = 0.0;
+  double t1 = 1.0;
+  const double dx = x1 - x0;
+  const double dy = y1 - y0;
+
+  if ((x0 >= left && x0 <= right && y0 >= top && y0 <= bottom)
+      || (x1 >= left && x1 <= right && y1 >= top && y1 <= bottom))
+    return TRUE;
+
+  if (fabs(dx) < 0.0001) {
+    if (x0 < left || x0 > right)
+      return FALSE;
+  } else {
+    double tx_min = (left - x0) / dx;
+    double tx_max = (right - x0) / dx;
+
+    if (tx_min > tx_max) {
+      const double swap = tx_min;
+
+      tx_min = tx_max;
+      tx_max = swap;
+    }
+
+    t0 = MAX(t0, tx_min);
+    t1 = MIN(t1, tx_max);
+    if (t0 > t1)
+      return FALSE;
+  }
+
+  if (fabs(dy) < 0.0001) {
+    if (y0 < top || y0 > bottom)
+      return FALSE;
+  } else {
+    double ty_min = (top - y0) / dy;
+    double ty_max = (bottom - y0) / dy;
+
+    if (ty_min > ty_max) {
+      const double swap = ty_min;
+
+      ty_min = ty_max;
+      ty_max = swap;
+    }
+
+    t0 = MAX(t0, ty_min);
+    t1 = MIN(t1, ty_max);
+    if (t0 > t1)
+      return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+waytator_text_intersects_segment(WaytatorStroke *stroke,
+                                 double          x0,
+                                 double          y0,
+                                 double          x1,
+                                 double          y1,
+                                 double          radius)
+{
+  cairo_surface_t *surface;
+  cairo_t *cr;
+  cairo_text_extents_t extents;
+  const WaytatorPoint *point;
+  double left;
+  double top;
+  double right;
+  double bottom;
+
+  if (stroke->points->len == 0 || stroke->text == NULL || stroke->text[0] == '\0')
+    return FALSE;
+
+  point = &g_array_index(stroke->points, WaytatorPoint, 0);
+  surface = cairo_image_surface_create(CAIRO_FORMAT_A8, 1, 1);
+  cr = cairo_create(surface);
+
+  cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+  cairo_set_font_size(cr, stroke->width);
+  cairo_text_extents(cr, stroke->text, &extents);
+
+  cairo_destroy(cr);
+  cairo_surface_destroy(surface);
+
+  left = point->x + extents.x_bearing - radius;
+  top = point->y + extents.y_bearing - radius;
+  right = left + extents.width + radius * 2.0;
+  bottom = top + extents.height + radius * 2.0;
+
+  return waytator_segment_intersects_rect(x0, y0, x1, y1, left, top, right, bottom);
+}
+
 gboolean
 waytator_stroke_intersects_segment(WaytatorStroke *stroke,
                                    double          x0,
@@ -401,6 +502,9 @@ waytator_stroke_intersects_segment(WaytatorStroke *stroke,
                                    double          radius)
 {
   guint i;
+
+  if (stroke->tool == WAYTATOR_TOOL_TEXT)
+    return waytator_text_intersects_segment(stroke, x0, y0, x1, y1, radius);
 
   if (waytator_tool_is_shape(stroke->tool) && stroke->points->len >= 2) {
     const WaytatorPoint *start = &g_array_index(stroke->points, WaytatorPoint, 0);
