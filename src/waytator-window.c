@@ -649,7 +649,7 @@ static void
 waytator_window_restore_strokes(WaytatorWindow *self,
                                 GPtrArray      *strokes)
 {
-  waytator_document_set_strokes(self->document, strokes);
+  (void) strokes;
   self->current_stroke = NULL;
   self->drawing = FALSE;
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
@@ -2196,6 +2196,10 @@ waytator_window_dispose(GObject *object)
   g_clear_object(&self->current_file);
   g_clear_pointer(&self->source_name, g_free);
   g_clear_object(&self->texture);
+  if (self->image_surface != NULL) {
+    cairo_surface_destroy(self->image_surface);
+    self->image_surface = NULL;
+  }
   waytator_window_clear_ocr_results(self);
   waytator_window_clear_annotations(self);
   if (self->copy_feedback_timeout_id != 0)
