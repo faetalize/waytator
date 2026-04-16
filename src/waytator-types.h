@@ -23,6 +23,13 @@ typedef enum {
   WAYTATOR_ERASER_STYLE_PATTERN,
 } WaytatorEraserStyle;
 
+//this is so annoying
+typedef enum {
+  WAYTATOR_WINDOW_BACKGROUND_FOLLOW_SYSTEM,
+  WAYTATOR_WINDOW_BACKGROUND_OPAQUE,
+  WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT,
+} WaytatorWindowBackgroundMode;
+
 typedef struct {
   double x;
   double y;

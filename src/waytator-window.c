@@ -12,6 +12,7 @@ G_DEFINE_FINAL_TYPE(WaytatorWindow, waytator_window, ADW_TYPE_APPLICATION_WINDOW
 
 #define WAYTATOR_SETTINGS_GROUP "preferences"
 #define WAYTATOR_SETTINGS_FILE "waytator/settings.ini"
+#define WAYTATOR_WINDOW_STYLE_PROVIDER_PRIORITY (GTK_STYLE_PROVIDER_PRIORITY_USER + 1)
 
 static void waytator_window_clear_ocr_results(WaytatorWindow *self);
 static void waytator_window_set_ocr_panel_visible(WaytatorWindow *self,
@@ -23,6 +24,21 @@ static gboolean waytator_window_has_unsaved_changes(WaytatorWindow *self);
 static void waytator_window_update_window_controls(WaytatorWindow *self);
 static void waytator_window_update_window_background(WaytatorWindow *self);
 static void waytator_window_save_preferences(WaytatorWindow *self);
+
+static const char *
+waytator_window_background_mode_label(WaytatorWindowBackgroundMode mode)
+{
+  switch (mode) {
+  case WAYTATOR_WINDOW_BACKGROUND_FOLLOW_SYSTEM:
+    return "Follow system theme";
+  case WAYTATOR_WINDOW_BACKGROUND_OPAQUE:
+    return "Opaque";
+  case WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT:
+    return "Transparent";
+  default:
+    return "Follow system theme";
+  }
+}
 
 static char *
 waytator_window_preferences_path(void)
@@ -54,11 +70,26 @@ waytator_window_load_preferences(WaytatorWindow *self)
       self->eraser_style = eraser_style;
   }
 
-  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "window_transparency_enabled", NULL))
-    self->window_transparency_enabled = g_key_file_get_boolean(key_file,
-                                                               WAYTATOR_SETTINGS_GROUP,
-                                                               "window_transparency_enabled",
-                                                               NULL);
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "window_background_mode", NULL)) {
+    const int mode = g_key_file_get_integer(key_file,
+                                            WAYTATOR_SETTINGS_GROUP,
+                                            "window_background_mode",
+                                            NULL);
+
+    if (mode >= WAYTATOR_WINDOW_BACKGROUND_FOLLOW_SYSTEM
+        && mode <= WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT)
+      self->window_background_mode = mode;
+  } else if (g_key_file_has_key(key_file,
+                                WAYTATOR_SETTINGS_GROUP,
+                                "window_transparency_enabled",
+                                NULL)) {
+    self->window_background_mode = g_key_file_get_boolean(key_file,
+                                                          WAYTATOR_SETTINGS_GROUP,
+                                                          "window_transparency_enabled",
+                                                          NULL)
+                                 ? WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT
+                                 : WAYTATOR_WINDOW_BACKGROUND_OPAQUE;
+  }
 
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "window_background_opacity", NULL)) {
     const double opacity = g_key_file_get_double(key_file,
@@ -85,10 +116,10 @@ waytator_window_save_preferences(WaytatorWindow *self)
                          WAYTATOR_SETTINGS_GROUP,
                          "eraser_style",
                          self->eraser_style);
-  g_key_file_set_boolean(key_file,
+  g_key_file_set_integer(key_file,
                          WAYTATOR_SETTINGS_GROUP,
-                         "window_transparency_enabled",
-                         self->window_transparency_enabled);
+                         "window_background_mode",
+                         self->window_background_mode);
   g_key_file_set_double(key_file,
                         WAYTATOR_SETTINGS_GROUP,
                         "window_background_opacity",
@@ -160,19 +191,19 @@ waytator_window_update_window_controls(WaytatorWindow *self)
 }
 
 static void
-waytator_window_transparency_switch_changed(GObject         *object,
-                                            GParamSpec      *pspec,
-                                            WaytatorWindow  *self)
+waytator_window_background_mode_changed(AdwComboRow    *row,
+                                        GParamSpec     *pspec,
+                                        WaytatorWindow *self)
 {
-  GtkSwitch *toggle = GTK_SWITCH(object);
   GtkWidget *opacity_row;
 
   (void) pspec;
 
-  self->window_transparency_enabled = gtk_switch_get_active(toggle);
-  opacity_row = g_object_get_data(G_OBJECT(toggle), "opacity-row");
+  self->window_background_mode = adw_combo_row_get_selected(row);
+  opacity_row = g_object_get_data(G_OBJECT(row), "opacity-row");
   if (opacity_row != NULL)
-    gtk_widget_set_sensitive(opacity_row, self->window_transparency_enabled);
+    gtk_widget_set_sensitive(opacity_row,
+                             self->window_background_mode == WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT);
   waytator_window_save_preferences(self);
   waytator_window_update_window_background(self);
 }
@@ -194,12 +225,19 @@ waytator_window_update_window_background(WaytatorWindow *self)
   if (self->window_css_provider == NULL)
     return;
 
-  if (!self->window_transparency_enabled) {
+  if (self->window_background_mode == WAYTATOR_WINDOW_BACKGROUND_FOLLOW_SYSTEM) {
     gtk_css_provider_load_from_string(self->window_css_provider, "");
     return;
   }
 
-  css = g_strdup_printf("window.waytator-window { background: alpha(black, %.1f); background: alpha(@window_bg_color, %.1f); }",
+  //dont u just love how gtk css requires repeating the same properties for some reason
+  if (self->window_background_mode == WAYTATOR_WINDOW_BACKGROUND_OPAQUE) {
+    gtk_css_provider_load_from_string(self->window_css_provider,
+                                      "window.waytator-window { background: @window_bg_color; background-color: @window_bg_color; }");
+    return;
+  }
+
+  css = g_strdup_printf("window.waytator-window { background: alpha(@window_bg_color, %.1f); background-color: alpha(@window_bg_color, %.1f); }",
                         self->window_background_opacity,
                         self->window_background_opacity);
   gtk_css_provider_load_from_string(self->window_css_provider, css);
@@ -213,11 +251,11 @@ waytator_window_show_preferences(WaytatorWindow *self)
   AdwPreferencesGroup *group;
   AdwPreferencesGroup *window_group;
   AdwComboRow *row;
-  AdwActionRow *transparency_row;
+  AdwComboRow *background_mode_row;
   AdwActionRow *opacity_row;
   GtkStringList *model;
+  GtkStringList *background_model;
   GtkAdjustment *opacity_adjustment;
-  GtkSwitch *transparency_switch;
   GtkSpinButton *opacity_spin_button;
 
   dialog = ADW_PREFERENCES_DIALOG(adw_preferences_dialog_new());
@@ -225,15 +263,21 @@ waytator_window_show_preferences(WaytatorWindow *self)
   group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
   window_group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
   row = ADW_COMBO_ROW(adw_combo_row_new());
-  transparency_row = ADW_ACTION_ROW(adw_action_row_new());
+  background_mode_row = ADW_COMBO_ROW(adw_combo_row_new());
   opacity_row = ADW_ACTION_ROW(adw_action_row_new());
-  transparency_switch = GTK_SWITCH(gtk_switch_new());
   opacity_adjustment = gtk_adjustment_new(self->window_background_opacity, 0.1, 1.0, 0.1, 0.1, 0.0);
   opacity_spin_button = GTK_SPIN_BUTTON(gtk_spin_button_new(opacity_adjustment, 0.1, 1));
   model = gtk_string_list_new((const char *[]) {
     waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_DUAL_RING),
     waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_DASHED_RING),
     waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_PATTERN),
+    NULL,
+  });
+  //yes this is really how you have to do dropdowns in gtk
+  background_model = gtk_string_list_new((const char *[]) {
+    waytator_window_background_mode_label(WAYTATOR_WINDOW_BACKGROUND_FOLLOW_SYSTEM),
+    waytator_window_background_mode_label(WAYTATOR_WINDOW_BACKGROUND_OPAQUE),
+    waytator_window_background_mode_label(WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT),
     NULL,
   });
 
@@ -243,24 +287,21 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Eraser Styling");
   adw_combo_row_set_model(row, G_LIST_MODEL(model));
   adw_combo_row_set_selected(row, self->eraser_style);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(transparency_row), "Transparent background");
-  adw_action_row_set_subtitle(transparency_row, "Use a translucent window background when supported by the compositor.");
-  gtk_switch_set_active(transparency_switch, self->window_transparency_enabled);
-  gtk_widget_set_valign(GTK_WIDGET(transparency_switch), GTK_ALIGN_CENTER);
-  adw_action_row_add_suffix(transparency_row, GTK_WIDGET(transparency_switch));
-  adw_action_row_set_activatable_widget(transparency_row, GTK_WIDGET(transparency_switch));
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(background_mode_row), "Window background");
+  adw_combo_row_set_model(background_mode_row, G_LIST_MODEL(background_model));
+  adw_combo_row_set_selected(background_mode_row, self->window_background_mode);
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(opacity_row), "Opacity");
-  adw_action_row_set_subtitle(opacity_row, "Lower values show more of the background.");
   gtk_spin_button_set_numeric(opacity_spin_button, TRUE);
   gtk_widget_set_valign(GTK_WIDGET(opacity_spin_button), GTK_ALIGN_CENTER);
   gtk_widget_set_size_request(GTK_WIDGET(opacity_spin_button), 88, -1);
   adw_action_row_add_suffix(opacity_row, GTK_WIDGET(opacity_spin_button));
   adw_action_row_set_activatable_widget(opacity_row, GTK_WIDGET(opacity_spin_button));
-  gtk_widget_set_sensitive(GTK_WIDGET(opacity_row), self->window_transparency_enabled);
-  g_object_set_data(G_OBJECT(transparency_switch), "opacity-row", opacity_row);
+  gtk_widget_set_sensitive(GTK_WIDGET(opacity_row),
+                           self->window_background_mode == WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT);
+  g_object_set_data(G_OBJECT(background_mode_row), "opacity-row", opacity_row);
 
   adw_preferences_group_add(group, GTK_WIDGET(row));
-  adw_preferences_group_add(window_group, GTK_WIDGET(transparency_row));
+  adw_preferences_group_add(window_group, GTK_WIDGET(background_mode_row));
   adw_preferences_group_add(window_group, GTK_WIDGET(opacity_row));
   adw_preferences_page_add(page, group);
   adw_preferences_page_add(page, window_group);
@@ -270,9 +311,9 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_dialog_set_content_width(ADW_DIALOG(dialog), 420);
 
   g_signal_connect(row, "notify::selected", G_CALLBACK(waytator_window_eraser_style_changed), self);
-  g_signal_connect(transparency_switch,
-                   "notify::active",
-                   G_CALLBACK(waytator_window_transparency_switch_changed),
+  g_signal_connect(background_mode_row,
+                   "notify::selected",
+                   G_CALLBACK(waytator_window_background_mode_changed),
                    self);
   g_signal_connect(opacity_spin_button,
                    "value-changed",
@@ -281,6 +322,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
 
   adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(self));
   g_object_unref(model);
+  g_object_unref(background_model); //
 }
 
 static void
@@ -1407,7 +1449,7 @@ waytator_window_init_state(WaytatorWindow *self)
   self->pinch_start_zoom = 1.0;
   self->pointer_in = FALSE;
   self->eraser_style = WAYTATOR_ERASER_STYLE_DUAL_RING;
-  self->window_transparency_enabled = FALSE;
+  self->window_background_mode = WAYTATOR_WINDOW_BACKGROUND_OPAQUE;
   self->window_background_opacity = 0.8;
   waytator_window_load_preferences(self);
 
@@ -1427,7 +1469,7 @@ waytator_window_setup_window_background(WaytatorWindow *self)
   gtk_widget_add_css_class(GTK_WIDGET(self), "waytator-window");
   gtk_style_context_add_provider_for_display(gdk_display_get_default(),
                                              GTK_STYLE_PROVIDER(self->window_css_provider),
-                                             GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+                                             WAYTATOR_WINDOW_STYLE_PROVIDER_PRIORITY); 
   waytator_window_update_window_background(self);
 }
 

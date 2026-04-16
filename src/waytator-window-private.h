@@ -102,7 +102,7 @@ struct _WaytatorWindow {
   double pointer_widget_x;
   double pointer_widget_y;
   gboolean pointer_in;
-  gboolean window_transparency_enabled;
+  WaytatorWindowBackgroundMode window_background_mode;
   gboolean updating_ui;
   double window_background_opacity;
   double tool_widths[WAYTATOR_TOOL_BLUR + 1];
