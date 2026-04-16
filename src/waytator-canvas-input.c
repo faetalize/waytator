@@ -89,7 +89,6 @@ waytator_window_drag_begin(GtkGestureDrag *gesture,
   GtkAdjustment *hadjustment;
   GtkAdjustment *vadjustment;
 
-  (void) gesture;
   (void) start_x;
   (void) start_y;
 
@@ -98,6 +97,8 @@ waytator_window_drag_begin(GtkGestureDrag *gesture,
 
   if (gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture)) != GDK_BUTTON_MIDDLE)
     return;
+
+  gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
 
   hadjustment = gtk_scrolled_window_get_hadjustment(self->canvas_scroller);
   vadjustment = gtk_scrolled_window_get_vadjustment(self->canvas_scroller);
@@ -160,12 +161,13 @@ waytator_window_pan_begin(GtkGestureDrag *gesture,
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
 
-  (void) gesture;
   (void) start_x;
   (void) start_y;
 
   if (self->texture == NULL || self->active_tool != WAYTATOR_TOOL_PAN)
     return;
+
+  gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
 
   self->drawing = TRUE;
   waytator_window_begin_pan(self);
@@ -225,13 +227,13 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
 
-  (void) gesture;
-
   if (self->texture == NULL)
     return;
 
   if (waytator_tool_is_non_drawing(self->active_tool))
     return;
+
+  gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
 
   if (!waytator_window_get_image_point(self,
                                        start_x,
