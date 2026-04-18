@@ -14,7 +14,7 @@ struct _WaytatorWindow {
   GtkPicture *picture;
   GtkDrawingArea *drawing_area;
   GtkFixed *ocr_overlay;
-  GtkRevealer *ocr_panel_revealer;
+  AdwBottomSheet *ocr_panel_bottom_sheet;
   GtkWidget *ocr_panel;
   GtkWidget *ocr_panel_toggle_container;
   GtkToggleButton *ocr_panel_toggle_button;
@@ -57,9 +57,6 @@ struct _WaytatorWindow {
   GtkImage *save_default_icon;
   GtkImage *save_working_icon;
   GtkImage *save_success_icon;
-  GtkPopover *save_popover;
-  GtkButton *save_overwrite_button;
-  GtkButton *save_copy_button;
   GtkButton *copy_button;
   GtkMenuButton *app_menu_button;
   GtkWindowControls *end_window_controls;
@@ -74,6 +71,7 @@ struct _WaytatorWindow {
   GtkSpinButton *text_size_spin;
   GtkDropDown *blur_type_dropdown;
   GtkCssProvider *window_css_provider;
+  GtkCssProvider *widget_css_provider;
 
   GFile *current_file;
   char *source_name;
@@ -104,7 +102,9 @@ struct _WaytatorWindow {
   gboolean pointer_in;
   WaytatorWindowBackgroundMode window_background_mode;
   gboolean updating_ui;
+  gboolean floating_controls_blur;
   double window_background_opacity;
+  double floating_controls_opacity;
   double tool_widths[WAYTATOR_TOOL_BLUR + 1];
   GdkRGBA tool_colors[WAYTATOR_TOOL_BLUR + 1];
   int blur_type;

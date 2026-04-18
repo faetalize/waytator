@@ -13,7 +13,7 @@ project(
 gnome = import('gnome')
 
 gtk_dep = dependency('gtk4', version: '>=4.10')
-adw_dep = dependency('libadwaita-1', version: '>=1.5')
+adw_dep = dependency('libadwaita-1', version: '>=1.6')
 cc = meson.get_compiler('c')
 m_dep = cc.find_library('m', required: false)
 

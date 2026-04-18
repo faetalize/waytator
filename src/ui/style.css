@@ -18,12 +18,6 @@
 }
 
 .overlay-pill {
-  color: white;
-  background: alpha(black, 0.55);
-  border: 1px solid alpha(white, 0.12);
-  border-radius: 14px;
-  backdrop-filter: blur(18px);
-  box-shadow: 0 10px 32px alpha(black, 0.18);
 }
 
 @keyframes icon-spin {
