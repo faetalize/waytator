@@ -241,12 +241,8 @@ waytator_window_apply_zoom_mode(WaytatorWindow *self)
     GtkAdjustment *hadjustment = gtk_scrolled_window_get_hadjustment(self->canvas_scroller);
     GtkAdjustment *vadjustment = gtk_scrolled_window_get_vadjustment(self->canvas_scroller);
 
-    gtk_picture_set_can_shrink(self->picture, TRUE);
-    gtk_widget_set_size_request(self->canvas_surface, -1, -1);
     waytator_window_set_adjustment_clamped(hadjustment, 0.0);
     waytator_window_set_adjustment_clamped(vadjustment, 0.0);
-    waytator_window_update_ocr_overlay(self);
-    return;
   }
 
   gtk_picture_set_can_shrink(self->picture, TRUE);
@@ -258,12 +254,6 @@ void
 waytator_window_update_picture_size(WaytatorWindow *self)
 {
   if (self->texture == NULL) {
-    gtk_widget_set_size_request(self->canvas_surface, -1, -1);
-    waytator_window_update_ocr_overlay(self);
-    return;
-  }
-
-  if (self->fit_mode) {
     gtk_widget_set_size_request(self->canvas_surface, -1, -1);
     waytator_window_update_ocr_overlay(self);
     return;
@@ -296,13 +286,8 @@ waytator_window_set_zoom_at(WaytatorWindow *self,
 
   zoom = CLAMP(zoom, WAYTATOR_MIN_ZOOM, WAYTATOR_MAX_ZOOM);
 
-  if (zoom <= fit_zoom + 0.0001) {
-    self->fit_mode = TRUE;
-    self->zoom = fit_zoom;
-    waytator_window_apply_zoom_mode(self);
-    waytator_window_update_zoom_label(self);
+  if (self->fit_mode && fabs(zoom - fit_zoom) < 0.0001)
     return;
-  }
 
   if (!self->fit_mode && fabs(zoom - self->zoom) < 0.0001)
     return;

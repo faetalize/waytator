@@ -111,12 +111,22 @@
                         </style>
 
                         <property name="child">
+                          <object class="GtkBox" id="canvas_background">
+                            <property name="hexpand">True</property>
+                            <property name="vexpand">True</property>
+                          </object>
+                        </property>
+
+                        <child type="overlay">
                           <object class="GtkPicture" id="picture">
                             <property name="can-shrink">True</property>
                             <property name="keep-aspect-ratio">True</property>
                             <property name="focusable">True</property>
+                            <layout>
+                              <property name="measure">False</property>
+                            </layout>
                           </object>
-                        </property>
+                        </child>
 
                         <child type="overlay">
                           <object class="GtkDrawingArea" id="drawing_area">
@@ -124,6 +134,9 @@
                             <property name="vexpand">True</property>
                             <property name="can-focus">True</property>
                             <property name="focusable">True</property>
+                            <layout>
+                              <property name="measure">False</property>
+                            </layout>
                           </object>
                         </child>
 
@@ -134,6 +147,9 @@
                             <property name="visible">False</property>
                             <property name="can-focus">False</property>
                             <property name="focusable">False</property>
+                            <layout>
+                              <property name="measure">False</property>
+                            </layout>
                           </object>
                         </child>
                       </object>
