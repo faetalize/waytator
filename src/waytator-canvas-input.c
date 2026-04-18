@@ -4,6 +4,65 @@
 
 #include <math.h>
 
+static gboolean
+waytator_window_parse_shortcut_match(const char      *accelerator,
+                                     guint            keyval,
+                                     GdkModifierType  state)
+{
+  guint accelerator_keyval = 0;
+  GdkModifierType accelerator_modifiers = 0;
+
+  if (accelerator == NULL || *accelerator == '\0')
+    return FALSE;
+
+  gtk_accelerator_parse(accelerator, &accelerator_keyval, &accelerator_modifiers);
+  if (accelerator_keyval == 0)
+    return FALSE;
+
+  return gdk_keyval_to_lower(accelerator_keyval) == gdk_keyval_to_lower(keyval)
+      && (accelerator_modifiers & gtk_accelerator_get_default_mod_mask())
+      == (state & gtk_accelerator_get_default_mod_mask());
+}
+
+static gboolean
+waytator_window_global_key_pressed(GtkEventControllerKey *controller,
+                                   guint                  keyval,
+                                   guint                  keycode,
+                                   GdkModifierType        state,
+                                   gpointer               user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  GtkWidget *focus;
+
+  (void) controller;
+  (void) keycode;
+
+  focus = gtk_root_get_focus(GTK_ROOT(self));
+  if (focus != NULL && GTK_IS_EDITABLE(focus))
+    return FALSE;
+
+  if (keyval == GDK_KEY_Escape
+      && (state & gtk_accelerator_get_default_mod_mask()) == 0) {
+    if (adw_bottom_sheet_get_open(self->ocr_panel_bottom_sheet)) {
+      gtk_widget_activate_action(GTK_WIDGET(self), "win.dismiss", NULL);
+      return TRUE;
+    }
+
+    if (self->esc_closes_window) {
+      gtk_widget_activate_action(GTK_WIDGET(self), "win.close-window", NULL);
+      return TRUE;
+    }
+  }
+
+  if (self->copy_shortcut_enabled
+      && waytator_window_parse_shortcut_match(self->copy_shortcut_accel, keyval, state)) {
+    gtk_widget_activate_action(GTK_WIDGET(self), "win.copy-buffer", NULL);
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
 #define WAYTATOR_ZOOM_STEP 1.15
 
 static void
@@ -214,6 +273,7 @@ waytator_window_text_entry_activated(GtkEntry       *entry,
   if (text != NULL && *text != '\0' && self->current_stroke != NULL) {
     self->current_stroke->text = g_strdup(text);
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+    waytator_window_maybe_auto_copy_latest_change(self);
   }
 
   gtk_popover_popdown(GTK_POPOVER(gtk_widget_get_ancestor(GTK_WIDGET(entry), GTK_TYPE_POPOVER)));
@@ -339,8 +399,10 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
   if (waytator_tool_is_non_drawing(self->active_tool))
     goto done;
 
-  if (self->active_tool == WAYTATOR_TOOL_ERASER)
+  if (self->active_tool == WAYTATOR_TOOL_ERASER) {
+    waytator_window_maybe_auto_copy_latest_change(self);
     goto done;
+  }
 
   if (!gtk_gesture_drag_get_start_point(gesture, &start_x, &start_y))
     goto done;
@@ -397,6 +459,8 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
   }
 
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+  if (self->active_tool != WAYTATOR_TOOL_TEXT)
+    waytator_window_maybe_auto_copy_latest_change(self);
 
 done:
   self->current_stroke = (self->active_tool == WAYTATOR_TOOL_TEXT) ? self->current_stroke : NULL;
@@ -529,6 +593,7 @@ void
 waytator_window_setup_controllers(WaytatorWindow *self)
 {
   GtkEventController *scroll;
+  GtkEventController *keys;
   GtkGesture *drag;
   GtkGesture *pan_drag;
   GtkGesture *draw;
@@ -569,4 +634,8 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   scroll = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
   g_signal_connect(scroll, "scroll", G_CALLBACK(waytator_window_scroll_zoom), self);
   gtk_widget_add_controller(GTK_WIDGET(self->canvas_scroller), scroll);
+
+  keys = gtk_event_controller_key_new();
+  g_signal_connect(keys, "key-pressed", G_CALLBACK(waytator_window_global_key_pressed), self);
+  gtk_widget_add_controller(GTK_WIDGET(self), keys);
 }

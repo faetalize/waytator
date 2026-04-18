@@ -213,6 +213,7 @@ waytator_window_restore_strokes(WaytatorWindow *self,
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   waytator_window_reset_save_button(self);
   waytator_window_update_history_buttons(self);
+  waytator_window_maybe_auto_copy_latest_change(self);
 }
 
 void

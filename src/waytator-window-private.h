@@ -72,6 +72,7 @@ struct _WaytatorWindow {
   GtkDropDown *blur_type_dropdown;
   GtkCssProvider *window_css_provider;
   GtkCssProvider *widget_css_provider;
+  char *copy_shortcut_accel;
 
   GFile *current_file;
   char *source_name;
@@ -87,6 +88,8 @@ struct _WaytatorWindow {
   guint save_spinner_timeout_id;
   guint save_feedback_timeout_id;
   gint64 save_feedback_started_at;
+  gboolean copy_in_progress;
+  gboolean auto_copy_pending;
   guint ocr_generation;
   gboolean ocr_running;
   double last_draw_x;
@@ -102,7 +105,10 @@ struct _WaytatorWindow {
   gboolean pointer_in;
   WaytatorWindowBackgroundMode window_background_mode;
   gboolean updating_ui;
+  gboolean esc_closes_window;
+  gboolean copy_shortcut_enabled;
   gboolean floating_controls_blur;
+  gboolean auto_copy_latest_change;
   double window_background_opacity;
   double floating_controls_opacity;
   double tool_widths[WAYTATOR_TOOL_BLUR + 1];
@@ -122,6 +128,8 @@ void waytator_window_reset_save_button(WaytatorWindow *self);
 void waytator_window_update_history_buttons(WaytatorWindow *self);
 void waytator_window_clear_history(WaytatorWindow *self);
 void waytator_window_record_undo_step(WaytatorWindow *self);
+void waytator_window_maybe_auto_copy_latest_change(WaytatorWindow *self);
+void waytator_window_trigger_copy(WaytatorWindow *self);
 void waytator_window_restore_strokes(WaytatorWindow *self,
                                      GPtrArray      *strokes);
 
