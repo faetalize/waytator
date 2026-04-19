@@ -22,14 +22,9 @@ cleanup() {
 }
 
 resolve_waytator_bin() {
-  if [[ -n "${WAYTATOR_BIN:-}" ]]; then
-    if [[ -x "${WAYTATOR_BIN}" ]]; then
-      printf '%s\n' "${WAYTATOR_BIN}"
-      return 0
-    fi
-
-    printf 'WAYTATOR_BIN is not executable: %s\n' "${WAYTATOR_BIN}" >&2
-    exit 1
+  if command -v waytator >/dev/null 2>&1; then
+    command -v waytator
+    return 0
   fi
 
   if [[ -x "${BUILD_DIR}/src/waytator" ]]; then
@@ -37,18 +32,13 @@ resolve_waytator_bin() {
     return 0
   fi
 
-  if command -v waytator >/dev/null 2>&1; then
-    command -v waytator
-    return 0
-  fi
-
-  printf 'could not find waytator. Build it in %s, install it on PATH, or set WAYTATOR_BIN.\n' "${BUILD_DIR}" >&2
+  printf 'could not find waytator. Install it on PATH or build it in %s.\n' "${BUILD_DIR}" >&2
   exit 1
 }
 
 require_command niri
 require_command jq
-WAYTATOR_BIN="$(resolve_waytator_bin)"
+waytator_bin="$(resolve_waytator_bin)"
 
 tmp_pipe=$(mktemp -u)
 mkfifo "$tmp_pipe"
@@ -79,4 +69,4 @@ if [[ -z "$screenshot_path" ]]; then
   exit 1
 fi
 
-setsid -f "$WAYTATOR_BIN" "$screenshot_path" >/dev/null 2>&1
+setsid -f "$waytator_bin" "$screenshot_path" >/dev/null 2>&1
