@@ -14,6 +14,7 @@ G_DEFINE_FINAL_TYPE(WaytatorWindow, waytator_window, ADW_TYPE_APPLICATION_WINDOW
 #define WAYTATOR_SETTINGS_GROUP "preferences"
 #define WAYTATOR_SETTINGS_FILE "waytator/settings.ini"
 #define WAYTATOR_WINDOW_STYLE_PROVIDER_PRIORITY (GTK_STYLE_PROVIDER_PRIORITY_USER + 1)
+#define WAYTATOR_RESOURCE_PREFIX "/dev/faetalize/waytator"
 
 static void waytator_window_clear_ocr_results(WaytatorWindow *self);
 static void waytator_window_set_ocr_panel_visible(WaytatorWindow *self,
@@ -737,10 +738,10 @@ waytator_window_show_about(WaytatorWindow *self)
 {
   adw_show_about_dialog(GTK_WIDGET(self),
                         "application-name", "Waytator",
-                        "application-icon", "dev.waytator.Waytator",
+                        "application-icon", "dev.faetalize.waytator",
                         "version", "1.0.0",
-                        "developer-name", "Waytator contributors",
-                        "developers", (const char *[]) { "Waytator contributors", NULL },
+                        "developer-name", "faetalize",
+                        "developers", (const char *[]) { "faetalize", NULL },
                         "issue-url", "https://github.com/elu0/waytator/issues",
                         "license-type", GTK_LICENSE_GPL_3_0,
                         "website", "https://github.com/elu0/waytator",
@@ -2338,7 +2339,7 @@ waytator_window_ensure_icons_registered(void)
   if (!icons_registered) {
     GtkIconTheme *icon_theme = gtk_icon_theme_get_for_display(gdk_display_get_default());
 
-    gtk_icon_theme_add_resource_path(icon_theme, "/dev/waytator/Waytator/icons/hicolor");
+    gtk_icon_theme_add_resource_path(icon_theme, WAYTATOR_RESOURCE_PREFIX "/icons/hicolor");
     icons_registered = TRUE;
   }
 }
@@ -2351,7 +2352,7 @@ waytator_window_ensure_css_loaded(void)
   if (!css_loaded) {
     GtkCssProvider *provider = gtk_css_provider_new();
 
-    gtk_css_provider_load_from_resource(provider, "/dev/waytator/Waytator/ui/style.css");
+    gtk_css_provider_load_from_resource(provider, WAYTATOR_RESOURCE_PREFIX "/ui/style.css");
     gtk_style_context_add_provider_for_display(gdk_display_get_default(),
                                                GTK_STYLE_PROVIDER(provider),
                                                GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -2399,7 +2400,7 @@ waytator_window_class_init(WaytatorWindowClass *klass)
 
   object_class->dispose = waytator_window_dispose;
 
-  gtk_widget_class_set_template_from_resource(widget_class, "/dev/waytator/Waytator/ui/window.ui");
+  gtk_widget_class_set_template_from_resource(widget_class, WAYTATOR_RESOURCE_PREFIX "/ui/window.ui");
 
   waytator_window_bind_template_children(widget_class);
   waytator_window_install_actions(widget_class);

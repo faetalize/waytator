@@ -34,3 +34,14 @@ executable(
   dependencies: [gtk_dep, adw_dep, m_dep],
   install: true,
 )
+
+install_data(
+  'dev.faetalize.waytator.desktop',
+  install_dir: join_paths(get_option('datadir'), 'applications'),
+)
+
+install_data(
+  'ui/icons/icon.svg',
+  install_dir: join_paths(get_option('datadir'), 'icons/hicolor/scalable/apps'),
+  rename: 'dev.faetalize.waytator.svg',
+)

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Waytator
+Comment=Screenshot annotator and lightweight image editor
+Exec=waytator %U
+Icon=dev.faetalize.waytator
+Terminal=false
+Categories=Graphics;
+StartupNotify=true

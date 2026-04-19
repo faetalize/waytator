@@ -4,6 +4,8 @@
 
 #include "waytator-window.h"
 
+#define WAYTATOR_APP_ID "dev.faetalize.waytator"
+
 static GBytes *
 app_read_stream_bytes(GInputStream *stream,
                       GError      **error)
@@ -200,8 +202,10 @@ main(int   argc,
     run_argc = 2;
   }
 
-  app = adw_application_new("dev.waytator.Waytator",
-                            G_APPLICATION_HANDLES_COMMAND_LINE | G_APPLICATION_HANDLES_OPEN);
+  app = adw_application_new(WAYTATOR_APP_ID,
+                             G_APPLICATION_HANDLES_COMMAND_LINE | G_APPLICATION_HANDLES_OPEN);
+  g_application_set_resource_base_path(G_APPLICATION(app), "/dev/faetalize/waytator");
+  gtk_window_set_default_icon_name(WAYTATOR_APP_ID);
 
   g_action_map_add_action_entries(G_ACTION_MAP(app),
                                   app_actions,
