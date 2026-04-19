@@ -7,23 +7,23 @@ waytator_tool_icon_name(WaytatorTool tool)
 {
   switch (tool) {
   case WAYTATOR_TOOL_PAN:
-    return "tool-pan-symbolic";
+    return "waytator-pan-symbolic";
   case WAYTATOR_TOOL_RECTANGLE:
-    return "tool-rectangle-symbolic";
+    return "waytator-rectangle-symbolic";
   case WAYTATOR_TOOL_CIRCLE:
-    return "tool-circle-symbolic";
+    return "waytator-circle-symbolic";
   case WAYTATOR_TOOL_LINE:
-    return "tool-line-symbolic";
+    return "waytator-line-symbolic";
   case WAYTATOR_TOOL_ARROW:
-    return "tool-arrow-symbolic";
+    return "waytator-arrow-symbolic";
   case WAYTATOR_TOOL_OCR:
     return "edit-find-symbolic";
   case WAYTATOR_TOOL_TEXT:
-    return "text-insert2-symbolic";
+    return "waytator-text-symbolic";
   case WAYTATOR_TOOL_BLUR:
-    return "tool-blur-symbolic";
+    return "waytator-blur-symbolic";
   default:
-    return "shapes-symbolic";
+    return "waytator-shapes-symbolic";
   }
 }
 

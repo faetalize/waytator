@@ -18,19 +18,19 @@
     <file>ui/icons/rotate-symbolic.svg</file>
   </gresource>
   <gresource prefix="/dev/faetalize/waytator/icons/hicolor/scalable/actions">
-    <file alias="tool-pan-symbolic.svg">ui/icons/hand-openyay-symbolic.svg</file>
-    <file alias="tool-crop-symbolic.svg">ui/icons/crop-symbolic.svg</file>
-    <file alias="pencil-symbolic.svg">ui/icons/pencil-symbolic.svg</file>
-    <file alias="tool-highlight-symbolic.svg">ui/icons/marker-symbolic.svg</file>
-    <file alias="tool-eraser-symbolic.svg">ui/icons/eraser-symbolic.svg</file>
-    <file alias="shapes-symbolic.svg">ui/icons/shapes-symbolic.svg</file>
-    <file alias="tool-rectangle-symbolic.svg">ui/icons/shape-square-symbolic.svg</file>
-    <file alias="tool-circle-symbolic.svg">ui/icons/shape-circle-symbolic.svg</file>
-    <file alias="tool-line-symbolic.svg">ui/icons/shape-line-symbolic.svg</file>
-    <file alias="tool-arrow-symbolic.svg">ui/icons/shape-arrow-symbolic.svg</file>
-    <file alias="text-insert2-symbolic.svg">ui/icons/text-insert2-symbolic.svg</file>
-    <file alias="tool-blur-symbolic.svg">ui/icons/blur-symbolic.svg</file>
-    <file alias="tool-rotate-counter-clockwise-symbolic.svg">ui/icons/rotate-symbolic.svg</file>
+    <file alias="waytator-pan-symbolic.svg">ui/icons/hand-openyay-symbolic.svg</file>
+    <file alias="waytator-crop-symbolic.svg">ui/icons/crop-symbolic.svg</file>
+    <file alias="waytator-pencil-symbolic.svg">ui/icons/pencil-symbolic.svg</file>
+    <file alias="waytator-highlight-symbolic.svg">ui/icons/marker-symbolic.svg</file>
+    <file alias="waytator-eraser-symbolic.svg">ui/icons/eraser-symbolic.svg</file>
+    <file alias="waytator-shapes-symbolic.svg">ui/icons/shapes-symbolic.svg</file>
+    <file alias="waytator-rectangle-symbolic.svg">ui/icons/shape-square-symbolic.svg</file>
+    <file alias="waytator-circle-symbolic.svg">ui/icons/shape-circle-symbolic.svg</file>
+    <file alias="waytator-line-symbolic.svg">ui/icons/shape-line-symbolic.svg</file>
+    <file alias="waytator-arrow-symbolic.svg">ui/icons/shape-arrow-symbolic.svg</file>
+    <file alias="waytator-text-symbolic.svg">ui/icons/text-insert2-symbolic.svg</file>
+    <file alias="waytator-blur-symbolic.svg">ui/icons/blur-symbolic.svg</file>
+    <file alias="waytator-rotate-counter-clockwise-symbolic.svg">ui/icons/rotate-symbolic.svg</file>
   </gresource>
   <gresource prefix="/dev/faetalize/waytator/icons/hicolor/128x128/apps">
     <file alias="dev.faetalize.waytator.png">ui/icons/icon.png</file>
