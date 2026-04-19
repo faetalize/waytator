@@ -17,7 +17,7 @@ waytator_tool_icon_name(WaytatorTool tool)
   case WAYTATOR_TOOL_ARROW:
     return "waytator-arrow-symbolic";
   case WAYTATOR_TOOL_OCR:
-    return "edit-find-symbolic";
+    return "waytator-scanner-symbolic";
   case WAYTATOR_TOOL_TEXT:
     return "waytator-text-symbolic";
   case WAYTATOR_TOOL_BLUR:

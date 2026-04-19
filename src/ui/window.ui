@@ -423,7 +423,7 @@
                           <object class="GtkToggleButton" id="ocr_tool_button">
                             <property name="group">brush_tool_button</property>
                             <property name="tooltip-text">Recognize text</property>
-                            <property name="icon-name">edit-find-symbolic</property>
+                            <property name="icon-name">waytator-scanner-symbolic</property>
                             <style>
                               <class name="flat"/>
                             </style>

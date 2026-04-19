@@ -14,6 +14,7 @@
     <file>ui/icons/shape-arrow-symbolic.svg</file>
     <file>ui/icons/text-insert2-symbolic.svg</file>
     <file>ui/icons/blur-symbolic.svg</file>
+    <file>ui/icons/scanner-symbolic.svg</file>
     <file>ui/icons/crop-symbolic.svg</file>
     <file>ui/icons/rotate-symbolic.svg</file>
   </gresource>
@@ -30,6 +31,7 @@
     <file alias="waytator-arrow-symbolic.svg">ui/icons/shape-arrow-symbolic.svg</file>
     <file alias="waytator-text-symbolic.svg">ui/icons/text-insert2-symbolic.svg</file>
     <file alias="waytator-blur-symbolic.svg">ui/icons/blur-symbolic.svg</file>
+    <file alias="waytator-scanner-symbolic.svg">ui/icons/scanner-symbolic.svg</file>
     <file alias="waytator-rotate-counter-clockwise-symbolic.svg">ui/icons/rotate-symbolic.svg</file>
   </gresource>
   <gresource prefix="/dev/faetalize/waytator/icons/hicolor/128x128/apps">
