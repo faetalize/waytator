@@ -1644,7 +1644,6 @@ waytator_window_set_image(WaytatorWindow *self,
   self->ocr_running = FALSE;
   waytator_window_mark_saved(self);
 
-  waytator_window_apply_zoom_mode(self);
   waytator_window_sync_state(self);
   waytator_window_queue_fit_zoom(self);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
