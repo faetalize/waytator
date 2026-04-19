@@ -65,7 +65,7 @@ You can consume waytator's flake as follows:
   inputs.waytator.url = "github:faetalize/waytator";
 }
 ```
-Then, add `waytator` in your outputs' arguments and add `waytator.packages.${builtins.currentSystem}.default` to your packages.
+Then, add `waytator` in your outputs' arguments and add `waytator.packages."x86_64-linux".default` to your packages, eventually replacing `"x86_64-linux"` by the architecture you run on.
 
 ## Usage
 
