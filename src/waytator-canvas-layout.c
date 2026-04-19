@@ -50,6 +50,11 @@ waytator_window_get_fit_zoom(WaytatorWindow *self)
 void
 waytator_window_update_zoom_label(WaytatorWindow *self)
 {
+  if (self->texture != NULL && self->fit_mode)
+    gtk_widget_add_css_class(GTK_WIDGET(self->fit_zoom_button), "selected-tool");
+  else
+    gtk_widget_remove_css_class(GTK_WIDGET(self->fit_zoom_button), "selected-tool");
+
   if (self->texture == NULL) {
     gtk_label_set_text(self->zoom_label, "--");
     return;

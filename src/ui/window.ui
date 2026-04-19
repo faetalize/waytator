@@ -775,7 +775,7 @@
                         </child>
 
                         <child>
-                          <object class="GtkButton">
+                          <object class="GtkButton" id="fit_zoom_button">
                             <property name="action-name">win.zoom-fit</property>
                             <property name="tooltip-text">Fit image to window</property>
                             <property name="label">Fit</property>

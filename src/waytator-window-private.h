@@ -69,6 +69,7 @@ struct _WaytatorWindow {
   GtkImage *copy_default_icon;
   GtkImage *copy_success_icon;
   GtkWidget *zoom_group;
+  GtkButton *fit_zoom_button;
   GtkWidget *settings_group;
   GtkColorDialogButton *color_button;
   GtkScale *width_scale;

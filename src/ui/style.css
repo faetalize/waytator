@@ -94,6 +94,18 @@
   background: alpha(white, 0.08);
 }
 
+.zoom-group button.selected-tool {
+  background: alpha(white, 0.16);
+  background-color: alpha(white, 0.16);
+  background-image: none;
+}
+
+.zoom-group button.selected-tool:hover {
+  background: alpha(white, 0.16);
+  background-color: alpha(white, 0.16);
+  background-image: none;
+}
+
 .app-chrome-group {
   border-color: alpha(white, 0.16);
 }

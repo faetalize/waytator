@@ -2252,6 +2252,7 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_default_icon);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_success_icon);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, zoom_group);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, fit_zoom_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, settings_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, color_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, width_scale);
