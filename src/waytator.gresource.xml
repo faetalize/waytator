@@ -14,9 +14,12 @@
     <file>ui/icons/shape-arrow-symbolic.svg</file>
     <file>ui/icons/text-insert2-symbolic.svg</file>
     <file>ui/icons/blur-symbolic.svg</file>
+    <file>ui/icons/crop-symbolic.svg</file>
+    <file>ui/icons/rotate-symbolic.svg</file>
   </gresource>
   <gresource prefix="/dev/waytator/Waytator/icons/hicolor/scalable/actions">
     <file alias="tool-pan-symbolic.svg">ui/icons/hand-openyay-symbolic.svg</file>
+    <file alias="tool-crop-symbolic.svg">ui/icons/crop-symbolic.svg</file>
     <file alias="pencil-symbolic.svg">ui/icons/pencil-symbolic.svg</file>
     <file alias="tool-highlight-symbolic.svg">ui/icons/marker-symbolic.svg</file>
     <file alias="tool-eraser-symbolic.svg">ui/icons/eraser-symbolic.svg</file>
@@ -27,6 +30,7 @@
     <file alias="tool-arrow-symbolic.svg">ui/icons/shape-arrow-symbolic.svg</file>
     <file alias="text-insert2-symbolic.svg">ui/icons/text-insert2-symbolic.svg</file>
     <file alias="tool-blur-symbolic.svg">ui/icons/blur-symbolic.svg</file>
+    <file alias="tool-rotate-counter-clockwise-symbolic.svg">ui/icons/rotate-symbolic.svg</file>
   </gresource>
   <gresource prefix="/dev/waytator/Waytator/icons/hicolor">
     <file alias="index.theme">ui/icons/index.theme</file>

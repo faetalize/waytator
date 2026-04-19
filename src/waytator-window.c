@@ -1095,6 +1095,9 @@ waytator_window_maybe_start_ocr(WaytatorWindow *self)
 static void waytator_window_save_copy_ready(GObject *source_object, GAsyncResult *result, gpointer user_data);
 static void waytator_window_save_overwrite_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
 static void waytator_window_save_copy_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
+static void waytator_window_rotate_counter_clockwise_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
+static void waytator_window_flip_horizontal_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
+static void waytator_window_flip_vertical_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
 static void waytator_window_copy_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
 static void waytator_window_dismiss_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
 static void waytator_window_close_window_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
@@ -1318,6 +1321,161 @@ waytator_window_record_undo_step(WaytatorWindow *self)
   waytator_window_update_history_buttons(self);
 }
 
+static GBytes *
+waytator_window_texture_download_bytes(GdkTexture *texture,
+                                       int        *width,
+                                       int        *height,
+                                       gsize      *stride)
+{
+  guchar *pixels;
+  gsize rowstride;
+  int image_width;
+  int image_height;
+
+  if (texture == NULL)
+    return NULL;
+
+  image_width = gdk_texture_get_width(texture);
+  image_height = gdk_texture_get_height(texture);
+  if (image_width <= 0 || image_height <= 0)
+    return NULL;
+
+  rowstride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, image_width);
+  pixels = g_malloc(rowstride * image_height);
+  gdk_texture_download(texture, pixels, rowstride);
+
+  if (width != NULL)
+    *width = image_width;
+  if (height != NULL)
+    *height = image_height;
+  if (stride != NULL)
+    *stride = rowstride;
+
+  return g_bytes_new_take(pixels, rowstride * image_height);
+}
+
+static GBytes *
+waytator_window_surface_copy_bytes(cairo_surface_t *surface,
+                                   int             *width,
+                                   int             *height,
+                                   gsize           *stride)
+{
+  const gsize rowstride = cairo_image_surface_get_stride(surface);
+  const int image_width = cairo_image_surface_get_width(surface);
+  const int image_height = cairo_image_surface_get_height(surface);
+  guchar *pixels;
+
+  if (surface == NULL || cairo_surface_get_type(surface) != CAIRO_SURFACE_TYPE_IMAGE)
+    return NULL;
+
+  cairo_surface_flush(surface);
+  pixels = g_memdup2(cairo_image_surface_get_data(surface), rowstride * image_height);
+
+  if (width != NULL)
+    *width = image_width;
+  if (height != NULL)
+    *height = image_height;
+  if (stride != NULL)
+    *stride = rowstride;
+
+  return g_bytes_new_take(pixels, rowstride * image_height);
+}
+
+static void
+waytator_window_copy_image_bytes_to_surface(cairo_surface_t *surface,
+                                            GBytes          *pixels,
+                                            gsize            stride)
+{
+  const guchar *src = g_bytes_get_data(pixels, NULL);
+  guchar *dst;
+  const int height = cairo_image_surface_get_height(surface);
+  const gsize dst_stride = cairo_image_surface_get_stride(surface);
+
+  if (src == NULL)
+    return;
+
+  dst = cairo_image_surface_get_data(surface);
+
+  for (int y = 0; y < height; y++)
+    memcpy(dst + y * dst_stride, src + y * stride, MIN(dst_stride, stride));
+
+  cairo_surface_mark_dirty(surface);
+}
+
+static gboolean
+waytator_window_refresh_image_from_document(WaytatorWindow *self)
+{
+  g_autoptr(GBytes) pixels = NULL;
+  int width = 0;
+  int height = 0;
+  gsize stride = 0;
+
+  g_clear_object(&self->texture);
+  if (self->image_surface != NULL) {
+    cairo_surface_destroy(self->image_surface);
+    self->image_surface = NULL;
+  }
+
+  if (!waytator_document_get_image(self->document, &pixels, &width, &height, &stride)) {
+    gtk_picture_set_paintable(self->picture, NULL);
+    return FALSE;
+  }
+
+  self->texture = GDK_TEXTURE(gdk_memory_texture_new(width,
+                                                     height,
+                                                     GDK_MEMORY_DEFAULT,
+                                                     pixels,
+                                                     stride));
+  self->image_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+  waytator_window_copy_image_bytes_to_surface(self->image_surface, pixels, stride);
+  gtk_picture_set_paintable(self->picture, GDK_PAINTABLE(self->texture));
+  return TRUE;
+}
+
+static cairo_surface_t *
+waytator_window_render_composited_surface(WaytatorWindow *self)
+{
+  cairo_surface_t *surface;
+  cairo_t *cr;
+  GPtrArray *strokes = waytator_window_strokes(self);
+  guint i;
+
+  if (self->texture == NULL)
+    return NULL;
+
+  surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+                                       gdk_texture_get_width(self->texture),
+                                       gdk_texture_get_height(self->texture));
+  gdk_texture_download(self->texture,
+                       cairo_image_surface_get_data(surface),
+                       cairo_image_surface_get_stride(surface));
+  cairo_surface_mark_dirty(surface);
+
+  cr = cairo_create(surface);
+  for (i = 0; i < strokes->len; i++)
+    waytator_stroke_render(cr, g_ptr_array_index(strokes, i), surface);
+  cairo_destroy(cr);
+  cairo_surface_flush(surface);
+  return surface;
+}
+
+void
+waytator_window_refresh_document_state(WaytatorWindow *self)
+{
+  waytator_window_refresh_image_from_document(self);
+  self->current_stroke = NULL;
+  self->drawing = FALSE;
+  self->crop_start_x = 0.0;
+  self->crop_start_y = 0.0;
+  self->crop_end_x = 0.0;
+  self->crop_end_y = 0.0;
+  waytator_window_clear_ocr_results(self);
+  waytator_window_apply_zoom_mode(self);
+  waytator_window_update_zoom_label(self);
+  waytator_window_sync_state(self);
+  gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+}
+
 static void
 waytator_window_log_formats(const char      *label,
                             GdkContentFormats *formats)
@@ -1533,6 +1691,162 @@ waytator_window_save_copy_action(GtkWidget  *widget,
 }
 
 static void
+waytator_window_commit_transformed_surface(WaytatorWindow  *self,
+                                           cairo_surface_t *surface)
+{
+  g_autoptr(GBytes) pixels = NULL;
+  int width = 0;
+  int height = 0;
+  gsize stride = 0;
+
+  pixels = waytator_window_surface_copy_bytes(surface, &width, &height, &stride);
+  if (pixels == NULL)
+    return;
+
+  waytator_document_set_image(self->document, pixels, width, height, stride);
+  waytator_document_clear_annotations(self->document);
+  waytator_window_restore_strokes(self, waytator_window_strokes(self));
+}
+
+void
+waytator_window_apply_crop(WaytatorWindow *self,
+                           int             left,
+                           int             top,
+                           int             width,
+                           int             height)
+{
+  cairo_surface_t *source_surface;
+  cairo_surface_t *result_surface;
+  cairo_t *cr;
+
+  if (self->texture == NULL || width <= 0 || height <= 0)
+    return;
+
+  source_surface = waytator_window_render_composited_surface(self);
+  if (source_surface == NULL)
+    return;
+
+  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+  cr = cairo_create(result_surface);
+  cairo_set_source_surface(cr, source_surface, -left, -top);
+  cairo_paint(cr);
+  cairo_destroy(cr);
+  cairo_surface_destroy(source_surface);
+
+  waytator_window_record_undo_step(self);
+  waytator_window_commit_transformed_surface(self, result_surface);
+  cairo_surface_destroy(result_surface);
+}
+
+static void
+waytator_window_rotate_counter_clockwise_action(GtkWidget  *widget,
+                                                const char *action_name,
+                                                GVariant   *parameter)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+  cairo_surface_t *source_surface;
+  cairo_surface_t *result_surface;
+  cairo_t *cr;
+  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
+  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
+
+  (void) action_name;
+  (void) parameter;
+
+  if (width <= 0 || height <= 0)
+    return;
+
+  source_surface = waytator_window_render_composited_surface(self);
+  if (source_surface == NULL)
+    return;
+
+  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, height, width);
+  cr = cairo_create(result_surface);
+  cairo_translate(cr, 0.0, width);
+  cairo_rotate(cr, -G_PI / 2.0);
+  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
+  cairo_paint(cr);
+  cairo_destroy(cr);
+  cairo_surface_destroy(source_surface);
+
+  waytator_window_record_undo_step(self);
+  waytator_window_commit_transformed_surface(self, result_surface);
+  cairo_surface_destroy(result_surface);
+}
+
+static void
+waytator_window_flip_horizontal_action(GtkWidget  *widget,
+                                       const char *action_name,
+                                       GVariant   *parameter)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+  cairo_surface_t *source_surface;
+  cairo_surface_t *result_surface;
+  cairo_t *cr;
+  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
+  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
+
+  (void) action_name;
+  (void) parameter;
+
+  if (width <= 0 || height <= 0)
+    return;
+
+  source_surface = waytator_window_render_composited_surface(self);
+  if (source_surface == NULL)
+    return;
+
+  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+  cr = cairo_create(result_surface);
+  cairo_translate(cr, width, 0.0);
+  cairo_scale(cr, -1.0, 1.0);
+  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
+  cairo_paint(cr);
+  cairo_destroy(cr);
+  cairo_surface_destroy(source_surface);
+
+  waytator_window_record_undo_step(self);
+  waytator_window_commit_transformed_surface(self, result_surface);
+  cairo_surface_destroy(result_surface);
+}
+
+static void
+waytator_window_flip_vertical_action(GtkWidget  *widget,
+                                     const char *action_name,
+                                     GVariant   *parameter)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+  cairo_surface_t *source_surface;
+  cairo_surface_t *result_surface;
+  cairo_t *cr;
+  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
+  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
+
+  (void) action_name;
+  (void) parameter;
+
+  if (width <= 0 || height <= 0)
+    return;
+
+  source_surface = waytator_window_render_composited_surface(self);
+  if (source_surface == NULL)
+    return;
+
+  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+  cr = cairo_create(result_surface);
+  cairo_translate(cr, 0.0, height);
+  cairo_scale(cr, 1.0, -1.0);
+  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
+  cairo_paint(cr);
+  cairo_destroy(cr);
+  cairo_surface_destroy(source_surface);
+
+  waytator_window_record_undo_step(self);
+  waytator_window_commit_transformed_surface(self, result_surface);
+  cairo_surface_destroy(result_surface);
+}
+
+static void
 waytator_window_copy_action(GtkWidget  *widget,
                             const char *action_name,
                             GVariant   *parameter)
@@ -1604,6 +1918,11 @@ waytator_window_clear_image(WaytatorWindow *self)
     self->image_surface = NULL;
   }
   g_clear_pointer(&self->source_name, g_free);
+  self->crop_start_x = 0.0;
+  self->crop_start_y = 0.0;
+  self->crop_end_x = 0.0;
+  self->crop_end_y = 0.0;
+  waytator_document_set_image(self->document, NULL, 0, 0, 0);
   waytator_window_clear_ocr_results(self);
   waytator_window_clear_history(self);
   waytator_window_clear_annotations(self);
@@ -1620,22 +1939,23 @@ waytator_window_set_image(WaytatorWindow *self,
                           GFile          *file,
                           const char     *display_name)
 {
+  g_autoptr(GBytes) pixels = NULL;
+  int width = 0;
+  int height = 0;
+  gsize stride = 0;
+
   waytator_window_clear_image(self);
 
   self->current_file = file != NULL ? g_object_ref(file) : NULL;
-  self->texture = g_object_ref(texture);
-  
-  int width = gdk_texture_get_width(self->texture);
-  int height = gdk_texture_get_height(self->texture);
-  self->image_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  gdk_texture_download(self->texture,
-                       cairo_image_surface_get_data(self->image_surface),
-                       cairo_image_surface_get_stride(self->image_surface));
-  cairo_surface_mark_dirty(self->image_surface);
+  pixels = waytator_window_texture_download_bytes(texture, &width, &height, &stride);
+  if (pixels == NULL)
+    return;
+
+  waytator_document_set_image(self->document, pixels, width, height, stride);
+  waytator_window_refresh_image_from_document(self);
 
   self->source_name = g_strdup(display_name != NULL ? display_name : "image.png");
 
-  gtk_picture_set_paintable(self->picture, GDK_PAINTABLE(self->texture));
   gtk_label_set_text(self->file_label, self->source_name);
   self->zoom = 1.0;
   self->fit_mode = TRUE;
@@ -1868,6 +2188,7 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, zoom_label);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, tool_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, pan_tool_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, crop_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, brush_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, highlighter_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, eraser_tool_button);
@@ -1880,6 +2201,9 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, ocr_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, text_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, blur_tool_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, rotate_counter_clockwise_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, flip_horizontal_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, flip_vertical_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, history_actions);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, undo_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, redo_button);
@@ -1913,6 +2237,9 @@ waytator_window_install_actions(GtkWidgetClass *widget_class)
   gtk_widget_class_install_action(widget_class, "win.close-window", NULL, waytator_window_close_window_action);
   gtk_widget_class_install_action(widget_class, "win.save", NULL, waytator_window_save_overwrite_action);
   gtk_widget_class_install_action(widget_class, "win.save-copy", NULL, waytator_window_save_copy_action);
+  gtk_widget_class_install_action(widget_class, "win.rotate-counter-clockwise", NULL, waytator_window_rotate_counter_clockwise_action);
+  gtk_widget_class_install_action(widget_class, "win.flip-horizontal", NULL, waytator_window_flip_horizontal_action);
+  gtk_widget_class_install_action(widget_class, "win.flip-vertical", NULL, waytator_window_flip_vertical_action);
   gtk_widget_class_install_action(widget_class, "win.preferences", NULL, waytator_window_preferences_action);
   gtk_widget_class_install_action(widget_class, "win.about", NULL, waytator_window_about_action);
   waytator_window_install_canvas_actions(widget_class);

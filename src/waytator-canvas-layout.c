@@ -47,7 +47,7 @@ waytator_window_get_fit_zoom(WaytatorWindow *self)
                  viewport_height / texture_height));
 }
 
-static void
+void
 waytator_window_update_zoom_label(WaytatorWindow *self)
 {
   if (self->texture == NULL) {

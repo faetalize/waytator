@@ -134,6 +134,34 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
 
   cairo_restore(cr);
 
+  if (self->active_tool == WAYTATOR_TOOL_CROP && self->drawing) {
+    const double crop_left = MIN(self->crop_start_x, self->crop_end_x);
+    const double crop_top = MIN(self->crop_start_y, self->crop_end_y);
+    const double crop_width = fabs(self->crop_end_x - self->crop_start_x);
+    const double crop_height = fabs(self->crop_end_y - self->crop_start_y);
+    const double rect_x = display_x + crop_left * display_width / image_width;
+    const double rect_y = display_y + crop_top * display_height / image_height;
+    const double rect_width = crop_width * display_width / image_width;
+    const double rect_height = crop_height * display_height / image_height;
+    const double dash[] = { 8.0, 6.0 };
+
+    if (rect_width > 0.0 && rect_height > 0.0) {
+      cairo_save(cr);
+      cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
+      cairo_rectangle(cr, display_x, display_y, display_width, display_height);
+      cairo_rectangle(cr, rect_x, rect_y, rect_width, rect_height);
+      cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.4);
+      cairo_fill(cr);
+
+      cairo_rectangle(cr, rect_x, rect_y, rect_width, rect_height);
+      cairo_set_source_rgba(cr, 1.0, 1.0, 1.0, 0.95);
+      cairo_set_line_width(cr, 2.0);
+      cairo_set_dash(cr, dash, G_N_ELEMENTS(dash), 0.0);
+      cairo_stroke(cr);
+      cairo_restore(cr);
+    }
+  }
+
   if (self->pointer_in
       && (!self->drawing || self->active_tool == WAYTATOR_TOOL_ERASER)
       && !waytator_tool_is_non_drawing(self->active_tool)) {
@@ -157,7 +185,11 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
       if (self->active_tool == WAYTATOR_TOOL_ERASER) {
         waytator_window_draw_eraser_preview(self, cr, scale, tool_width / 2.0);
       } else if (self->active_tool == WAYTATOR_TOOL_MARKER) {
-        cairo_arc(cr, self->pointer_x, self->pointer_y, tool_width / 2.0, 0.0, 2.0 * G_PI);
+        cairo_rectangle(cr,
+                        self->pointer_x - tool_width / 4.0,
+                        self->pointer_y - tool_width / 2.0,
+                        tool_width / 2.0,
+                        tool_width);
         cairo_set_source_rgba(cr, tool_color.red, tool_color.green, tool_color.blue, 0.45);
         cairo_fill(cr);
       } else if (self->active_tool == WAYTATOR_TOOL_BLUR) {

@@ -3,11 +3,27 @@
 #include <math.h>
 #include <stdint.h>
 
+static void
+waytator_marker_add_rect(cairo_t *cr,
+                         double   center_x,
+                         double   center_y,
+                         double   height)
+{
+  const double width = height / 2.0;
+
+  cairo_rectangle(cr,
+                  center_x - width / 2.0,
+                  center_y - height / 2.0,
+                  width,
+                  height);
+}
+
 double
 waytator_tool_width(WaytatorTool tool)
 {
   switch (tool) {
   case WAYTATOR_TOOL_PAN:
+  case WAYTATOR_TOOL_CROP:
     return 0.0;
   case WAYTATOR_TOOL_MARKER:
     return 24.0;
@@ -41,7 +57,9 @@ waytator_tool_is_shape(WaytatorTool tool)
 gboolean
 waytator_tool_is_non_drawing(WaytatorTool tool)
 {
-  return tool == WAYTATOR_TOOL_PAN || tool == WAYTATOR_TOOL_OCR;
+  return tool == WAYTATOR_TOOL_PAN
+      || tool == WAYTATOR_TOOL_CROP
+      || tool == WAYTATOR_TOOL_OCR;
 }
 
 WaytatorStroke *
@@ -172,6 +190,37 @@ waytator_stroke_render(cairo_t         *cr,
       cairo_show_text(cr, stroke->text);
       cairo_restore(cr);
     }
+    return;
+  }
+
+  if (stroke->tool == WAYTATOR_TOOL_MARKER) {
+    const double marker_step = MIN(2.0, MAX(1.0, stroke->width / 4.0));
+
+    waytator_marker_add_rect(cr,
+                             g_array_index(stroke->points, WaytatorPoint, 0).x,
+                             g_array_index(stroke->points, WaytatorPoint, 0).y,
+                             stroke->width);
+
+    for (i = 1; i < len; i++) {
+      const WaytatorPoint *previous = &g_array_index(stroke->points, WaytatorPoint, i - 1);
+      const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
+      const double dx = point->x - previous->x;
+      const double dy = point->y - previous->y;
+      const double distance = hypot(dx, dy);
+      const int steps = MAX(1, (int) ceil(distance / marker_step));
+
+      for (int step = 1; step <= steps; step++) {
+        const double t = (double) step / steps;
+
+        waytator_marker_add_rect(cr,
+                                 previous->x + dx * t,
+                                 previous->y + dy * t,
+                                 stroke->width);
+      }
+    }
+
+    cairo_fill(cr);
+
     return;
   }
 

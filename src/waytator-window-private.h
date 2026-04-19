@@ -36,6 +36,7 @@ struct _WaytatorWindow {
   GtkLabel *zoom_label;
   GtkWidget *tool_group;
   GtkToggleButton *pan_tool_button;
+  GtkToggleButton *crop_tool_button;
   GtkToggleButton *brush_tool_button;
   GtkToggleButton *highlighter_tool_button;
   GtkToggleButton *eraser_tool_button;
@@ -48,6 +49,9 @@ struct _WaytatorWindow {
   GtkToggleButton *ocr_tool_button;
   GtkToggleButton *text_tool_button;
   GtkToggleButton *blur_tool_button;
+  GtkButton *rotate_counter_clockwise_button;
+  GtkButton *flip_horizontal_button;
+  GtkButton *flip_vertical_button;
   GtkWidget *history_actions;
   GtkButton *undo_button;
   GtkButton *redo_button;
@@ -97,6 +101,10 @@ struct _WaytatorWindow {
   double drag_start_hvalue;
   double drag_start_vvalue;
   double pinch_start_zoom;
+  double crop_start_x;
+  double crop_start_y;
+  double crop_end_x;
+  double crop_end_y;
 
   double pointer_x;
   double pointer_y;
@@ -156,7 +164,14 @@ void waytator_window_get_viewport_center(WaytatorWindow *self,
                                          double         *y);
 double waytator_window_get_effective_zoom(WaytatorWindow *self);
 void waytator_window_apply_zoom_mode(WaytatorWindow *self);
+void waytator_window_update_zoom_label(WaytatorWindow *self);
 void waytator_window_update_picture_size(WaytatorWindow *self);
+void waytator_window_refresh_document_state(WaytatorWindow *self);
+void waytator_window_apply_crop(WaytatorWindow *self,
+                                int             left,
+                                int             top,
+                                int             width,
+                                int             height);
 void waytator_window_set_zoom_at(WaytatorWindow *self,
                                  double          zoom,
                                  double          viewport_x,

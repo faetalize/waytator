@@ -25,6 +25,39 @@ waytator_window_parse_shortcut_match(const char      *accelerator,
 }
 
 static gboolean
+waytator_window_cancel_current_interaction(WaytatorWindow *self)
+{
+  GPtrArray *snapshot;
+
+  if (!self->drawing)
+    return FALSE;
+
+  self->drawing = FALSE;
+
+  if (self->active_tool == WAYTATOR_TOOL_PAN)
+    return TRUE;
+
+  if (self->active_tool == WAYTATOR_TOOL_CROP) {
+    self->crop_start_x = 0.0;
+    self->crop_start_y = 0.0;
+    self->crop_end_x = 0.0;
+    self->crop_end_y = 0.0;
+    gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+    return TRUE;
+  }
+
+  self->current_stroke = NULL;
+  if (!waytator_document_can_undo(self->document)) {
+    gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+    return TRUE;
+  }
+
+  snapshot = waytator_document_undo(self->document);
+  waytator_window_restore_strokes(self, snapshot);
+  return TRUE;
+}
+
+static gboolean
 waytator_window_global_key_pressed(GtkEventControllerKey *controller,
                                    guint                  keyval,
                                    guint                  keycode,
@@ -43,6 +76,9 @@ waytator_window_global_key_pressed(GtkEventControllerKey *controller,
 
   if (keyval == GDK_KEY_Escape
       && (state & gtk_accelerator_get_default_mod_mask()) == 0) {
+    if (waytator_window_cancel_current_interaction(self))
+      return TRUE;
+
     if (adw_bottom_sheet_get_open(self->ocr_panel_bottom_sheet)) {
       gtk_widget_activate_action(GTK_WIDGET(self), "win.dismiss", NULL);
       return TRUE;
@@ -262,6 +298,94 @@ waytator_window_pan_end(GtkGestureDrag *gesture,
 
   if (self->active_tool == WAYTATOR_TOOL_PAN)
     self->drawing = FALSE;
+}
+
+static void
+waytator_window_crop_begin(GtkGestureDrag *gesture,
+                           double          start_x,
+                           double          start_y,
+                           gpointer        user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+
+  if (self->texture == NULL || self->active_tool != WAYTATOR_TOOL_CROP)
+    return;
+
+  if (!waytator_window_get_image_point(self,
+                                       start_x,
+                                       start_y,
+                                       FALSE,
+                                       &self->crop_start_x,
+                                       &self->crop_start_y))
+    return;
+
+  gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+  self->drawing = TRUE;
+  self->crop_end_x = self->crop_start_x;
+  self->crop_end_y = self->crop_start_y;
+  gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+}
+
+static void
+waytator_window_crop_update(GtkGestureDrag *gesture,
+                            double          offset_x,
+                            double          offset_y,
+                            gpointer        user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  double start_x;
+  double start_y;
+
+  if (self->texture == NULL || self->active_tool != WAYTATOR_TOOL_CROP || !self->drawing)
+    return;
+
+  gtk_gesture_drag_get_start_point(gesture, &start_x, &start_y);
+  if (!waytator_window_get_image_point(self,
+                                       start_x + offset_x,
+                                       start_y + offset_y,
+                                       TRUE,
+                                       &self->crop_end_x,
+                                       &self->crop_end_y))
+    return;
+
+  gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+}
+
+static void
+waytator_window_crop_end(GtkGestureDrag *gesture,
+                         double          offset_x,
+                         double          offset_y,
+                         gpointer        user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+
+  (void) offset_x;
+  (void) offset_y;
+
+  if (self->active_tool != WAYTATOR_TOOL_CROP || !self->drawing) {
+    self->drawing = FALSE;
+    return;
+  }
+
+  self->drawing = FALSE;
+
+  if (gtk_gesture_drag_get_start_point(gesture, NULL, NULL)) {
+    const int image_width = gdk_texture_get_width(self->texture);
+    const int image_height = gdk_texture_get_height(self->texture);
+    const int left = CLAMP((int) floor(MIN(self->crop_start_x, self->crop_end_x)), 0, MAX(0, image_width - 1));
+    const int top = CLAMP((int) floor(MIN(self->crop_start_y, self->crop_end_y)), 0, MAX(0, image_height - 1));
+    const int right = CLAMP((int) ceil(MAX(self->crop_start_x, self->crop_end_x)), 1, image_width);
+    const int bottom = CLAMP((int) ceil(MAX(self->crop_start_y, self->crop_end_y)), 1, image_height);
+
+    if (right > left && bottom > top)
+      waytator_window_apply_crop(self, left, top, right - left, bottom - top);
+  }
+
+  self->crop_start_x = 0.0;
+  self->crop_start_y = 0.0;
+  self->crop_end_x = 0.0;
+  self->crop_end_y = 0.0;
+  gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
 
 static void
@@ -596,6 +720,7 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   GtkEventController *keys;
   GtkGesture *drag;
   GtkGesture *pan_drag;
+  GtkGesture *crop;
   GtkGesture *draw;
   GtkGesture *zoom;
   GtkEventController *motion;
@@ -612,6 +737,13 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   g_signal_connect(pan_drag, "drag-update", G_CALLBACK(waytator_window_pan_update), self);
   g_signal_connect(pan_drag, "drag-end", G_CALLBACK(waytator_window_pan_end), self);
   gtk_widget_add_controller(GTK_WIDGET(self->canvas_scroller), GTK_EVENT_CONTROLLER(pan_drag));
+
+  crop = gtk_gesture_drag_new();
+  gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(crop), GDK_BUTTON_PRIMARY);
+  g_signal_connect(crop, "drag-begin", G_CALLBACK(waytator_window_crop_begin), self);
+  g_signal_connect(crop, "drag-update", G_CALLBACK(waytator_window_crop_update), self);
+  g_signal_connect(crop, "drag-end", G_CALLBACK(waytator_window_crop_end), self);
+  gtk_widget_add_controller(GTK_WIDGET(self->drawing_area), GTK_EVENT_CONTROLLER(crop));
 
   draw = gtk_gesture_drag_new();
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(draw), GDK_BUTTON_PRIMARY);

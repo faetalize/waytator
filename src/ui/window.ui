@@ -264,6 +264,17 @@
                         </child>
 
                         <child>
+                          <object class="GtkToggleButton" id="crop_tool_button">
+                            <property name="group">brush_tool_button</property>
+                            <property name="tooltip-text">Crop</property>
+                            <property name="icon-name">tool-crop-symbolic</property>
+                            <style>
+                              <class name="flat"/>
+                            </style>
+                          </object>
+                        </child>
+
+                        <child>
                           <object class="GtkToggleButton" id="brush_tool_button">
                             <property name="tooltip-text">Brush</property>
                             <property name="active">True</property>
@@ -435,6 +446,47 @@
                             <property name="group">brush_tool_button</property>
                             <property name="tooltip-text">Blur</property>
                             <property name="icon-name">tool-blur-symbolic</property>
+                            <style>
+                              <class name="flat"/>
+                            </style>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="GtkSeparator">
+                            <property name="orientation">vertical</property>
+                            <property name="margin-start">4</property>
+                            <property name="margin-end">4</property>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="GtkButton" id="rotate_counter_clockwise_button">
+                            <property name="tooltip-text">Rotate counter clockwise</property>
+                            <property name="icon-name">tool-rotate-counter-clockwise-symbolic</property>
+                            <property name="action-name">win.rotate-counter-clockwise</property>
+                            <style>
+                              <class name="flat"/>
+                            </style>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="GtkButton" id="flip_horizontal_button">
+                            <property name="tooltip-text">Flip horizontal</property>
+                            <property name="icon-name">object-flip-horizontal-symbolic</property>
+                            <property name="action-name">win.flip-horizontal</property>
+                            <style>
+                              <class name="flat"/>
+                            </style>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="GtkButton" id="flip_vertical_button">
+                            <property name="tooltip-text">Flip vertical</property>
+                            <property name="icon-name">object-flip-vertical-symbolic</property>
+                            <property name="action-name">win.flip-vertical</property>
                             <style>
                               <class name="flat"/>
                             </style>

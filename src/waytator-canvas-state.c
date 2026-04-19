@@ -92,6 +92,8 @@ waytator_window_tool_toggled(GtkToggleButton *button,
 
   if (button == self->pan_tool_button)
     self->active_tool = WAYTATOR_TOOL_PAN;
+  else if (button == self->crop_tool_button)
+    self->active_tool = WAYTATOR_TOOL_CROP;
   else if (button == self->highlighter_tool_button)
     self->active_tool = WAYTATOR_TOOL_MARKER;
   else if (button == self->eraser_tool_button)
@@ -208,11 +210,7 @@ waytator_window_restore_strokes(WaytatorWindow *self,
                                 GPtrArray      *strokes)
 {
   (void) strokes;
-  self->current_stroke = NULL;
-  self->drawing = FALSE;
-  gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
-  waytator_window_reset_save_button(self);
-  waytator_window_update_history_buttons(self);
+  waytator_window_refresh_document_state(self);
   waytator_window_maybe_auto_copy_latest_change(self);
 }
 
@@ -220,6 +218,7 @@ void
 waytator_window_update_tool_ui(WaytatorWindow *self)
 {
   const gboolean is_pan_tool = self->active_tool == WAYTATOR_TOOL_PAN;
+  const gboolean is_crop_tool = self->active_tool == WAYTATOR_TOOL_CROP;
   const gboolean is_ocr_tool = self->active_tool == WAYTATOR_TOOL_OCR;
   const gboolean is_shape_menu = self->active_tool == WAYTATOR_TOOL_RECTANGLE
                               || self->active_tool == WAYTATOR_TOOL_CIRCLE
@@ -235,14 +234,16 @@ waytator_window_update_tool_ui(WaytatorWindow *self)
   }
 
   gtk_widget_set_visible(self->settings_group,
-                         self->texture != NULL && !is_pan_tool && !is_ocr_tool);
+                         self->texture != NULL && !is_pan_tool && !is_crop_tool && !is_ocr_tool);
   gtk_widget_set_visible(GTK_WIDGET(self->color_button),
-                         !is_pan_tool &&
-                         !is_ocr_tool &&
-                         self->active_tool != WAYTATOR_TOOL_ERASER &&
-                         self->active_tool != WAYTATOR_TOOL_BLUR);
+                          !is_pan_tool &&
+                          !is_crop_tool &&
+                          !is_ocr_tool &&
+                          self->active_tool != WAYTATOR_TOOL_ERASER &&
+                          self->active_tool != WAYTATOR_TOOL_BLUR);
   gtk_widget_set_visible(GTK_WIDGET(self->width_scale),
                          !is_pan_tool &&
+                         !is_crop_tool &&
                          !is_ocr_tool &&
                          self->active_tool != WAYTATOR_TOOL_TEXT);
   gtk_widget_set_visible(GTK_WIDGET(self->text_size_spin),
@@ -250,7 +251,7 @@ waytator_window_update_tool_ui(WaytatorWindow *self)
   gtk_widget_set_visible(GTK_WIDGET(self->blur_type_dropdown),
                          self->active_tool == WAYTATOR_TOOL_BLUR);
 
-  if (!is_pan_tool && !is_ocr_tool && self->active_tool != WAYTATOR_TOOL_TEXT)
+  if (!is_pan_tool && !is_crop_tool && !is_ocr_tool && self->active_tool != WAYTATOR_TOOL_TEXT)
     gtk_widget_add_css_class(GTK_WIDGET(self->settings_group), "has-slider");
   else
     gtk_widget_remove_css_class(GTK_WIDGET(self->settings_group), "has-slider");
@@ -272,6 +273,7 @@ void
 waytator_window_setup_tool_signals(WaytatorWindow *self)
 {
   waytator_window_connect_tool_toggle(self, self->pan_tool_button);
+  waytator_window_connect_tool_toggle(self, self->crop_tool_button);
   waytator_window_connect_tool_toggle(self, self->brush_tool_button);
   waytator_window_connect_tool_toggle(self, self->highlighter_tool_button);
   waytator_window_connect_tool_toggle(self, self->eraser_tool_button);
