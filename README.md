@@ -59,6 +59,8 @@ If `~/.local/bin` is not already on your `PATH`, add it in your shell profile. F
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+If launchers fail to start `waytator` after installing from source, make sure your graphical session includes `~/.local/bin` in `PATH`, not just your shell configuration.
+
 ## Usage
 
 Read from stdin automatically when image data is piped in:
