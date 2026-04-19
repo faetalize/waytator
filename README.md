@@ -4,8 +4,14 @@
 
 `niri` user? Check below on how to integrate niri screenshots with this tool
 
-<p  align="center"><img width="500"  alt="image" src="https://github.com/user-attachments/assets/2c51bebd-fc99-4c75-a530-00e11c07829e"/>
-<img width="500"  alt="image" src="https://github.com/user-attachments/assets/6ecd04d2-5e98-4f9b-b3f9-6b048e590a58" /></p>
+<p  align="center">
+<img width="600" alt="Screenshot from 2026-04-19 03-04-52" src="https://github.com/user-attachments/assets/4bcc1c58-5834-4f35-877b-5f94a914d6ce" />
+  
+<img width="600" alt="image" src="https://github.com/user-attachments/assets/91c949f3-f106-433f-a1d6-62742a72831d" />
+
+
+
+</p>
 
 
 ## Build
