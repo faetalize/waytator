@@ -555,10 +555,8 @@ waytator_window_show_preferences(WaytatorWindow *self)
   AdwPreferencesDialog *dialog;
   AdwPreferencesPage *page;
   AdwPreferencesGroup *group;
-  AdwPreferencesGroup *window_group;
-  AdwPreferencesGroup *floating_controls_group;
+  AdwPreferencesGroup *appearance_group;
   AdwPreferencesGroup *shortcuts_group;
-  AdwPreferencesGroup *clipboard_group;
   AdwComboRow *row;
   AdwComboRow *background_mode_row;
   AdwSwitchRow *floating_controls_blur_row;
@@ -583,10 +581,8 @@ waytator_window_show_preferences(WaytatorWindow *self)
   dialog = ADW_PREFERENCES_DIALOG(adw_preferences_dialog_new());
   page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
   group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
-  window_group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
-  floating_controls_group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
+  appearance_group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
   shortcuts_group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
-  clipboard_group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
   row = ADW_COMBO_ROW(adw_combo_row_new());
   background_mode_row = ADW_COMBO_ROW(adw_combo_row_new());
   floating_controls_blur_row = ADW_SWITCH_ROW(adw_switch_row_new());
@@ -621,17 +617,15 @@ waytator_window_show_preferences(WaytatorWindow *self)
 
   adw_preferences_page_set_title(page, "General");
   adw_preferences_group_set_title(group, "General");
-  adw_preferences_group_set_title(window_group, "Window appearance");
-  adw_preferences_group_set_title(floating_controls_group, "Controls");
+  adw_preferences_group_set_title(appearance_group, "Appearance");
   adw_preferences_group_set_title(shortcuts_group, "Shortcuts");
-  adw_preferences_group_set_title(clipboard_group, "Clipboard");
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Eraser Styling");
   adw_combo_row_set_model(row, G_LIST_MODEL(model));
   adw_combo_row_set_selected(row, self->eraser_style);
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(background_mode_row), "Window background");
   adw_combo_row_set_model(background_mode_row, G_LIST_MODEL(background_model));
   adw_combo_row_set_selected(background_mode_row, self->window_background_mode);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(opacity_row), "Background opacity");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(opacity_row), "Window background opacity");
   gtk_spin_button_set_numeric(opacity_spin_button, TRUE);
   gtk_widget_set_valign(GTK_WIDGET(opacity_spin_button), GTK_ALIGN_CENTER);
   gtk_widget_set_size_request(GTK_WIDGET(opacity_spin_button), 88, -1);
@@ -640,9 +634,9 @@ waytator_window_show_preferences(WaytatorWindow *self)
   gtk_widget_set_sensitive(GTK_WIDGET(opacity_row),
                            self->window_background_mode == WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT);
   g_object_set_data(G_OBJECT(background_mode_row), "opacity-row", opacity_row);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_blur_row), "Blur background");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_blur_row), "Blur the background of controls");
   adw_switch_row_set_active(floating_controls_blur_row, self->floating_controls_blur);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_opacity_row), "Background opacity");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_opacity_row), "Controls background opacity");
   gtk_spin_button_set_numeric(floating_controls_opacity_spin_button, TRUE);
   gtk_widget_set_valign(GTK_WIDGET(floating_controls_opacity_spin_button), GTK_ALIGN_CENTER);
   gtk_widget_set_size_request(GTK_WIDGET(floating_controls_opacity_spin_button), 88, -1);
@@ -672,19 +666,17 @@ waytator_window_show_preferences(WaytatorWindow *self)
 
   adw_preferences_group_add(group, GTK_WIDGET(row));
   adw_preferences_group_add(group, GTK_WIDGET(highlighter_overlap_row));
-  adw_preferences_group_add(window_group, GTK_WIDGET(background_mode_row));
-  adw_preferences_group_add(window_group, GTK_WIDGET(opacity_row));
-  adw_preferences_group_add(floating_controls_group, GTK_WIDGET(floating_controls_blur_row));
-  adw_preferences_group_add(floating_controls_group, GTK_WIDGET(floating_controls_opacity_row));
+  adw_preferences_group_add(group, GTK_WIDGET(auto_copy_latest_change_row));
+  adw_preferences_group_add(appearance_group, GTK_WIDGET(background_mode_row));
+  adw_preferences_group_add(appearance_group, GTK_WIDGET(opacity_row));
+  adw_preferences_group_add(appearance_group, GTK_WIDGET(floating_controls_blur_row));
+  adw_preferences_group_add(appearance_group, GTK_WIDGET(floating_controls_opacity_row));
   adw_preferences_group_add(shortcuts_group, GTK_WIDGET(esc_closes_window_row));
   adw_preferences_group_add(shortcuts_group, GTK_WIDGET(copy_shortcut_enabled_row));
   adw_preferences_group_add(shortcuts_group, GTK_WIDGET(copy_shortcut_row));
-  adw_preferences_group_add(clipboard_group, GTK_WIDGET(auto_copy_latest_change_row));
   adw_preferences_page_add(page, group);
-  adw_preferences_page_add(page, window_group);
-  adw_preferences_page_add(page, floating_controls_group);
+  adw_preferences_page_add(page, appearance_group);
   adw_preferences_page_add(page, shortcuts_group);
-  adw_preferences_page_add(page, clipboard_group);
   adw_preferences_dialog_add(dialog, page);
   adw_dialog_set_title(ADW_DIALOG(dialog), "Preferences");
   adw_preferences_dialog_set_search_enabled(dialog, FALSE);
