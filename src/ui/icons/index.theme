@@ -1,7 +1,7 @@
 [Icon Theme]
 Name=Waytator Hicolor
 Comment=Bundled symbolic icons for Waytator
-Directories=scalable/actions,scalable/apps
+Directories=scalable/actions,128x128/apps
 
 [scalable/actions]
 Size=16
@@ -10,9 +10,7 @@ Type=Scalable
 MinSize=16
 MaxSize=16
 
-[scalable/apps]
+[128x128/apps]
 Size=128
 Context=Applications
-Type=Scalable
-MinSize=128
-MaxSize=128
+Type=Threshold

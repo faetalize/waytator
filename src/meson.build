@@ -41,7 +41,7 @@ install_data(
 )
 
 install_data(
-  'ui/icons/icon.svg',
-  install_dir: join_paths(get_option('datadir'), 'icons/hicolor/scalable/apps'),
-  rename: 'dev.faetalize.waytator.svg',
+  'ui/icons/icon.png',
+  install_dir: join_paths(get_option('datadir'), 'icons/hicolor/128x128/apps'),
+  rename: 'dev.faetalize.waytator.png',
 )
