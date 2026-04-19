@@ -115,6 +115,7 @@ struct _WaytatorWindow {
   gboolean updating_ui;
   gboolean esc_closes_window;
   gboolean copy_shortcut_enabled;
+  gboolean allow_highlighter_overlap;
   gboolean floating_controls_blur;
   gboolean auto_copy_latest_change;
   double window_background_opacity;

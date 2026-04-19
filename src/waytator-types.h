@@ -89,6 +89,7 @@ typedef struct {
   GPtrArray *strokes;
   GFile *file;
   char *copy_format;
+  gboolean allow_marker_overlap;
   WaytatorStrokeRenderFunc render_stroke;
 } WaytatorExportRequest;
 

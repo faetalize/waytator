@@ -3,6 +3,7 @@
 
 #include "waytator-export.h"
 #include "waytator-ocr.h"
+#include "waytator-render.h"
 #include "waytator-stroke.h"
 
 #include <cairo.h>
@@ -33,6 +34,9 @@ static void waytator_window_apply_copy_shortcut(WaytatorWindow *self,
                                                 const char     *accelerator);
 static void waytator_window_update_shortcut_label(GtkShortcutLabel *label,
                                                   const char       *accelerator);
+static void waytator_window_highlighter_overlap_changed(AdwSwitchRow   *row,
+                                                        GParamSpec     *pspec,
+                                                        WaytatorWindow *self);
 
 static void waytator_window_update_window_controls(WaytatorWindow *self);
 static void waytator_window_update_window_background(WaytatorWindow *self);
@@ -188,6 +192,12 @@ waytator_window_load_preferences(WaytatorWindow *self)
                                                            "auto_copy_latest_change",
                                                            NULL);
 
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "allow_highlighter_overlap", NULL))
+    self->allow_highlighter_overlap = g_key_file_get_boolean(key_file,
+                                                             WAYTATOR_SETTINGS_GROUP,
+                                                             "allow_highlighter_overlap",
+                                                             NULL);
+
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "copy_shortcut", NULL)) {
     g_autofree char *accelerator = g_key_file_get_string(key_file,
                                                          WAYTATOR_SETTINGS_GROUP,
@@ -241,6 +251,10 @@ waytator_window_save_preferences(WaytatorWindow *self)
                          WAYTATOR_SETTINGS_GROUP,
                          "auto_copy_latest_change",
                          self->auto_copy_latest_change);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "allow_highlighter_overlap",
+                         self->allow_highlighter_overlap);
   g_key_file_set_string(key_file,
                         WAYTATOR_SETTINGS_GROUP,
                         "copy_shortcut",
@@ -398,6 +412,18 @@ waytator_window_auto_copy_latest_change_changed(AdwSwitchRow   *row,
 }
 
 static void
+waytator_window_highlighter_overlap_changed(AdwSwitchRow   *row,
+                                            GParamSpec     *pspec,
+                                            WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->allow_highlighter_overlap = adw_switch_row_get_active(row);
+  gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+  waytator_window_save_preferences(self);
+}
+
+static void
 waytator_window_apply_copy_shortcut_row(GtkButton *button,
                                         gpointer   user_data)
 {
@@ -539,6 +565,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   AdwSwitchRow *esc_closes_window_row;
   AdwSwitchRow *copy_shortcut_enabled_row;
   AdwSwitchRow *auto_copy_latest_change_row;
+  AdwSwitchRow *highlighter_overlap_row;
   AdwActionRow *opacity_row;
   AdwActionRow *floating_controls_opacity_row;
   AdwActionRow *copy_shortcut_row;
@@ -566,6 +593,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   esc_closes_window_row = ADW_SWITCH_ROW(adw_switch_row_new());
   copy_shortcut_enabled_row = ADW_SWITCH_ROW(adw_switch_row_new());
   auto_copy_latest_change_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  highlighter_overlap_row = ADW_SWITCH_ROW(adw_switch_row_new());
   opacity_row = ADW_ACTION_ROW(adw_action_row_new());
   floating_controls_opacity_row = ADW_ACTION_ROW(adw_action_row_new());
   copy_shortcut_row = ADW_ACTION_ROW(adw_action_row_new());
@@ -639,8 +667,11 @@ waytator_window_show_preferences(WaytatorWindow *self)
   gtk_widget_set_sensitive(GTK_WIDGET(copy_shortcut_row), self->copy_shortcut_enabled);
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(auto_copy_latest_change_row), "Auto-copy latest change");
   adw_switch_row_set_active(auto_copy_latest_change_row, self->auto_copy_latest_change);
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(highlighter_overlap_row), "Allow highlighter strokes to overlap");
+  adw_switch_row_set_active(highlighter_overlap_row, self->allow_highlighter_overlap);
 
   adw_preferences_group_add(group, GTK_WIDGET(row));
+  adw_preferences_group_add(group, GTK_WIDGET(highlighter_overlap_row));
   adw_preferences_group_add(window_group, GTK_WIDGET(background_mode_row));
   adw_preferences_group_add(window_group, GTK_WIDGET(opacity_row));
   adw_preferences_group_add(floating_controls_group, GTK_WIDGET(floating_controls_blur_row));
@@ -687,6 +718,10 @@ waytator_window_show_preferences(WaytatorWindow *self)
   g_signal_connect(auto_copy_latest_change_row,
                    "notify::active",
                    G_CALLBACK(waytator_window_auto_copy_latest_change_changed),
+                   self);
+  g_signal_connect(highlighter_overlap_row,
+                   "notify::active",
+                   G_CALLBACK(waytator_window_highlighter_overlap_changed),
                    self);
   g_object_set_data(G_OBJECT(copy_shortcut_enabled_row), "shortcut-row", copy_shortcut_row);
   g_object_set_data(G_OBJECT(copy_shortcut_button), "window", self);
@@ -1132,6 +1167,7 @@ waytator_window_trigger_copy(WaytatorWindow *self)
                                         "png",
                                         waytator_stroke_copy,
                                         (GDestroyNotify) waytator_stroke_free,
+                                        self->allow_highlighter_overlap,
                                         waytator_stroke_render,
                                         &error);
   if (request == NULL) {
@@ -1438,7 +1474,6 @@ waytator_window_render_composited_surface(WaytatorWindow *self)
   cairo_surface_t *surface;
   cairo_t *cr;
   GPtrArray *strokes = waytator_window_strokes(self);
-  guint i;
 
   if (self->texture == NULL)
     return NULL;
@@ -1452,8 +1487,11 @@ waytator_window_render_composited_surface(WaytatorWindow *self)
   cairo_surface_mark_dirty(surface);
 
   cr = cairo_create(surface);
-  for (i = 0; i < strokes->len; i++)
-    waytator_stroke_render(cr, g_ptr_array_index(strokes, i), surface);
+  waytator_render_strokes(cr,
+                          strokes,
+                          surface,
+                          self->allow_highlighter_overlap,
+                          waytator_stroke_render);
   cairo_destroy(cr);
   cairo_surface_flush(surface);
   return surface;
@@ -1610,6 +1648,7 @@ waytator_window_save_copy_ready(GObject      *source_object,
                                         NULL,
                                         waytator_stroke_copy,
                                         (GDestroyNotify) waytator_stroke_free,
+                                        self->allow_highlighter_overlap,
                                         waytator_stroke_render,
                                         &error);
   if (request == NULL) {
@@ -1649,6 +1688,7 @@ waytator_window_save_overwrite_action(GtkWidget  *widget,
                                         NULL,
                                         waytator_stroke_copy,
                                         (GDestroyNotify) waytator_stroke_free,
+                                        self->allow_highlighter_overlap,
                                         waytator_stroke_render,
                                         &error);
   if (request == NULL) {
@@ -2265,6 +2305,7 @@ waytator_window_init_state(WaytatorWindow *self)
   self->window_background_opacity = 0.8;
   self->esc_closes_window = TRUE;
   self->copy_shortcut_enabled = TRUE;
+  self->allow_highlighter_overlap = TRUE;
   self->floating_controls_blur = TRUE;
   self->auto_copy_latest_change = FALSE;
   self->floating_controls_opacity = 0.7;

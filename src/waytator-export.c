@@ -1,5 +1,7 @@
 #include "waytator-export.h"
 
+#include "waytator-render.h"
+
 static const char *
 waytator_export_format_from_path(const char *path)
 {
@@ -90,11 +92,12 @@ waytator_export_request_new(GdkTexture              *texture,
                             GPtrArray               *strokes,
                             WaytatorExportKind       kind,
                             GFile                   *file,
-                            const char              *copy_format,
-                            WaytatorStrokeCopyFunc   copy_stroke,
-                            GDestroyNotify           stroke_free,
-                            WaytatorStrokeRenderFunc render_stroke,
-                            GError                 **error)
+                             const char              *copy_format,
+                             WaytatorStrokeCopyFunc   copy_stroke,
+                             GDestroyNotify           stroke_free,
+                             gboolean                 allow_marker_overlap,
+                             WaytatorStrokeRenderFunc render_stroke,
+                             GError                 **error)
 {
   WaytatorExportRequest *request;
   const int width = texture != NULL ? gdk_texture_get_width(texture) : 0;
@@ -116,6 +119,7 @@ waytator_export_request_new(GdkTexture              *texture,
   request->stride = cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width);
   request->pixels = g_malloc(request->stride * height);
   request->strokes = g_ptr_array_new_with_free_func(stroke_free);
+  request->allow_marker_overlap = allow_marker_overlap;
   request->render_stroke = render_stroke;
 
   gdk_texture_download(texture, request->pixels, request->stride);
@@ -167,7 +171,6 @@ waytator_export_run_task(GTask        *task,
   WaytatorExportRequest *request = task_data;
   cairo_surface_t *surface;
   cairo_t *cr;
-  guint i;
 
   (void) source_object;
   (void) cancellable;
@@ -178,8 +181,11 @@ waytator_export_run_task(GTask        *task,
                                                 request->height,
                                                 request->stride);
   cr = cairo_create(surface);
-  for (i = 0; i < request->strokes->len; i++)
-    request->render_stroke(cr, g_ptr_array_index(request->strokes, i), surface);
+  waytator_render_strokes(cr,
+                          request->strokes,
+                          surface,
+                          request->allow_marker_overlap,
+                          request->render_stroke);
   cairo_destroy(cr);
   cairo_surface_flush(surface);
 

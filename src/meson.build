@@ -10,6 +10,8 @@ waytator_sources = files(
   'waytator-export.h',
   'waytator-ocr.c',
   'waytator-ocr.h',
+  'waytator-render.c',
+  'waytator-render.h',
   'waytator-stroke.c',
   'waytator-stroke.h',
   'waytator-types.h',

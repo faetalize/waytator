@@ -1,5 +1,6 @@
 #include "waytator-window-private.h"
 
+#include "waytator-render.h"
 #include "waytator-stroke.h"
 
 static void
@@ -107,8 +108,6 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
   double display_width;
   double display_height;
   GPtrArray *strokes = waytator_window_strokes(self);
-  guint i;
-
   (void) area;
 
   if (strokes == NULL || width <= 0 || height <= 0 || image_width <= 0 || image_height <= 0)
@@ -129,8 +128,11 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
   cairo_translate(cr, display_x, display_y);
   cairo_scale(cr, display_width / image_width, display_height / image_height);
 
-  for (i = 0; i < strokes->len; i++)
-    waytator_stroke_render(cr, g_ptr_array_index(strokes, i), self->image_surface);
+  waytator_render_strokes(cr,
+                          strokes,
+                          self->image_surface,
+                          self->allow_highlighter_overlap,
+                          waytator_stroke_render);
 
   cairo_restore(cr);
 
