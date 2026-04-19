@@ -738,7 +738,7 @@ waytator_window_show_about(WaytatorWindow *self)
   adw_show_about_dialog(GTK_WIDGET(self),
                         "application-name", "Waytator",
                         "application-icon", "dev.waytator.Waytator",
-                        "version", "0.1.0",
+                        "version", "1.0.0",
                         "developer-name", "Waytator contributors",
                         "developers", (const char *[]) { "Waytator contributors", NULL },
                         "issue-url", "https://github.com/elu0/waytator/issues",
