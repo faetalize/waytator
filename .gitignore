@@ -1,4 +1,10 @@
 /build/
 /.cache/
+/pkg/
+/src/build/
+/src/*.tar.gz
+/src/waytator-*/
+/*.tar.gz
+/*.pkg.tar.zst
 /test_scale
 *.o
