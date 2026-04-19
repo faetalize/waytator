@@ -57,6 +57,16 @@ PREFIX=/usr/local ./scripts/install.sh
 
 If `~/.local/bin` is not already on your `PATH`, add it in your shell profile, or the install script will prompt you to.
 
+### Install with nix flakes
+
+You can consume waytator's flake as follows:
+```nix
+{
+  inputs.waytator.url = "github:faetalize/waytator";
+}
+```
+Then, add `waytator` in your outputs' arguments and add `waytator.packages.${builtins.currentSystem}.default` to your packages.
+
 ## Usage
 
 Read from stdin automatically when image data is piped in:
