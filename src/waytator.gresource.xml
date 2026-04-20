@@ -36,6 +36,15 @@
   </gresource>
   <gresource prefix="/dev/faetalize/waytator/icons/hicolor/128x128/apps">
     <file alias="dev.faetalize.waytator.png">ui/icons/icon.png</file>
+    <file alias="waytator.png">ui/icons/icon.png</file>
+  </gresource>
+  <gresource prefix="/dev/faetalize/waytator/icons/hicolor/256x256/apps">
+    <file alias="dev.faetalize.waytator.png">ui/icons/icon-256.png</file>
+    <file alias="waytator.png">ui/icons/icon-256.png</file>
+  </gresource>
+  <gresource prefix="/dev/faetalize/waytator/icons/hicolor/512x512/apps">
+    <file alias="dev.faetalize.waytator.png">ui/icons/icon-512.png</file>
+    <file alias="waytator.png">ui/icons/icon-512.png</file>
   </gresource>
   <gresource prefix="/dev/faetalize/waytator/icons/hicolor">
     <file alias="index.theme">ui/icons/index.theme</file>

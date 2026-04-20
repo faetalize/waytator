@@ -110,6 +110,7 @@ waytator_window_erase_strokes(WaytatorWindow *self,
 {
   const double radius = self->tool_widths[WAYTATOR_TOOL_ERASER] / 2.0;
   GPtrArray *strokes = waytator_window_strokes(self);
+  gboolean removed_stroke = FALSE;
   guint i;
 
   if (strokes == NULL)
@@ -118,9 +119,14 @@ waytator_window_erase_strokes(WaytatorWindow *self,
   for (i = strokes->len; i > 0; i--) {
     WaytatorStroke *stroke = g_ptr_array_index(strokes, i - 1);
 
-    if (waytator_stroke_intersects_segment(stroke, x0, y0, x1, y1, radius))
+    if (waytator_stroke_intersects_segment(stroke, x0, y0, x1, y1, radius)) {
       g_ptr_array_remove_index(strokes, i - 1);
+      removed_stroke = TRUE;
+    }
   }
+
+  if (removed_stroke)
+    waytator_window_reset_save_button(self);
 
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
@@ -452,6 +458,7 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
     waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
 
   g_ptr_array_add(waytator_window_strokes(self), self->current_stroke);
+  waytator_window_reset_save_button(self);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
 

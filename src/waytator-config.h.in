@@ -1,0 +1,3 @@
+#pragma once
+
+#define WAYTATOR_VERSION @WAYTATOR_VERSION@

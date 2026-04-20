@@ -1,3 +1,6 @@
+waytator_conf = configuration_data()
+waytator_conf.set_quoted('WAYTATOR_VERSION', meson.project_version())
+
 waytator_sources = files(
   'main.c',
   'waytator-canvas-input.c',
@@ -18,6 +21,12 @@ waytator_sources = files(
   'waytator-window.c',
   'waytator-window.h',
   'waytator-window-private.h',
+)
+
+configure_file(
+  input: 'waytator-config.h.in',
+  output: 'waytator-config.h',
+  configuration: waytator_conf,
 )
 
 waytator_resources = gnome.compile_resources(
@@ -43,5 +52,17 @@ install_data(
 install_data(
   'ui/icons/icon.png',
   install_dir: join_paths(get_option('datadir'), 'icons/hicolor/128x128/apps'),
+  rename: 'dev.faetalize.waytator.png',
+)
+
+install_data(
+  'ui/icons/icon-256.png',
+  install_dir: join_paths(get_option('datadir'), 'icons/hicolor/256x256/apps'),
+  rename: 'dev.faetalize.waytator.png',
+)
+
+install_data(
+  'ui/icons/icon-512.png',
+  install_dir: join_paths(get_option('datadir'), 'icons/hicolor/512x512/apps'),
   rename: 'dev.faetalize.waytator.png',
 )

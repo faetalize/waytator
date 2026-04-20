@@ -1,5 +1,6 @@
 #include "waytator-window.h"
 #include "waytator-window-private.h"
+#include "waytator-config.h"
 
 #include "waytator-export.h"
 #include "waytator-ocr.h"
@@ -738,8 +739,8 @@ waytator_window_show_about(WaytatorWindow *self)
 {
   adw_show_about_dialog(GTK_WIDGET(self),
                         "application-name", "Waytator",
-                        "application-icon", "dev.faetalize.waytator",
-                        "version", "1.1.0",
+                        "application-icon", "waytator",
+                        "version", WAYTATOR_VERSION,
                         "developer-name", "faetalize",
                         "developers", (const char *[]) { "faetalize", NULL },
                         "issue-url", "https://github.com/elu0/waytator/issues",
