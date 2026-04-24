@@ -8,3 +8,4 @@
 /*.pkg.tar.zst
 /test_scale
 *.o
+/simulated-touch/
