@@ -66,6 +66,7 @@ WaytatorStroke *
 waytator_stroke_new(WaytatorTool   tool,
                     double         width,
                     const GdkRGBA *color,
+                    const GdkRGBA *fill_color,
                     int            blur_type)
 {
   WaytatorStroke *stroke = g_new0(WaytatorStroke, 1);
@@ -76,6 +77,12 @@ waytator_stroke_new(WaytatorTool   tool,
   stroke->g = color->green;
   stroke->b = color->blue;
   stroke->a = color->alpha;
+  if (fill_color != NULL) {
+    stroke->fill_r = fill_color->red;
+    stroke->fill_g = fill_color->green;
+    stroke->fill_b = fill_color->blue;
+    stroke->fill_a = fill_color->alpha;
+  }
   stroke->blur_type = blur_type;
   stroke->points = g_array_new(FALSE, FALSE, sizeof(WaytatorPoint));
   return stroke;
@@ -92,6 +99,10 @@ waytator_stroke_copy(WaytatorStroke *stroke)
   copy->g = stroke->g;
   copy->b = stroke->b;
   copy->a = stroke->a;
+  copy->fill_r = stroke->fill_r;
+  copy->fill_g = stroke->fill_g;
+  copy->fill_b = stroke->fill_b;
+  copy->fill_a = stroke->fill_a;
   copy->blur_type = stroke->blur_type;
   copy->points = g_array_sized_new(FALSE, FALSE, sizeof(WaytatorPoint), stroke->points->len);
   g_array_append_vals(copy->points, stroke->points->data, stroke->points->len);
@@ -236,6 +247,11 @@ waytator_stroke_render(cairo_t         *cr,
     switch (stroke->tool) {
     case WAYTATOR_TOOL_RECTANGLE:
       cairo_rectangle(cr, left, top, rect_width, rect_height);
+      if (stroke->fill_a > 0.0) {
+        cairo_set_source_rgba(cr, stroke->fill_r, stroke->fill_g, stroke->fill_b, stroke->fill_a);
+        cairo_fill_preserve(cr);
+        cairo_set_source_rgba(cr, stroke->r, stroke->g, stroke->b, stroke->a);
+      }
       cairo_stroke(cr);
       return;
     case WAYTATOR_TOOL_CIRCLE: {
@@ -247,6 +263,11 @@ waytator_stroke_render(cairo_t         *cr,
       cairo_scale(cr, MAX(radius_x, 0.0001), MAX(radius_y, 0.0001));
       cairo_arc(cr, 0.0, 0.0, 1.0, 0.0, 2.0 * G_PI);
       cairo_restore(cr);
+      if (stroke->fill_a > 0.0) {
+        cairo_set_source_rgba(cr, stroke->fill_r, stroke->fill_g, stroke->fill_b, stroke->fill_a);
+        cairo_fill_preserve(cr);
+        cairo_set_source_rgba(cr, stroke->r, stroke->g, stroke->b, stroke->a);
+      }
       cairo_stroke(cr);
       return;
     }

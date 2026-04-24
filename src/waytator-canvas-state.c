@@ -122,6 +122,7 @@ waytator_window_tool_toggled(GtkToggleButton *button,
   gtk_range_set_value(GTK_RANGE(self->width_scale), self->tool_widths[self->active_tool]);
   gtk_spin_button_set_value(self->text_size_spin, self->tool_widths[self->active_tool]);
   gtk_color_dialog_button_set_rgba(self->color_button, &self->tool_colors[self->active_tool]);
+  gtk_color_dialog_button_set_rgba(self->fill_color_button, &self->tool_fill_colors[self->active_tool]);
   if (self->active_tool == WAYTATOR_TOOL_BLUR)
     gtk_drop_down_set_selected(self->blur_type_dropdown, self->blur_type);
   self->updating_ui = FALSE;
@@ -156,6 +157,26 @@ waytator_window_color_changed(GObject    *object,
 
     if (rgba != NULL) {
       self->tool_colors[self->active_tool] = *rgba;
+      gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+    }
+  }
+}
+
+static void
+waytator_window_fill_color_changed(GObject    *object,
+                                   GParamSpec *pspec,
+                                   gpointer    user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+
+  (void) object;
+  (void) pspec;
+
+  if (!self->updating_ui) {
+    const GdkRGBA *rgba = gtk_color_dialog_button_get_rgba(self->fill_color_button);
+
+    if (rgba != NULL) {
+      self->tool_fill_colors[self->active_tool] = *rgba;
       gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
     }
   }
@@ -220,6 +241,8 @@ waytator_window_update_tool_ui(WaytatorWindow *self)
   const gboolean is_pan_tool = self->active_tool == WAYTATOR_TOOL_PAN;
   const gboolean is_crop_tool = self->active_tool == WAYTATOR_TOOL_CROP;
   const gboolean is_ocr_tool = self->active_tool == WAYTATOR_TOOL_OCR;
+  const gboolean has_fill_color = self->active_tool == WAYTATOR_TOOL_RECTANGLE
+                               || self->active_tool == WAYTATOR_TOOL_CIRCLE;
   const gboolean is_shape_menu = self->active_tool == WAYTATOR_TOOL_RECTANGLE
                               || self->active_tool == WAYTATOR_TOOL_CIRCLE
                               || self->active_tool == WAYTATOR_TOOL_LINE
@@ -241,6 +264,7 @@ waytator_window_update_tool_ui(WaytatorWindow *self)
                           !is_ocr_tool &&
                           self->active_tool != WAYTATOR_TOOL_ERASER &&
                           self->active_tool != WAYTATOR_TOOL_BLUR);
+  gtk_widget_set_visible(GTK_WIDGET(self->fill_color_button), has_fill_color);
   gtk_widget_set_visible(GTK_WIDGET(self->width_scale),
                          !is_pan_tool &&
                          !is_crop_tool &&
@@ -293,4 +317,5 @@ waytator_window_setup_tool_signals(WaytatorWindow *self)
   g_signal_connect(self->text_size_spin, "value-changed", G_CALLBACK(waytator_window_text_size_changed), self);
   g_signal_connect(self->blur_type_dropdown, "notify::selected", G_CALLBACK(waytator_window_blur_type_changed), self);
   g_signal_connect(self->color_button, "notify::rgba", G_CALLBACK(waytator_window_color_changed), self);
+  g_signal_connect(self->fill_color_button, "notify::rgba", G_CALLBACK(waytator_window_fill_color_changed), self);
 }

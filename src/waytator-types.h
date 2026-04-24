@@ -43,6 +43,10 @@ typedef struct {
   double g;
   double b;
   double a;
+  double fill_r;
+  double fill_g;
+  double fill_b;
+  double fill_a;
   int blur_type;
   GArray *points;
   char *text;

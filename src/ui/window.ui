@@ -661,10 +661,23 @@
                         <child>
                           <object class="GtkColorDialogButton" id="color_button">
                             <property name="valign">center</property>
+                            <property name="tooltip-text">Stroke color</property>
                             <property name="dialog">
                               <object class="GtkColorDialog"/>
                             </property>
                             <property name="rgba">rgba(245, 51, 71, 1.0)</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkColorDialogButton" id="fill_color_button">
+                            <property name="valign">center</property>
+                            <property name="tooltip-text">Fill color</property>
+                            <property name="dialog">
+                              <object class="GtkColorDialog">
+                                <property name="with-alpha">True</property>
+                              </object>
+                            </property>
+                            <property name="rgba">rgba(245, 51, 71, 0.0)</property>
                           </object>
                         </child>
                         <child>

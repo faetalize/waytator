@@ -72,6 +72,7 @@ struct _WaytatorWindow {
   GtkButton *fit_zoom_button;
   GtkWidget *settings_group;
   GtkColorDialogButton *color_button;
+  GtkColorDialogButton *fill_color_button;
   GtkScale *width_scale;
   GtkSpinButton *text_size_spin;
   GtkDropDown *blur_type_dropdown;
@@ -124,6 +125,7 @@ struct _WaytatorWindow {
   double floating_controls_opacity;
   double tool_widths[WAYTATOR_TOOL_BLUR + 1];
   GdkRGBA tool_colors[WAYTATOR_TOOL_BLUR + 1];
+  GdkRGBA tool_fill_colors[WAYTATOR_TOOL_BLUR + 1];
   int blur_type;
   WaytatorEraserStyle eraser_style;
   GPtrArray *ocr_lines;

@@ -9,6 +9,7 @@ gboolean waytator_tool_is_non_drawing(WaytatorTool tool);
 WaytatorStroke *waytator_stroke_new(WaytatorTool    tool,
                                     double          width,
                                     const GdkRGBA  *color,
+                                    const GdkRGBA  *fill_color,
                                     int             blur_type);
 WaytatorStroke *waytator_stroke_copy(WaytatorStroke *stroke);
 void waytator_stroke_free(WaytatorStroke *stroke);

@@ -493,6 +493,7 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
   self->current_stroke = waytator_stroke_new(self->active_tool,
                                              self->tool_widths[self->active_tool],
                                              &self->tool_colors[self->active_tool],
+                                             &self->tool_fill_colors[self->active_tool],
                                              self->blur_type);
   waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
 

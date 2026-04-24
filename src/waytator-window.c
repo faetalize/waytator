@@ -2360,6 +2360,7 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, fit_zoom_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, settings_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, color_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, fill_color_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, width_scale);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, text_size_spin);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, blur_type_dropdown);
@@ -2414,6 +2415,7 @@ waytator_window_init_state(WaytatorWindow *self)
   for (i = 0; i <= WAYTATOR_TOOL_BLUR; i++) {
     self->tool_widths[i] = waytator_tool_width(i);
     self->tool_colors[i] = (GdkRGBA){0.96, 0.2, 0.28, 1.0};
+    self->tool_fill_colors[i] = (GdkRGBA){0.96, 0.2, 0.28, 0.0};
   }
   self->tool_colors[WAYTATOR_TOOL_MARKER] = (GdkRGBA){1.0, 0.91, 0.2, 1.0};
   self->tool_colors[WAYTATOR_TOOL_BLUR] = (GdkRGBA){0.0, 0.0, 0.0, 1.0};
