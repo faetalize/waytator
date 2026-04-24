@@ -97,6 +97,7 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
                                   gpointer        user_data)
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  cairo_surface_t *composited_surface = NULL;
   const int image_width = self->texture != NULL
                         ? gdk_paintable_get_intrinsic_width(GDK_PAINTABLE(self->texture))
                         : 0;
@@ -122,19 +123,30 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
                                         &display_height))
     return;
 
+  if (strokes->len > 0)
+    composited_surface = waytator_window_render_composited_surface(self);
+
   cairo_save(cr);
   cairo_rectangle(cr, display_x, display_y, display_width, display_height);
   cairo_clip(cr);
   cairo_translate(cr, display_x, display_y);
   cairo_scale(cr, display_width / image_width, display_height / image_height);
 
-  waytator_render_strokes(cr,
-                          strokes,
-                          self->image_surface,
-                          self->allow_highlighter_overlap,
-                          waytator_stroke_render);
+  if (composited_surface != NULL) {
+    cairo_set_source_surface(cr, composited_surface, 0.0, 0.0);
+    cairo_paint(cr);
+  } else {
+    waytator_render_strokes(cr,
+                            strokes,
+                            self->image_surface,
+                            self->allow_highlighter_overlap,
+                            waytator_stroke_render);
+  }
 
   cairo_restore(cr);
+
+  if (composited_surface != NULL)
+    cairo_surface_destroy(composited_surface);
 
   if (self->active_tool == WAYTATOR_TOOL_CROP && self->drawing) {
     const double crop_left = MIN(self->crop_start_x, self->crop_end_x);

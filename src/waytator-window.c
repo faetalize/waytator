@@ -1565,7 +1565,7 @@ waytator_window_refresh_image_from_document(WaytatorWindow *self)
   return TRUE;
 }
 
-static cairo_surface_t *
+cairo_surface_t *
 waytator_window_render_composited_surface(WaytatorWindow *self)
 {
   cairo_surface_t *surface;
