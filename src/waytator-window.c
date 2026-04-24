@@ -743,9 +743,9 @@ waytator_window_show_about(WaytatorWindow *self)
                         "version", WAYTATOR_VERSION,
                         "developer-name", "faetalize",
                         "developers", (const char *[]) { "faetalize", NULL },
-                        "issue-url", "https://github.com/elu0/waytator/issues",
+                        "issue-url", "https://github.com/faetalize/waytator/issues",
                         "license-type", GTK_LICENSE_GPL_3_0,
-                        "website", "https://github.com/elu0/waytator",
+                        "website", "https://github.com/faetalize/waytator",
                         NULL);
 }
 
