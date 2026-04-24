@@ -160,6 +160,7 @@ waytator_stroke_render(cairo_t         *cr,
   if (len == 0)
     return;
 
+  cairo_new_path(cr);
   cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
   cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
   cairo_set_line_width(cr, stroke->width);
