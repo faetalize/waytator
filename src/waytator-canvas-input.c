@@ -101,9 +101,51 @@ waytator_window_global_key_pressed(GtkEventControllerKey *controller,
 
 #define WAYTATOR_ZOOM_STEP 1.15
 
+static gboolean
+waytator_tool_uses_angle_snapping(WaytatorTool tool)
+{
+  return tool == WAYTATOR_TOOL_LINE || tool == WAYTATOR_TOOL_ARROW;
+}
+
+static void
+waytator_window_maybe_snap_shape_endpoint(GtkGestureDrag *gesture,
+                                          WaytatorWindow *self,
+                                          double         *x,
+                                          double         *y)
+{
+  GdkModifierType state;
+
+  if (!waytator_tool_uses_angle_snapping(self->active_tool)
+      || self->current_stroke == NULL
+      || self->current_stroke->points->len == 0
+      || x == NULL
+      || y == NULL)
+    return;
+
+  state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
+  if (self->angle_snap_modifiers == 0
+      || (state & self->angle_snap_modifiers) != self->angle_snap_modifiers)
+    return;
+
+  {
+    const WaytatorPoint *start = &g_array_index(self->current_stroke->points, WaytatorPoint, 0);
+    const double dx = *x - start->x;
+    const double dy = *y - start->y;
+    const double distance = hypot(dx, dy);
+
+    if (distance < 0.0001)
+      return;
+
+    const double snapped_angle = round(atan2(dy, dx) / (G_PI / 4.0)) * (G_PI / 4.0);
+
+    *x = start->x + cos(snapped_angle) * distance;
+    *y = start->y + sin(snapped_angle) * distance;
+  }
+}
+
 static void
 waytator_window_erase_strokes(WaytatorWindow *self,
-                              double          x0,
+                               double          x0,
                               double          y0,
                               double          x1,
                               double          y1)
@@ -498,6 +540,8 @@ waytator_window_draw_update(GtkGestureDrag *gesture,
                                   image_x,
                                   image_y);
   } else if (self->current_stroke != NULL) {
+    waytator_window_maybe_snap_shape_endpoint(gesture, self, &image_x, &image_y);
+
     if (waytator_tool_is_shape(self->active_tool))
       waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);
     else
@@ -548,6 +592,8 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
 
   if (self->current_stroke == NULL)
     goto done;
+
+  waytator_window_maybe_snap_shape_endpoint(gesture, self, &image_x, &image_y);
 
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);

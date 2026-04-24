@@ -116,6 +116,7 @@ struct _WaytatorWindow {
   gboolean updating_ui;
   gboolean esc_closes_window;
   gboolean copy_shortcut_enabled;
+  GdkModifierType angle_snap_modifiers;
   gboolean allow_highlighter_overlap;
   gboolean floating_controls_blur;
   gboolean auto_copy_latest_change;

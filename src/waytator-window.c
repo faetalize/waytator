@@ -36,6 +36,7 @@ static void waytator_window_apply_copy_shortcut(WaytatorWindow *self,
                                                 const char     *accelerator);
 static void waytator_window_update_shortcut_label(GtkShortcutLabel *label,
                                                   const char       *accelerator);
+static const char *waytator_window_angle_snap_modifier_label(GdkModifierType modifiers);
 static void waytator_window_highlighter_overlap_changed(AdwSwitchRow   *row,
                                                         GParamSpec     *pspec,
                                                         WaytatorWindow *self);
@@ -103,6 +104,25 @@ waytator_window_update_shortcut_label(GtkShortcutLabel *label,
 {
   gtk_shortcut_label_set_accelerator(label,
                                      accelerator != NULL ? accelerator : "");
+}
+
+static const char *
+waytator_window_angle_snap_modifier_label(GdkModifierType modifiers)
+{
+  switch (modifiers & gtk_accelerator_get_default_mod_mask()) {
+  case 0:
+    return "Disabled";
+  case GDK_SHIFT_MASK:
+    return "Shift";
+  case GDK_CONTROL_MASK:
+    return "Ctrl";
+  case GDK_ALT_MASK:
+    return "Alt";
+  case GDK_SUPER_MASK:
+    return "Super";
+  default:
+    return "Shift";
+  }
 }
 
 static void
@@ -209,6 +229,25 @@ waytator_window_load_preferences(WaytatorWindow *self)
     if (waytator_window_parse_accelerator(accelerator, NULL, NULL))
       waytator_window_apply_copy_shortcut(self, accelerator);
   }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "angle_snap_modifiers", NULL)) {
+    const int modifiers = g_key_file_get_integer(key_file,
+                                                 WAYTATOR_SETTINGS_GROUP,
+                                                 "angle_snap_modifiers",
+                                                 NULL);
+
+    switch (modifiers & gtk_accelerator_get_default_mod_mask()) {
+    case 0:
+    case GDK_SHIFT_MASK:
+    case GDK_CONTROL_MASK:
+    case GDK_ALT_MASK:
+    case GDK_SUPER_MASK:
+      self->angle_snap_modifiers = modifiers & gtk_accelerator_get_default_mod_mask();
+      break;
+    default:
+      break;
+    }
+  }
 }
 
 static void
@@ -261,6 +300,10 @@ waytator_window_save_preferences(WaytatorWindow *self)
                         WAYTATOR_SETTINGS_GROUP,
                         "copy_shortcut",
                         self->copy_shortcut_accel);
+  g_key_file_set_integer(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "angle_snap_modifiers",
+                         self->angle_snap_modifiers);
 
   if (g_mkdir_with_parents(directory, 0700) != 0) {
     g_warning("Failed to create preferences directory %s", directory);
@@ -426,6 +469,29 @@ waytator_window_highlighter_overlap_changed(AdwSwitchRow   *row,
 }
 
 static void
+waytator_window_angle_snap_modifier_changed(AdwComboRow    *row,
+                                            GParamSpec     *pspec,
+                                            WaytatorWindow *self)
+{
+  static const GdkModifierType snap_modifiers[] = {
+    0,
+    GDK_SHIFT_MASK,
+    GDK_CONTROL_MASK,
+    GDK_ALT_MASK,
+    GDK_SUPER_MASK,
+  };
+  const guint selected = adw_combo_row_get_selected(row);
+
+  (void) pspec;
+
+  if (selected >= G_N_ELEMENTS(snap_modifiers))
+    return;
+
+  self->angle_snap_modifiers = snap_modifiers[selected];
+  waytator_window_save_preferences(self);
+}
+
+static void
 waytator_window_apply_copy_shortcut_row(GtkButton *button,
                                         gpointer   user_data)
 {
@@ -566,11 +632,13 @@ waytator_window_show_preferences(WaytatorWindow *self)
   AdwSwitchRow *copy_shortcut_enabled_row;
   AdwSwitchRow *auto_copy_latest_change_row;
   AdwSwitchRow *highlighter_overlap_row;
+  AdwComboRow *angle_snap_modifier_row;
   AdwActionRow *opacity_row;
   AdwActionRow *floating_controls_opacity_row;
   AdwActionRow *copy_shortcut_row;
   GtkStringList *model;
   GtkStringList *background_model;
+  GtkStringList *angle_snap_model;
   GtkAdjustment *opacity_adjustment;
   GtkSpinButton *opacity_spin_button;
   GtkAdjustment *floating_controls_opacity_adjustment;
@@ -592,6 +660,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   copy_shortcut_enabled_row = ADW_SWITCH_ROW(adw_switch_row_new());
   auto_copy_latest_change_row = ADW_SWITCH_ROW(adw_switch_row_new());
   highlighter_overlap_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  angle_snap_modifier_row = ADW_COMBO_ROW(adw_combo_row_new());
   opacity_row = ADW_ACTION_ROW(adw_action_row_new());
   floating_controls_opacity_row = ADW_ACTION_ROW(adw_action_row_new());
   copy_shortcut_row = ADW_ACTION_ROW(adw_action_row_new());
@@ -614,6 +683,14 @@ waytator_window_show_preferences(WaytatorWindow *self)
     waytator_window_background_mode_label(WAYTATOR_WINDOW_BACKGROUND_FOLLOW_SYSTEM),
     waytator_window_background_mode_label(WAYTATOR_WINDOW_BACKGROUND_OPAQUE),
     waytator_window_background_mode_label(WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT),
+    NULL,
+  });
+  angle_snap_model = gtk_string_list_new((const char *[]) {
+    waytator_window_angle_snap_modifier_label(0),
+    waytator_window_angle_snap_modifier_label(GDK_SHIFT_MASK),
+    waytator_window_angle_snap_modifier_label(GDK_CONTROL_MASK),
+    waytator_window_angle_snap_modifier_label(GDK_ALT_MASK),
+    waytator_window_angle_snap_modifier_label(GDK_SUPER_MASK),
     NULL,
   });
 
@@ -661,6 +738,26 @@ waytator_window_show_preferences(WaytatorWindow *self)
   gtk_widget_add_controller(copy_shortcut_button, copy_shortcut_key_controller);
   adw_action_row_add_suffix(copy_shortcut_row, copy_shortcut_button);
   gtk_widget_set_sensitive(GTK_WIDGET(copy_shortcut_row), self->copy_shortcut_enabled);
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(angle_snap_modifier_row), "Angle snap modifier");
+  adw_combo_row_set_model(angle_snap_modifier_row, G_LIST_MODEL(angle_snap_model));
+  switch (self->angle_snap_modifiers) {
+  case 0:
+    adw_combo_row_set_selected(angle_snap_modifier_row, 0);
+    break;
+  case GDK_CONTROL_MASK:
+    adw_combo_row_set_selected(angle_snap_modifier_row, 2);
+    break;
+  case GDK_ALT_MASK:
+    adw_combo_row_set_selected(angle_snap_modifier_row, 3);
+    break;
+  case GDK_SUPER_MASK:
+    adw_combo_row_set_selected(angle_snap_modifier_row, 4);
+    break;
+  case GDK_SHIFT_MASK:
+  default:
+    adw_combo_row_set_selected(angle_snap_modifier_row, 1);
+    break;
+  }
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(auto_copy_latest_change_row), "Auto-copy latest change");
   adw_switch_row_set_active(auto_copy_latest_change_row, self->auto_copy_latest_change);
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(highlighter_overlap_row), "Allow highlighter strokes to overlap");
@@ -676,6 +773,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_preferences_group_add(shortcuts_group, GTK_WIDGET(esc_closes_window_row));
   adw_preferences_group_add(shortcuts_group, GTK_WIDGET(copy_shortcut_enabled_row));
   adw_preferences_group_add(shortcuts_group, GTK_WIDGET(copy_shortcut_row));
+  adw_preferences_group_add(shortcuts_group, GTK_WIDGET(angle_snap_modifier_row));
   adw_preferences_page_add(page, group);
   adw_preferences_page_add(page, appearance_group);
   adw_preferences_page_add(page, shortcuts_group);
@@ -709,6 +807,10 @@ waytator_window_show_preferences(WaytatorWindow *self)
                    "notify::active",
                    G_CALLBACK(waytator_window_copy_shortcut_enabled_changed),
                    self);
+  g_signal_connect(angle_snap_modifier_row,
+                   "notify::selected",
+                   G_CALLBACK(waytator_window_angle_snap_modifier_changed),
+                   self);
   g_signal_connect(auto_copy_latest_change_row,
                    "notify::active",
                    G_CALLBACK(waytator_window_auto_copy_latest_change_changed),
@@ -731,7 +833,8 @@ waytator_window_show_preferences(WaytatorWindow *self)
 
   adw_dialog_present(ADW_DIALOG(dialog), GTK_WIDGET(self));
   g_object_unref(model);
-  g_object_unref(background_model); //
+  g_object_unref(background_model);
+  g_object_unref(angle_snap_model);
 }
 
 static void
@@ -2300,6 +2403,7 @@ waytator_window_init_state(WaytatorWindow *self)
   self->window_background_opacity = 0.8;
   self->esc_closes_window = TRUE;
   self->copy_shortcut_enabled = TRUE;
+  self->angle_snap_modifiers = GDK_SHIFT_MASK;
   self->allow_highlighter_overlap = TRUE;
   self->floating_controls_blur = TRUE;
   self->auto_copy_latest_change = FALSE;
