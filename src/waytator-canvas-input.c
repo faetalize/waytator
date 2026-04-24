@@ -107,39 +107,60 @@ waytator_tool_uses_angle_snapping(WaytatorTool tool)
   return tool == WAYTATOR_TOOL_LINE || tool == WAYTATOR_TOOL_ARROW;
 }
 
+static gboolean
+waytator_tool_uses_aspect_ratio_snapping(WaytatorTool tool)
+{
+  return tool == WAYTATOR_TOOL_RECTANGLE || tool == WAYTATOR_TOOL_CIRCLE;
+}
+
+static gboolean
+waytator_window_snap_modifier_active(GtkGestureDrag *gesture,
+                                     WaytatorWindow *self)
+{
+  const GdkModifierType state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
+
+  return self->angle_snap_modifiers != 0
+      && (state & self->angle_snap_modifiers) == self->angle_snap_modifiers;
+}
+
 static void
 waytator_window_maybe_snap_shape_endpoint(GtkGestureDrag *gesture,
                                           WaytatorWindow *self,
                                           double         *x,
                                           double         *y)
 {
-  GdkModifierType state;
-
-  if (!waytator_tool_uses_angle_snapping(self->active_tool)
-      || self->current_stroke == NULL
+  if (self->current_stroke == NULL
       || self->current_stroke->points->len == 0
       || x == NULL
       || y == NULL)
     return;
 
-  state = gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
-  if (self->angle_snap_modifiers == 0
-      || (state & self->angle_snap_modifiers) != self->angle_snap_modifiers)
+  if (!waytator_window_snap_modifier_active(gesture, self))
     return;
 
   {
     const WaytatorPoint *start = &g_array_index(self->current_stroke->points, WaytatorPoint, 0);
     const double dx = *x - start->x;
     const double dy = *y - start->y;
-    const double distance = hypot(dx, dy);
 
-    if (distance < 0.0001)
+    if (fabs(dx) < 0.0001 && fabs(dy) < 0.0001)
       return;
 
-    const double snapped_angle = round(atan2(dy, dx) / (G_PI / 4.0)) * (G_PI / 4.0);
+    if (waytator_tool_uses_angle_snapping(self->active_tool)) {
+      const double distance = hypot(dx, dy);
+      const double snapped_angle = round(atan2(dy, dx) / (G_PI / 4.0)) * (G_PI / 4.0);
 
-    *x = start->x + cos(snapped_angle) * distance;
-    *y = start->y + sin(snapped_angle) * distance;
+      *x = start->x + cos(snapped_angle) * distance;
+      *y = start->y + sin(snapped_angle) * distance;
+      return;
+    }
+
+    if (waytator_tool_uses_aspect_ratio_snapping(self->active_tool)) {
+      const double side = MAX(fabs(dx), fabs(dy));
+
+      *x = start->x + (dx < 0.0 ? -side : side);
+      *y = start->y + (dy < 0.0 ? -side : side);
+    }
   }
 }
 

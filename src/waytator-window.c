@@ -738,7 +738,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   gtk_widget_add_controller(copy_shortcut_button, copy_shortcut_key_controller);
   adw_action_row_add_suffix(copy_shortcut_row, copy_shortcut_button);
   gtk_widget_set_sensitive(GTK_WIDGET(copy_shortcut_row), self->copy_shortcut_enabled);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(angle_snap_modifier_row), "Angle snap modifier");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(angle_snap_modifier_row), "Snap modifier");
   adw_combo_row_set_model(angle_snap_modifier_row, G_LIST_MODEL(angle_snap_model));
   switch (self->angle_snap_modifiers) {
   case 0:
