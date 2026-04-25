@@ -94,7 +94,7 @@
                     <property name="hexpand">True</property>
                     <property name="vexpand">True</property>
                     <property name="has-frame">False</property>
-                    <property name="kinetic-scrolling">True</property>
+                    <property name="kinetic-scrolling">False</property>
                     <property name="overlay-scrolling">True</property>
                     <property name="hscrollbar-policy">automatic</property>
                     <property name="vscrollbar-policy">automatic</property>

@@ -13,6 +13,11 @@ struct _WaytatorWindow {
   GtkWidget *canvas_surface;
   GtkPicture *picture;
   GtkDrawingArea *drawing_area;
+  GtkGesture *touch_pan_gesture;
+  GtkGesture *crop_gesture;
+  GtkGesture *draw_gesture;
+  GtkGesture *zoom_gesture;
+  GtkEventController *touch_legacy_controller;
   GtkFixed *ocr_overlay;
   AdwBottomSheet *ocr_panel_bottom_sheet;
   GtkWidget *ocr_panel;
@@ -103,6 +108,8 @@ struct _WaytatorWindow {
   double drag_start_hvalue;
   double drag_start_vvalue;
   double pinch_start_zoom;
+  double pinch_anchor_rel_x;
+  double pinch_anchor_rel_y;
   double crop_start_x;
   double crop_start_y;
   double crop_end_x;
@@ -115,6 +122,10 @@ struct _WaytatorWindow {
   gboolean pointer_in;
   WaytatorWindowBackgroundMode window_background_mode;
   gboolean updating_ui;
+  gboolean interaction_has_undo_step;
+  GdkEventSequence *active_touch_draw_sequence;
+  GdkEventSequence *cancelled_touch_draw_sequence;
+  GHashTable *active_touch_sequences;
   gboolean esc_closes_window;
   gboolean copy_shortcut_enabled;
   GdkModifierType angle_snap_modifiers;

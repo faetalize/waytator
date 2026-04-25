@@ -1784,6 +1784,9 @@ waytator_window_refresh_document_state(WaytatorWindow *self)
   waytator_window_refresh_image_from_document(self);
   self->current_stroke = NULL;
   self->drawing = FALSE;
+  self->interaction_has_undo_step = FALSE;
+  self->active_touch_draw_sequence = NULL;
+  self->cancelled_touch_draw_sequence = NULL;
   self->crop_start_x = 0.0;
   self->crop_start_y = 0.0;
   self->crop_end_x = 0.0;
@@ -2474,6 +2477,7 @@ waytator_window_dispose(GObject *object)
                                                   GTK_STYLE_PROVIDER(self->widget_css_provider));
   g_clear_object(&self->widget_css_provider);
   g_clear_pointer(&self->copy_shortcut_accel, g_free);
+  g_clear_pointer(&self->active_touch_sequences, g_hash_table_unref);
 
   G_OBJECT_CLASS(waytator_window_parent_class)->dispose(object);
 }
@@ -2576,6 +2580,7 @@ waytator_window_init_state(WaytatorWindow *self)
   self->active_tool = WAYTATOR_TOOL_BRUSH;
   self->drawing = FALSE;
   self->document = waytator_document_new();
+  self->active_touch_sequences = g_hash_table_new(g_direct_hash, g_direct_equal);
   self->ocr_lines = NULL;
   self->selected_ocr_line = NULL;
   self->ocr_all_text = NULL;

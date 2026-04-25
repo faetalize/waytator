@@ -297,6 +297,19 @@ waytator_document_record_undo_step(WaytatorDocument *document)
 }
 
 GPtrArray *
+waytator_document_discard_undo_step(WaytatorDocument *document)
+{
+  WaytatorDocumentSnapshot *snapshot;
+
+  if (g_queue_is_empty(document->undo_history))
+    return document->strokes;
+
+  snapshot = g_queue_pop_tail(document->undo_history);
+  waytator_document_apply_snapshot(document, snapshot);
+  return document->strokes;
+}
+
+GPtrArray *
 waytator_document_undo(WaytatorDocument *document)
 {
   WaytatorDocumentSnapshot *snapshot;
