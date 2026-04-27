@@ -785,7 +785,8 @@ waytator_window_show_preferences(WaytatorWindow *self)
   GtkWidget *default_highlighter_color_button;
   GtkWidget *default_fill_color_button;
   GtkEventController *copy_shortcut_key_controller;
-  GtkColorDialog *default_color_dialog;
+  GtkColorDialog *default_primary_color_dialog;
+  GtkColorDialog *default_highlighter_color_dialog;
   GtkColorDialog *default_fill_color_dialog;
 
   dialog = ADW_PREFERENCES_DIALOG(adw_preferences_dialog_new());
@@ -815,10 +816,11 @@ waytator_window_show_preferences(WaytatorWindow *self)
   copy_shortcut_button = gtk_button_new();
   copy_shortcut_button_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
   copy_shortcut_key_controller = gtk_event_controller_key_new();
-  default_color_dialog = gtk_color_dialog_new();
+  default_primary_color_dialog = gtk_color_dialog_new();
+  default_highlighter_color_dialog = gtk_color_dialog_new();
   default_fill_color_dialog = gtk_color_dialog_new();
-  default_primary_color_button = gtk_color_dialog_button_new(default_color_dialog);
-  default_highlighter_color_button = gtk_color_dialog_button_new(default_color_dialog);
+  default_primary_color_button = gtk_color_dialog_button_new(default_primary_color_dialog);
+  default_highlighter_color_button = gtk_color_dialog_button_new(default_highlighter_color_dialog);
   default_fill_color_button = gtk_color_dialog_button_new(default_fill_color_dialog);
   model = gtk_string_list_new((const char *[]) {
     waytator_window_eraser_style_label(WAYTATOR_ERASER_STYLE_DUAL_RING),
@@ -1017,8 +1019,6 @@ waytator_window_show_preferences(WaytatorWindow *self)
   g_object_unref(model);
   g_object_unref(background_model);
   g_object_unref(angle_snap_model);
-  g_object_unref(default_color_dialog);
-  g_object_unref(default_fill_color_dialog);
 }
 
 static void
