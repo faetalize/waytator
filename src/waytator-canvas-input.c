@@ -14,6 +14,9 @@ typedef struct {
   double y;
 } WaytatorTouchTapPoint;
 
+static void waytator_window_commit_blur_stroke(WaytatorWindow *self);
+static void waytator_window_discard_blur_stroke(WaytatorWindow *self);
+
 static void
 waytator_window_get_viewport_size(WaytatorWindow *self,
                                   double         *width,
@@ -50,6 +53,53 @@ waytator_window_parse_shortcut_match(const char      *accelerator,
   return gdk_keyval_to_lower(accelerator_keyval) == gdk_keyval_to_lower(keyval)
       && (accelerator_modifiers & gtk_accelerator_get_default_mod_mask())
       == (state & gtk_accelerator_get_default_mod_mask());
+}
+
+static void
+waytator_window_blur_warning_response(GObject      *source_object,
+                                      GAsyncResult *result,
+                                      gpointer      user_data)
+{
+  GtkAlertDialog *dialog = GTK_ALERT_DIALOG(source_object);
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  g_autoptr(GError) error = NULL;
+  const int response = gtk_alert_dialog_choose_finish(dialog, result, &error);
+
+  self->blur_commit_warning_showing = FALSE;
+  if (error == NULL && response == 1) {
+    self->blur_commit_warning_accepted = TRUE;
+    waytator_window_commit_blur_stroke(self);
+    waytator_window_maybe_auto_copy_latest_change(self);
+  } else {
+    waytator_window_discard_blur_stroke(self);
+  }
+
+  self->interaction_has_undo_step = FALSE;
+
+  g_object_unref(self);
+}
+
+static void
+waytator_window_show_blur_warning(WaytatorWindow *self)
+{
+  const char *buttons[] = { "Cancel", "Apply Blur", NULL };
+  g_autoptr(GtkAlertDialog) dialog = NULL;
+
+  if (self->blur_commit_warning_showing)
+    return;
+
+  self->blur_commit_warning_showing = TRUE;
+  dialog = gtk_alert_dialog_new("Apply blur?");
+  gtk_alert_dialog_set_detail(dialog,
+                              "For performance, blur will be merged into the image. It cannot be erased afterward; use Undo to revert it.");
+  gtk_alert_dialog_set_buttons(dialog, buttons);
+  gtk_alert_dialog_set_cancel_button(dialog, 0);
+  gtk_alert_dialog_set_default_button(dialog, 1);
+  gtk_alert_dialog_choose(dialog,
+                          GTK_WINDOW(self),
+                          NULL,
+                          waytator_window_blur_warning_response,
+                          g_object_ref(self));
 }
 
 static gboolean
@@ -280,6 +330,77 @@ waytator_window_begin_draw_stroke(WaytatorWindow *self)
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
 
+static GBytes *
+waytator_window_surface_copy_bytes(cairo_surface_t *surface,
+                                   int             *width,
+                                   int             *height,
+                                   gsize           *stride)
+{
+  const gsize rowstride = cairo_image_surface_get_stride(surface);
+  const int image_width = cairo_image_surface_get_width(surface);
+  const int image_height = cairo_image_surface_get_height(surface);
+  guchar *pixels;
+
+  if (surface == NULL || cairo_surface_get_type(surface) != CAIRO_SURFACE_TYPE_IMAGE)
+    return NULL;
+
+  cairo_surface_flush(surface);
+  pixels = g_memdup2(cairo_image_surface_get_data(surface), rowstride * image_height);
+
+  if (width != NULL)
+    *width = image_width;
+  if (height != NULL)
+    *height = image_height;
+  if (stride != NULL)
+    *stride = rowstride;
+
+  return g_bytes_new_take(pixels, rowstride * image_height);
+}
+
+static void
+waytator_window_commit_blur_stroke(WaytatorWindow *self)
+{
+  cairo_surface_t *surface;
+  g_autoptr(GBytes) pixels = NULL;
+  int width = 0;
+  int height = 0;
+  gsize stride = 0;
+
+  if (self->current_stroke == NULL || self->current_stroke->tool != WAYTATOR_TOOL_BLUR)
+    return;
+
+  surface = waytator_window_render_composited_surface(self);
+  if (surface == NULL)
+    return;
+
+  pixels = waytator_window_surface_copy_bytes(surface, &width, &height, &stride);
+  cairo_surface_destroy(surface);
+  if (pixels == NULL)
+    return;
+
+  waytator_document_set_image(self->document, pixels, width, height, stride);
+  g_ptr_array_set_size(waytator_window_strokes(self), 0);
+  waytator_window_refresh_document_state(self);
+}
+
+static void
+waytator_window_discard_blur_stroke(WaytatorWindow *self)
+{
+  GPtrArray *strokes = waytator_window_strokes(self);
+
+  if (self->current_stroke != NULL && strokes != NULL)
+    g_ptr_array_remove(strokes, self->current_stroke);
+
+  self->current_stroke = NULL;
+  if (self->interaction_has_undo_step) {
+    waytator_document_discard_undo_step(self->document);
+    waytator_window_refresh_document_state(self);
+    waytator_window_update_history_buttons(self);
+  } else {
+    gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+  }
+}
+
 static gboolean
 waytator_window_get_zoom_gesture_center(WaytatorWindow *self,
                                         GtkGesture      *gesture,
@@ -477,7 +598,7 @@ waytator_window_maybe_snap_shape_endpoint(GtkGestureDrag *gesture,
   }
 }
 
-static void
+static gboolean
 waytator_window_erase_strokes(WaytatorWindow *self,
                                double          x0,
                               double          y0,
@@ -490,12 +611,13 @@ waytator_window_erase_strokes(WaytatorWindow *self,
   guint i;
 
   if (strokes == NULL)
-    return;
+    return FALSE;
 
   for (i = strokes->len; i > 0; i--) {
     WaytatorStroke *stroke = g_ptr_array_index(strokes, i - 1);
 
     if (waytator_stroke_intersects_segment(stroke, x0, y0, x1, y1, radius)) {
+      waytator_window_record_interaction_undo_step(self);
       g_ptr_array_remove_index(strokes, i - 1);
       removed_stroke = TRUE;
     }
@@ -505,6 +627,7 @@ waytator_window_erase_strokes(WaytatorWindow *self,
     waytator_window_reset_save_button(self);
 
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+  return removed_stroke;
 }
 
 static void
@@ -861,7 +984,6 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
   if (self->active_tool == WAYTATOR_TOOL_ERASER) {
     self->pointer_x = self->last_draw_x;
     self->pointer_y = self->last_draw_y;
-    waytator_window_record_interaction_undo_step(self);
     waytator_window_erase_strokes(self,
                                   self->last_draw_x,
                                   self->last_draw_y,
@@ -905,7 +1027,6 @@ waytator_window_draw_update(GtkGestureDrag *gesture,
     return;
 
   if (self->active_tool == WAYTATOR_TOOL_ERASER) {
-    waytator_window_record_interaction_undo_step(self);
     self->pointer_x = image_x;
     self->pointer_y = image_y;
     waytator_window_erase_strokes(self,
@@ -969,8 +1090,11 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
     goto done;
 
   if (self->active_tool == WAYTATOR_TOOL_ERASER) {
+    const gboolean erased_anything = self->interaction_has_undo_step;
+
     self->interaction_has_undo_step = FALSE;
-    waytator_window_maybe_auto_copy_latest_change(self);
+    if (erased_anything)
+      waytator_window_maybe_auto_copy_latest_change(self);
     goto done;
   }
 
@@ -997,6 +1121,16 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
     waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);
   else
     waytator_stroke_add_point(self->current_stroke, image_x, image_y);
+
+  if (self->active_tool == WAYTATOR_TOOL_BLUR && !self->blur_commit_warning_accepted) {
+    if (sequence != NULL && sequence == self->cancelled_touch_draw_sequence)
+      self->cancelled_touch_draw_sequence = NULL;
+    waytator_window_show_blur_warning(self);
+    return;
+  }
+
+  if (self->active_tool == WAYTATOR_TOOL_BLUR)
+    waytator_window_commit_blur_stroke(self);
 
   if (self->active_tool == WAYTATOR_TOOL_TEXT) {
     GtkWidget *popover = gtk_popover_new();

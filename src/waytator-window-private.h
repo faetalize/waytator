@@ -126,6 +126,8 @@ struct _WaytatorWindow {
   WaytatorWindowBackgroundMode window_background_mode;
   gboolean updating_ui;
   gboolean interaction_has_undo_step;
+  gboolean blur_commit_warning_accepted;
+  gboolean blur_commit_warning_showing;
   GdkEventSequence *active_touch_draw_sequence;
   GdkEventSequence *cancelled_touch_draw_sequence;
   GHashTable *active_touch_sequences;
