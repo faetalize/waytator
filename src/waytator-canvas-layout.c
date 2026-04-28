@@ -367,6 +367,8 @@ void
 waytator_window_sync_state(WaytatorWindow *self)
 {
   const gboolean has_image = self->texture != NULL;
+  const gboolean has_current_file = self->current_file != NULL;
+  g_autoptr(GFile) parent = has_current_file ? g_file_get_parent(self->current_file) : NULL;
 
   gtk_stack_set_visible_child(self->canvas_stack,
                               has_image ? GTK_WIDGET(self->canvas_scroller) : self->empty_page);
@@ -379,9 +381,11 @@ waytator_window_sync_state(WaytatorWindow *self)
   gtk_widget_set_visible(self->settings_group, has_image);
   gtk_widget_set_sensitive(self->tool_group, has_image);
   gtk_widget_set_sensitive(self->settings_group, has_image);
-  gtk_widget_set_sensitive(GTK_WIDGET(self->file_button), self->current_file != NULL);
+  gtk_widget_set_sensitive(GTK_WIDGET(self->file_button), has_current_file);
   gtk_widget_set_sensitive(GTK_WIDGET(self->copy_button), has_image);
   gtk_widget_set_sensitive(self->zoom_group, has_image);
+  gtk_widget_action_set_enabled(GTK_WIDGET(self), "win.open-current-file", has_current_file);
+  gtk_widget_action_set_enabled(GTK_WIDGET(self), "win.open-containing-folder", parent != NULL);
   waytator_window_reset_save_button(self);
   waytator_window_update_history_buttons(self);
   waytator_window_update_ocr_panel(self);

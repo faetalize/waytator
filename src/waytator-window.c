@@ -1419,6 +1419,7 @@ static void waytator_window_dismiss_action(GtkWidget *widget, const char *action
 static void waytator_window_close_window_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
 static void waytator_window_copy_clicked(GtkButton *button, gpointer user_data);
 static void waytator_window_open_current_file_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
+static void waytator_window_open_containing_folder_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
 
 static gboolean
 waytator_window_restore_copy_button(gpointer user_data)
@@ -2445,6 +2446,33 @@ waytator_window_open_current_file_action(GtkWidget  *widget,
 }
 
 static void
+waytator_window_open_containing_folder_action(GtkWidget  *widget,
+                                              const char *action_name,
+                                              GVariant   *parameter)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+  g_autoptr(GtkFileLauncher) launcher = NULL;
+  g_autoptr(GFile) parent = NULL;
+
+  (void) action_name;
+  (void) parameter;
+
+  if (self->current_file == NULL)
+    return;
+
+  parent = g_file_get_parent(self->current_file);
+  if (parent == NULL)
+    return;
+
+  launcher = gtk_file_launcher_new(parent);
+  gtk_file_launcher_launch(launcher,
+                           GTK_WINDOW(self),
+                           NULL,
+                           waytator_window_open_current_file_ready,
+                           g_object_ref(self));
+}
+
+static void
 waytator_window_dispose(GObject *object)
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(object);
@@ -2562,6 +2590,7 @@ waytator_window_install_actions(GtkWidgetClass *widget_class)
 {
   gtk_widget_class_install_action(widget_class, "win.open", NULL, waytator_window_open_action);
   gtk_widget_class_install_action(widget_class, "win.open-current-file", NULL, waytator_window_open_current_file_action);
+  gtk_widget_class_install_action(widget_class, "win.open-containing-folder", NULL, waytator_window_open_containing_folder_action);
   gtk_widget_class_install_action(widget_class, "win.copy-buffer", NULL, waytator_window_copy_action);
   gtk_widget_class_install_action(widget_class, "win.dismiss", NULL, waytator_window_dismiss_action);
   gtk_widget_class_install_action(widget_class, "win.close-window", NULL, waytator_window_close_window_action);

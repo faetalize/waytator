@@ -29,6 +29,19 @@
     </section>
   </menu>
 
+  <menu id="file_menu_model">
+    <section>
+      <item>
+        <attribute name="label">Open file</attribute>
+        <attribute name="action">win.open-current-file</attribute>
+      </item>
+      <item>
+        <attribute name="label">Open containing folder</attribute>
+        <attribute name="action">win.open-containing-folder</attribute>
+      </item>
+    </section>
+  </menu>
+
   <template class="WaytatorWindow" parent="AdwApplicationWindow">
     <property name="default-width">1120</property>
     <property name="default-height">760</property>
@@ -512,6 +525,7 @@
                           <object class="GtkMenuButton" id="save_button">
                             <property name="tooltip-text">Save</property>
                             <property name="sensitive">False</property>
+                            <property name="direction">down</property>
                             <property name="menu-model">save_menu_model</property>
                             <property name="child">
                               <object class="GtkStack" id="save_icon_stack">
@@ -628,12 +642,11 @@
                     </style>
 
                     <child>
-                      <object class="GtkButton" id="file_button">
-                        <property name="action-name">win.open-current-file</property>
+                      <object class="GtkMenuButton" id="file_button">
+                        <property name="direction">up</property>
+                        <property name="menu-model">file_menu_model</property>
+                        <property name="always-show-arrow">False</property>
                         <property name="sensitive">False</property>
-                        <style>
-                          <class name="overlay-button"/>
-                        </style>
                         <property name="child">
                           <object class="GtkLabel" id="file_label">
                             <property name="xalign">0</property>

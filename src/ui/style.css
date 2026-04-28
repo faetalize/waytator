@@ -44,6 +44,21 @@
   background: alpha(white, 0.08);
 }
 
+.overlay-readout menubutton > button {
+  padding: 0 14px;
+  min-height: 32px;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.overlay-readout menubutton > button:hover {
+  background: alpha(white, 0.08);
+}
+
 .settings-group menubutton.size-button > button {
   padding: 0 6px;
 }
