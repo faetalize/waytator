@@ -35,6 +35,7 @@ yay -S waytator
 2) Recommended runtime dependency:
 
 - `tesseract` for OCR support
+- `wl-clipboard` for niri screenshot clipboard support
 
 3) Install into `~/.local`:
 
@@ -75,6 +76,12 @@ Or pass stdin explicitly:
 grim -g "$(slurp)" - | waytator --stdin
 ```
 
+Set the default display/save-as name for stdin images:
+
+```bash
+grim -g "$(slurp)" - | waytator --stdin --name "Screenshot.png"
+```
+
 Open an existing image:
 
 ```bash
@@ -87,7 +94,7 @@ It can also be run independently:
 waytator
 ```
 
-If you're on niri, just bind your screenshot keybind to `./scripts/screenshot-to-waytator.sh`, this will automatically open screenshots into `waytator` after they are captured for editing.
+If you're on niri, just bind your screenshot keybind to `./scripts/screenshot-to-waytator.sh`, this will automatically open screenshots into `waytator` after they are captured for editing. Saving from niri's screenshot UI opens the saved file; pressing `Ctrl+C` in the screenshot UI opens the copied image directly from the clipboard. Clipboard captures use a timestamped name by default; override it with `WAYTATOR_SCREENSHOT_NAME`.
 
 ```kdl
 // in your config.kdl, in the binds section

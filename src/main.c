@@ -123,6 +123,7 @@ app_command_line(GApplication            *app,
   int argc = 0;
   int status = 0;
   gboolean use_stdin = FALSE;
+  const char *stdin_name = "stdin.png";
   g_autoptr(GError) error = NULL;
   g_autoptr(GFile) file = NULL;
   WaytatorWindow *window;
@@ -131,25 +132,40 @@ app_command_line(GApplication            *app,
 
   arguments = g_application_command_line_get_arguments(command_line, &argc);
 
-  if (argc > 2) {
+  if (argc > 4) {
     g_application_command_line_printerr(command_line,
-                                        "Usage: %s [IMAGE|-|--stdin]\n",
+                                        "Usage: %s [--name NAME] [IMAGE|-|--stdin]\n",
                                         arguments[0]);
     status = 1;
     goto done;
   }
 
-  if (argc == 2) {
-    if (g_strcmp0(arguments[1], "-") == 0 || g_strcmp0(arguments[1], "--stdin") == 0)
+  for (int i = 1; i < argc; i++) {
+    if (g_strcmp0(arguments[i], "--name") == 0) {
+      if (i + 1 >= argc) {
+        g_application_command_line_printerr(command_line,
+                                            "Missing value for --name\n");
+        status = 1;
+        goto done;
+      }
+
+      stdin_name = arguments[++i];
+    } else if (g_strcmp0(arguments[i], "-") == 0 || g_strcmp0(arguments[i], "--stdin") == 0) {
       use_stdin = TRUE;
-    else if (arguments[1][0] == '-') {
+    } else if (arguments[i][0] == '-') {
       g_application_command_line_printerr(command_line,
                                           "Unknown option: %s\n",
-                                          arguments[1]);
+                                          arguments[i]);
       status = 1;
       goto done;
+    } else if (file == NULL) {
+      file = g_application_command_line_create_file_for_arg(command_line, arguments[i]);
     } else {
-      file = g_application_command_line_create_file_for_arg(command_line, arguments[1]);
+      g_application_command_line_printerr(command_line,
+                                          "Usage: %s [--name NAME] [IMAGE|-|--stdin]\n",
+                                          arguments[0]);
+      status = 1;
+      goto done;
     }
   }
 
@@ -159,7 +175,7 @@ app_command_line(GApplication            *app,
     g_autoptr(GBytes) bytes = NULL;
 
     bytes = app_read_stream_bytes(g_application_command_line_get_stdin(command_line), &error);
-    if (bytes == NULL || !waytator_window_open_bytes(window, bytes, "stdin.png", &error)) {
+    if (bytes == NULL || !waytator_window_open_bytes(window, bytes, stdin_name, &error)) {
       g_application_command_line_printerr(command_line,
                                           "Error loading image from stdin: %s\n",
                                           error->message);
