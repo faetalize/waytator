@@ -778,18 +778,43 @@ waytator_window_crop_end(GtkGestureDrag *gesture,
 }
 
 static void
+waytator_window_text_popover_closed(GtkPopover     *popover,
+                                    WaytatorWindow *self)
+{
+  if (self->current_stroke != NULL
+      && self->current_stroke->tool == WAYTATOR_TOOL_TEXT
+      && (self->current_stroke->text == NULL || *self->current_stroke->text == '\0')) {
+    GPtrArray *strokes = waytator_window_strokes(self);
+
+    if (strokes != NULL)
+      g_ptr_array_remove(strokes, self->current_stroke);
+
+    self->current_stroke = NULL;
+    waytator_document_discard_undo_step(self->document);
+    waytator_window_refresh_document_state(self);
+    waytator_window_update_history_buttons(self);
+    gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
+  }
+
+  gtk_widget_unparent(GTK_WIDGET(popover));
+}
+
+static void
 waytator_window_text_entry_activated(GtkEntry       *entry,
                                      WaytatorWindow *self)
 {
   const char *text = gtk_editable_get_text(GTK_EDITABLE(entry));
+  GtkWidget *popover = gtk_widget_get_ancestor(GTK_WIDGET(entry), GTK_TYPE_POPOVER);
 
   if (text != NULL && *text != '\0' && self->current_stroke != NULL) {
+    g_free(self->current_stroke->text);
     self->current_stroke->text = g_strdup(text);
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
     waytator_window_maybe_auto_copy_latest_change(self);
+    self->current_stroke = NULL;
   }
 
-  gtk_popover_popdown(GTK_POPOVER(gtk_widget_get_ancestor(GTK_WIDGET(entry), GTK_TYPE_POPOVER)));
+  gtk_popover_popdown(GTK_POPOVER(popover));
 }
 
 static void
@@ -1008,6 +1033,7 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
                                : GTK_POS_TOP);
     gtk_popover_set_pointing_to(GTK_POPOVER(popover), &rect);
     g_signal_connect(entry, "activate", G_CALLBACK(waytator_window_text_entry_activated), self);
+    g_signal_connect(popover, "closed", G_CALLBACK(waytator_window_text_popover_closed), self);
 
     gtk_popover_popup(GTK_POPOVER(popover));
     gtk_widget_grab_focus(entry);
