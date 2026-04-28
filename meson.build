@@ -1,7 +1,7 @@
 project(
   'waytator',
   'c',
-  version: '1.2.2',
+  version: '1.2.3',
   license: 'GPL-3.0-or-later',
   license_files: 'LICENSE',
   default_options: [
