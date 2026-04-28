@@ -2546,6 +2546,7 @@ waytator_window_dispose(GObject *object)
   g_clear_object(&self->widget_css_provider);
   g_clear_pointer(&self->copy_shortcut_accel, g_free);
   g_clear_pointer(&self->active_touch_sequences, g_hash_table_unref);
+  g_clear_pointer(&self->touch_tap_points, g_hash_table_unref);
 
   G_OBJECT_CLASS(waytator_window_parent_class)->dispose(object);
 }
@@ -2653,6 +2654,7 @@ waytator_window_init_state(WaytatorWindow *self)
   self->drawing = FALSE;
   self->document = waytator_document_new();
   self->active_touch_sequences = g_hash_table_new(g_direct_hash, g_direct_equal);
+  self->touch_tap_points = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
   self->ocr_lines = NULL;
   self->selected_ocr_line = NULL;
   self->ocr_all_text = NULL;

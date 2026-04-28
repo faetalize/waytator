@@ -129,6 +129,11 @@ struct _WaytatorWindow {
   GdkEventSequence *active_touch_draw_sequence;
   GdkEventSequence *cancelled_touch_draw_sequence;
   GHashTable *active_touch_sequences;
+  GHashTable *touch_tap_points;
+  gboolean touch_tap_candidate;
+  gboolean touch_tap_cancelled;
+  guint touch_tap_max_points;
+  gint64 touch_tap_started_at;
   gboolean esc_closes_window;
   gboolean copy_shortcut_enabled;
   GdkModifierType angle_snap_modifiers;
