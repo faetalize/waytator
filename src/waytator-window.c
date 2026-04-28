@@ -1420,6 +1420,7 @@ static void waytator_window_close_window_action(GtkWidget *widget, const char *a
 static void waytator_window_copy_clicked(GtkButton *button, gpointer user_data);
 static void waytator_window_open_current_file_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
 static void waytator_window_open_containing_folder_action(GtkWidget *widget, const char *action_name, GVariant *parameter);
+static void waytator_window_open_parent_folder(WaytatorWindow *self);
 
 static gboolean
 waytator_window_restore_copy_button(gpointer user_data)
@@ -2446,16 +2447,10 @@ waytator_window_open_current_file_action(GtkWidget  *widget,
 }
 
 static void
-waytator_window_open_containing_folder_action(GtkWidget  *widget,
-                                              const char *action_name,
-                                              GVariant   *parameter)
+waytator_window_open_parent_folder(WaytatorWindow *self)
 {
-  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
   g_autoptr(GtkFileLauncher) launcher = NULL;
   g_autoptr(GFile) parent = NULL;
-
-  (void) action_name;
-  (void) parameter;
 
   if (self->current_file == NULL)
     return;
@@ -2470,6 +2465,51 @@ waytator_window_open_containing_folder_action(GtkWidget  *widget,
                            NULL,
                            waytator_window_open_current_file_ready,
                            g_object_ref(self));
+}
+
+static void
+waytator_window_open_containing_folder_action(GtkWidget  *widget,
+                                              const char *action_name,
+                                              GVariant   *parameter)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+  g_autoptr(GDBusConnection) bus = NULL;
+  g_autoptr(GError) error = NULL;
+  g_autofree char *uri = NULL;
+
+  (void) action_name;
+  (void) parameter;
+
+  if (self->current_file == NULL)
+    return;
+
+  uri = g_file_get_uri(self->current_file);
+  if (uri == NULL)
+    return;
+
+  bus = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &error);
+  if (bus == NULL) {
+    g_clear_error(&error);
+    waytator_window_open_parent_folder(self);
+    return;
+  }
+  //if a file manager supporting the FileManager1 D-Bus interface is available
+  //use it to show the file in its containing folder, otherwise
+  //fall back to opening the parent folder without highlighting the file
+  if (!g_dbus_connection_call_sync(bus,
+                                   "org.freedesktop.FileManager1",
+                                   "/org/freedesktop/FileManager1",
+                                   "org.freedesktop.FileManager1",
+                                   "ShowItems",
+                                   g_variant_new("(^ass)", (const char *[]) {uri, NULL}, ""),
+                                   NULL,
+                                   G_DBUS_CALL_FLAGS_NONE,
+                                   -1,
+                                   NULL,
+                                   &error)) {
+    g_clear_error(&error);
+    waytator_window_open_parent_folder(self);
+  }
 }
 
 static void
