@@ -79,7 +79,10 @@ struct _WaytatorWindow {
   GtkColorDialogButton *color_button;
   GtkColorDialogButton *fill_color_button;
   GtkScale *width_scale;
+  GtkMenuButton *size_button;
+  GtkLabel *size_button_label;
   GtkSpinButton *text_size_spin;
+  GtkSpinButton *precise_size_spin;
   GtkDropDown *blur_type_dropdown;
   GtkCssProvider *window_css_provider;
   GtkCssProvider *widget_css_provider;
@@ -196,6 +199,7 @@ void waytator_window_set_zoom_at(WaytatorWindow *self,
                                  double          zoom,
                                  double          viewport_x,
                                  double          viewport_y);
+void waytator_window_update_size_controls(WaytatorWindow *self);
 void waytator_window_update_tool_ui(WaytatorWindow *self);
 void waytator_window_queue_fit_zoom(WaytatorWindow *self);
 void waytator_window_sync_state(WaytatorWindow *self);

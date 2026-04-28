@@ -2550,7 +2550,10 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, color_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, fill_color_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, width_scale);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, size_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, size_button_label);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, text_size_spin);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, precise_size_spin);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, blur_type_dropdown);
 }
 
@@ -2722,6 +2725,7 @@ waytator_window_init(WaytatorWindow *self)
   g_signal_connect(self->ocr_panel_close_button, "clicked", G_CALLBACK(waytator_window_ocr_panel_close_clicked), self);
   g_signal_connect(self->ocr_panel_bottom_sheet, "notify::open", G_CALLBACK(waytator_window_ocr_panel_open_changed), self);
 
+  waytator_window_update_size_controls(self);
   waytator_window_update_tool_ui(self);
   waytator_window_sync_state(self);
 }

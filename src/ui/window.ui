@@ -621,6 +621,7 @@
 
                 <property name="start-widget">
                   <object class="GtkBox" id="file_group">
+                    <property name="valign">fill</property>
                     <style>
                       <class name="overlay-pill"/>
                       <class name="overlay-readout"/>
@@ -648,12 +649,12 @@
                 <property name="center-widget">
                   <object class="GtkBox">
                     <property name="spacing">10</property>
-                    <property name="valign">center</property>
+                    <property name="valign">fill</property>
                     <child>
                       <object class="GtkBox" id="settings_group">
-                        <property name="spacing">12</property>
+                        <property name="spacing">4</property>
                         <property name="sensitive">False</property>
-                        <property name="valign">center</property>
+                        <property name="valign">fill</property>
                         <style>
                           <class name="overlay-pill"/>
                           <class name="settings-group"/>
@@ -698,14 +699,56 @@
                             <property name="orientation">horizontal</property>
                             <property name="width-request">150</property>
                             <property name="valign">center</property>
-                            <property name="draw-value">True</property>
-                            <property name="value-pos">right</property>
+                            <property name="draw-value">False</property>
                             <property name="adjustment">
                               <object class="GtkAdjustment">
                                 <property name="lower">1.0</property>
                                 <property name="upper">100.0</property>
                                 <property name="value">6.0</property>
                                 <property name="step-increment">1.0</property>
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkMenuButton" id="size_button">
+                            <property name="valign">center</property>
+                            <property name="tooltip-text">Set size precisely</property>
+                            <property name="always-show-arrow">False</property>
+                            <style>
+                              <class name="flat"/>
+                              <class name="size-button"/>
+                            </style>
+                            <property name="child">
+                              <object class="GtkLabel" id="size_button_label">
+                                <property name="label">6 px</property>
+                                <property name="width-chars">4</property>
+                                <property name="xalign">0.5</property>
+                              </object>
+                            </property>
+                            <property name="popover">
+                              <object class="GtkPopover">
+                                <child>
+                                  <object class="GtkBox">
+                                    <property name="margin-start">10</property>
+                                    <property name="margin-end">10</property>
+                                    <property name="margin-top">10</property>
+                                    <property name="margin-bottom">10</property>
+                                    <child>
+                                      <object class="GtkSpinButton" id="precise_size_spin">
+                                        <property name="valign">center</property>
+                                        <property name="adjustment">
+                                          <object class="GtkAdjustment">
+                                            <property name="lower">1.0</property>
+                                            <property name="upper">100.0</property>
+                                            <property name="value">6.0</property>
+                                            <property name="step-increment">1.0</property>
+                                          </object>
+                                        </property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
                               </object>
                             </property>
                           </object>
@@ -718,7 +761,7 @@
                                 <property name="lower">8.0</property>
                                 <property name="upper">200.0</property>
                                 <property name="value">24.0</property>
-                                <property name="step-increment">8.0</property>
+                                <property name="step-increment">1.0</property>
                               </object>
                             </property>
                           </object>
@@ -752,11 +795,13 @@
                 <property name="end-widget">
                   <object class="GtkBox">
                     <property name="spacing">10</property>
+                    <property name="valign">fill</property>
 
                     <child>
                       <object class="GtkBox" id="zoom_group">
                         <property name="spacing">8</property>
                         <property name="sensitive">False</property>
+                        <property name="valign">fill</property>
                         <style>
                           <class name="overlay-pill"/>
                           <class name="zoom-group"/>

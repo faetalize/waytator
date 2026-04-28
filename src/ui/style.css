@@ -44,6 +44,10 @@
   background: alpha(white, 0.08);
 }
 
+.settings-group menubutton.size-button > button {
+  padding: 0 6px;
+}
+
 .overlay-readout {
   padding: 4px;
 }
@@ -61,15 +65,12 @@
   padding: 4px;
 }
 
-.settings-group.has-slider {
-  padding: 0 0 0 4px;
-}
-
 .tool-group togglebutton.flat,
 .tool-group menubutton > button,
 .overlay-action-group button,
 .app-chrome-group button,
-.zoom-group button {
+.zoom-group button,
+.settings-group menubutton > button {
   min-width: 32px;
   min-height: 32px;
   padding: 0;
@@ -90,7 +91,8 @@
 .tool-group menubutton > button:hover,
 .overlay-action-group button:hover,
 .app-chrome-group button:hover,
-.zoom-group button:hover {
+.zoom-group button:hover,
+.settings-group menubutton > button:hover {
   background: alpha(white, 0.08);
 }
 
@@ -157,6 +159,12 @@
 }
 
 .zoom-label {
+  color: white;
+  font-weight: 600;
+  margin: 0 4px;
+}
+
+.size-button label {
   color: white;
   font-weight: 600;
   margin: 0 4px;

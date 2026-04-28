@@ -27,6 +27,37 @@ waytator_tool_icon_name(WaytatorTool tool)
   }
 }
 
+static gboolean
+waytator_tool_has_size_control(WaytatorTool tool)
+{
+  return tool != WAYTATOR_TOOL_PAN
+      && tool != WAYTATOR_TOOL_CROP
+      && tool != WAYTATOR_TOOL_OCR;
+}
+
+void
+waytator_window_update_size_controls(WaytatorWindow *self)
+{
+  GtkAdjustment *text_adjustment = gtk_spin_button_get_adjustment(self->text_size_spin);
+  GtkAdjustment *precise_adjustment = gtk_spin_button_get_adjustment(self->precise_size_spin);
+  const gboolean is_text_tool = self->active_tool == WAYTATOR_TOOL_TEXT;
+  const double value = self->tool_widths[self->active_tool];
+  const double text_value = CLAMP(value, 8.0, 200.0);
+  const double precise_value = CLAMP(value, 1.0, 100.0);
+  g_autofree char *label = g_strdup_printf("%.0f px", self->tool_widths[self->active_tool]);
+
+  self->updating_ui = TRUE;
+  gtk_adjustment_configure(text_adjustment, text_value, 8.0, 200.0, 1.0, 8.0, 0.0);
+  gtk_adjustment_configure(precise_adjustment, precise_value, 1.0, 100.0, 1.0, 8.0, 0.0);
+  gtk_spin_button_set_value(self->text_size_spin, text_value);
+  gtk_spin_button_set_value(self->precise_size_spin, precise_value);
+  gtk_label_set_text(self->size_button_label, label);
+  self->updating_ui = FALSE;
+
+  if (is_text_tool)
+    gtk_menu_button_popdown(self->size_button);
+}
+
 static void
 waytator_window_undo_clicked(GtkButton *button,
                              gpointer   user_data)
@@ -120,13 +151,13 @@ waytator_window_tool_toggled(GtkToggleButton *button,
 
   self->updating_ui = TRUE;
   gtk_range_set_value(GTK_RANGE(self->width_scale), self->tool_widths[self->active_tool]);
-  gtk_spin_button_set_value(self->text_size_spin, self->tool_widths[self->active_tool]);
   gtk_color_dialog_button_set_rgba(self->color_button, &self->tool_colors[self->active_tool]);
   gtk_color_dialog_button_set_rgba(self->fill_color_button, &self->tool_fill_colors[self->active_tool]);
   if (self->active_tool == WAYTATOR_TOOL_BLUR)
     gtk_drop_down_set_selected(self->blur_type_dropdown, self->blur_type);
   self->updating_ui = FALSE;
 
+  waytator_window_update_size_controls(self);
   waytator_window_update_tool_ui(self);
 }
 
@@ -138,6 +169,7 @@ waytator_window_width_changed(GtkRange *range,
 
   if (!self->updating_ui) {
     self->tool_widths[self->active_tool] = gtk_range_get_value(range);
+    waytator_window_update_size_controls(self);
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   }
 }
@@ -190,18 +222,9 @@ waytator_window_text_size_changed(GtkSpinButton *spin_button,
 
   if (!self->updating_ui) {
     self->tool_widths[self->active_tool] = gtk_spin_button_get_value(spin_button);
+    waytator_window_update_size_controls(self);
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   }
-}
-
-static char *
-waytator_window_format_width_value(GtkScale *scale,
-                                   double    value,
-                                   gpointer  user_data)
-{
-  (void) scale;
-  (void) user_data;
-  return g_strdup_printf("%.0f px", value);
 }
 
 static void
@@ -266,10 +289,11 @@ waytator_window_update_tool_ui(WaytatorWindow *self)
                           self->active_tool != WAYTATOR_TOOL_BLUR);
   gtk_widget_set_visible(GTK_WIDGET(self->fill_color_button), has_fill_color);
   gtk_widget_set_visible(GTK_WIDGET(self->width_scale),
-                         !is_pan_tool &&
-                         !is_crop_tool &&
-                         !is_ocr_tool &&
+                         waytator_tool_has_size_control(self->active_tool) &&
                          self->active_tool != WAYTATOR_TOOL_TEXT);
+  gtk_widget_set_visible(GTK_WIDGET(self->size_button),
+                         waytator_tool_has_size_control(self->active_tool)
+                         && self->active_tool != WAYTATOR_TOOL_TEXT);
   gtk_widget_set_visible(GTK_WIDGET(self->text_size_spin),
                          self->active_tool == WAYTATOR_TOOL_TEXT);
   gtk_widget_set_visible(GTK_WIDGET(self->blur_type_dropdown),
@@ -313,8 +337,8 @@ waytator_window_setup_tool_signals(WaytatorWindow *self)
   g_signal_connect(self->redo_button, "clicked", G_CALLBACK(waytator_window_redo_clicked), self);
 
   g_signal_connect(self->width_scale, "value-changed", G_CALLBACK(waytator_window_width_changed), self);
-  gtk_scale_set_format_value_func(self->width_scale, waytator_window_format_width_value, self, NULL);
   g_signal_connect(self->text_size_spin, "value-changed", G_CALLBACK(waytator_window_text_size_changed), self);
+  g_signal_connect(self->precise_size_spin, "value-changed", G_CALLBACK(waytator_window_text_size_changed), self);
   g_signal_connect(self->blur_type_dropdown, "notify::selected", G_CALLBACK(waytator_window_blur_type_changed), self);
   g_signal_connect(self->color_button, "notify::rgba", G_CALLBACK(waytator_window_color_changed), self);
   g_signal_connect(self->fill_color_button, "notify::rgba", G_CALLBACK(waytator_window_fill_color_changed), self);
