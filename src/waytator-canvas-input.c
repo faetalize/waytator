@@ -122,11 +122,12 @@ static void
 waytator_window_cancel_touch_tap(WaytatorWindow *self,
                                  const char     *reason)
 {
+  (void) reason;
+
   if (!self->touch_tap_candidate || self->touch_tap_cancelled)
     return;
 
   self->touch_tap_cancelled = TRUE;
-  g_message("touch tap: cancelled %s", reason);
 }
 
 static void
@@ -157,17 +158,10 @@ waytator_window_finish_touch_tap(WaytatorWindow *self)
   if (!self->touch_tap_candidate)
     return;
 
-  g_message("touch tap: finished max_points=%u cancelled=%d duration_ms=%" G_GINT64_FORMAT,
-            self->touch_tap_max_points,
-            self->touch_tap_cancelled,
-            duration / G_TIME_SPAN_MILLISECOND);
-
   if (!self->touch_tap_cancelled && duration <= WAYTATOR_TOUCH_TAP_MAX_DURATION_US) {
     if (self->touch_tap_max_points == 2) {
-      g_message("touch tap: activating undo can_undo=%d", waytator_document_can_undo(self->document));
       gtk_widget_activate_action(GTK_WIDGET(self), "win.undo", NULL);
     } else if (self->touch_tap_max_points == 3) {
-      g_message("touch tap: activating redo can_redo=%d", waytator_document_can_redo(self->document));
       gtk_widget_activate_action(GTK_WIDGET(self), "win.redo", NULL);
     }
   }
@@ -211,10 +205,6 @@ waytator_window_touch_event(GtkEventControllerLegacy *controller,
       point->x = x;
       point->y = y;
       g_hash_table_insert(self->touch_tap_points, sequence, point);
-      g_message("touch tap: begin count=%u x=%.1f y=%.1f",
-                g_hash_table_size(self->active_touch_sequences),
-                x,
-                y);
     }
 
     if (g_hash_table_size(self->active_touch_sequences) > 3)
