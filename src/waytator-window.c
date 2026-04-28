@@ -2760,6 +2760,54 @@ waytator_window_setup_window_controls(WaytatorWindow *self)
 }
 
 static void
+waytator_window_setup_menu_button_popover(GtkMenuButton   *button,
+                                          GtkArrowType     direction,
+                                          GtkPositionType  position)
+{
+  GtkPopover *popover;
+
+  gtk_menu_button_set_direction(button, direction);
+
+  popover = gtk_menu_button_get_popover(button);
+  if (popover == NULL) {
+    GMenuModel *model = gtk_menu_button_get_menu_model(button);
+
+    if (model != NULL) {
+      GtkWidget *popover_widget = gtk_popover_menu_new_from_model(model);
+
+      gtk_menu_button_set_popover(button, popover_widget);
+      popover = GTK_POPOVER(popover_widget);
+    }
+  }
+
+  if (popover == NULL)
+    return;
+
+  gtk_popover_set_has_arrow(popover, FALSE);
+  gtk_popover_set_position(popover, position);
+}
+
+static void
+waytator_window_setup_popovers(WaytatorWindow *self)
+{
+  waytator_window_setup_menu_button_popover(self->shapes_tool_button,
+                                            GTK_ARROW_DOWN,
+                                            GTK_POS_BOTTOM);
+  waytator_window_setup_menu_button_popover(self->save_button,
+                                            GTK_ARROW_DOWN,
+                                            GTK_POS_BOTTOM);
+  waytator_window_setup_menu_button_popover(self->app_menu_button,
+                                            GTK_ARROW_DOWN,
+                                            GTK_POS_BOTTOM);
+  waytator_window_setup_menu_button_popover(self->file_button,
+                                            GTK_ARROW_UP,
+                                            GTK_POS_TOP);
+  waytator_window_setup_menu_button_popover(self->size_button,
+                                            GTK_ARROW_UP,
+                                            GTK_POS_TOP);
+}
+
+static void
 waytator_window_class_init(WaytatorWindowClass *klass)
 {
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
@@ -2789,6 +2837,7 @@ waytator_window_init(WaytatorWindow *self)
                                  NULL);
   waytator_window_setup_ocr_panel(self);
   waytator_window_setup_window_controls(self);
+  waytator_window_setup_popovers(self);
   waytator_window_setup_controllers(self);
   waytator_window_setup_signals(self);
   g_signal_connect(self->copy_button, "clicked", G_CALLBACK(waytator_window_copy_clicked), self);

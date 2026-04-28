@@ -1001,6 +1001,11 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
     rect.width = 1;
     rect.height = 1;
 
+    gtk_popover_set_has_arrow(GTK_POPOVER(popover), FALSE);
+    gtk_popover_set_position(GTK_POPOVER(popover),
+                             rect.y < gtk_widget_get_height(GTK_WIDGET(self->drawing_area)) / 2
+                               ? GTK_POS_BOTTOM
+                               : GTK_POS_TOP);
     gtk_popover_set_pointing_to(GTK_POPOVER(popover), &rect);
     g_signal_connect(entry, "activate", G_CALLBACK(waytator_window_text_entry_activated), self);
 
