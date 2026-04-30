@@ -1,6 +1,7 @@
 {
   lib,
   stdenv,
+  version,
   meson,
   ninja,
   pkg-config,
@@ -11,16 +12,9 @@
 }:
 stdenv.mkDerivation {
   pname = "waytator";
-  version = "1.0.0";
+  inherit version;
 
-  src = lib.fileset.toSource {
-    root = ../.;
-    fileset = lib.fileset.unions [
-      ../src
-      ../meson.build
-      ../LICENSE
-    ];
-  };
+  src = lib.cleanSource ../.;
 
   nativeBuildInputs = [
     meson
@@ -40,9 +34,7 @@ stdenv.mkDerivation {
       --prefix PATH : ${lib.makeBinPath [ tesseract ]}
   '';
 
-  mesonFlags = [
-    "--buildtype=release"
-  ];
+  mesonBuildType = "release";
 
   meta = {
     homepage = "https://github.com/faetalize/waytator";
