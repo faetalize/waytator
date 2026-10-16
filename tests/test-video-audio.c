@@ -537,6 +537,39 @@ test_mute(void)
   g_assert_cmpfloat(loudest(samples, muted_end + FADE, FADE), >, 0.3);
 }
 
+//a tone at half of full scale: 6 dB down halves it, and 12 dB up would be twice full scale, which bends
+//towards it rather than clipping
+static void
+test_volume(void)
+{
+  g_autoptr(TestSource) source = make_source(TRUE);
+  g_autoptr(WaytatorVideoEdit) edit = make_edit(source);
+  g_autoptr(WaytatorVideoAudio) audio = NULL;
+  g_autoptr(GArray) samples = NULL;
+  WaytatorVideoSegment values = { .volume = -6.0 };
+  const gsize window = frames_for(MS(200), 1.0);
+
+  g_assert_true(waytator_video_edit_set(edit, MS(1000), MS(2000), &values, WAYTATOR_VIDEO_FIELD_VOLUME));
+  values.volume = 12.0;
+  g_assert_true(waytator_video_edit_set(edit, MS(2000), MS(3000), &values, WAYTATOR_VIDEO_FIELD_VOLUME));
+  values.volume = 40.0;
+  g_assert_true(waytator_video_edit_set(edit, MS(3000), MS(3500), &values, WAYTATOR_VIDEO_FIELD_VOLUME));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpfloat(waytator_video_state_get_segment(state, waytator_video_state_segment_at(state, MS(3200)))->volume,
+                      ==,
+                      WAYTATOR_VIDEO_MAX_VOLUME);
+  }
+
+  audio = make_audio(source, edit);
+  samples = render(audio, 0, 1.0, frames_for(MS(3000), 1.0));
+  g_assert_cmpfloat_with_epsilon(loudest(samples, frames_for(MS(500), 1.0), window), 0.5, 0.01);
+  g_assert_cmpfloat_with_epsilon(loudest(samples, frames_for(MS(1400), 1.0), window), 0.5 * pow(10, -6.0 / 20), 0.01);
+  g_assert_cmpfloat(loudest(samples, frames_for(MS(2400), 1.0), window), >, 0.95);
+  g_assert_cmpfloat(loudest(samples, frames_for(MS(2400), 1.0), window), <=, 1.0);
+}
+
 static double
 measure_pitch(WaytatorVideoSegment *values,
               WaytatorVideoField    fields,
@@ -1246,6 +1279,7 @@ main(int   argc,
   g_test_add_func("/video-audio/lengths", test_lengths);
   g_test_add_func("/video-audio/onsets", test_onsets);
   g_test_add_func("/video-audio/mute", test_mute);
+  g_test_add_func("/video-audio/volume", test_volume);
   g_test_add_func("/video-audio/pitch", test_pitch);
   g_test_add_func("/video-audio/cuts", test_cuts);
   g_test_add_func("/video-audio/seamless", test_seamless);

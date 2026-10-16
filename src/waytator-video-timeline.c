@@ -934,11 +934,12 @@ waytator_video_timeline_draw_thumbnail(WaytatorVideoTimeline      *self,
 
 
 //how loud a sample sounds rather than how big it is, over 48 dB down to silence, so a quiet voice still
-//fills the rail
+//fills the rail. gain is what the segment's volume does to it
 static double
-waytator_video_timeline_loudness(float sample)
+waytator_video_timeline_loudness(float  sample,
+                                 double gain)
 {
-  const double level = fabs(sample);
+  const double level = fabs(sample) * gain;
 
   if (level <= 0.0)
     return 0.0;
@@ -955,6 +956,7 @@ waytator_video_timeline_draw_waveform(WaytatorVideoTimeline *self,
                                       const GdkRGBA         *color)
 {
   const WaytatorVideoRailBlock *block = waytator_video_timeline_block(self->blocks[WAYTATOR_VIDEO_RAIL_AUDIO], index);
+  const double gain = pow(10.0, waytator_video_state_get_segment(self->state, block->first)->volume / 20.0);
   const graphene_rect_t *row = &self->rails[WAYTATOR_VIDEO_RAIL_AUDIO];
   const double block_left = waytator_video_timeline_x(self, block->start);
   //a column a device pixel wide, so the sound stays sharp on a scaled screen
@@ -980,7 +982,7 @@ waytator_video_timeline_draw_waveform(WaytatorVideoTimeline *self,
   //the top runs out along the highest samples and the bottom comes back along the lowest
   builder = gsk_path_builder_new();
   for (gint64 column = first; column < end; column++) {
-    const double top = middle - waytator_video_timeline_loudness(peaks->maximum[column - peaks->first]) * height - 0.5;
+    const double top = middle - waytator_video_timeline_loudness(peaks->maximum[column - peaks->first], gain) * height - 0.5;
 
     if (column == first)
       gsk_path_builder_move_to(builder, block_left + column * width, top);
@@ -989,7 +991,7 @@ waytator_video_timeline_draw_waveform(WaytatorVideoTimeline *self,
       gsk_path_builder_line_to(builder, block_left + (column + 1) * width, top);
   }
   for (gint64 column = end - 1; column >= first; column--) {
-    const double bottom = middle - waytator_video_timeline_loudness(peaks->minimum[column - peaks->first]) * height + 0.5;
+    const double bottom = middle - waytator_video_timeline_loudness(peaks->minimum[column - peaks->first], gain) * height + 0.5;
 
     if (column == end - 1)
       gsk_path_builder_line_to(builder, block_left + (column + 1) * width, bottom);
@@ -1134,10 +1136,19 @@ waytator_video_timeline_draw_block(WaytatorVideoTimeline         *self,
       x += used + 3;
       room -= used + 3;
     }
+    //a real minus, the hyphen reads as a dash next to the plus
+    if (segment->volume != 0.0 && !segment->mute) {
+      g_strlcpy(text, segment->volume > 0 ? "+" : "−", sizeof text);
+      waytator_video_timeline_format_number(fabs(segment->volume), text + strlen(text), sizeof text - strlen(text) - 3);
+      g_strlcat(text, " dB", sizeof text);
+      used = waytator_video_timeline_draw_badge(self, snapshot, layout, text, NULL, x, y, room);
+      x += used + 3;
+      room -= used + 3;
+    }
     if (segment->pitch != 0.0) {
-      //a real minus, the hyphen reads as a dash next to the plus
       g_strlcpy(text, segment->pitch > 0 ? "+" : "−", sizeof text);
-      waytator_video_timeline_format_number(fabs(segment->pitch), text + strlen(text), sizeof text - strlen(text));
+      waytator_video_timeline_format_number(fabs(segment->pitch), text + strlen(text), sizeof text - strlen(text) - 3);
+      g_strlcat(text, " st", sizeof text);
       waytator_video_timeline_draw_badge(self, snapshot, layout, text, NULL, x, y, room);
     }
   }

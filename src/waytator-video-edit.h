@@ -20,6 +20,8 @@ typedef struct {
   gboolean flip_horizontal;
   gboolean flip_vertical;
   gboolean mute;
+  //in decibels, 0 leaves the sound as loud as it was
+  double volume;
   //in semitones, on top of whatever the speed does to it
   double pitch;
   //plays faster sound higher, like a tape. off keeps the pitch whatever the speed
@@ -36,6 +38,7 @@ typedef enum {
   WAYTATOR_VIDEO_FIELD_MUTE = 1 << 3,
   WAYTATOR_VIDEO_FIELD_PITCH = 1 << 4,
   WAYTATOR_VIDEO_FIELD_PITCH_FOLLOWS_SPEED = 1 << 5,
+  WAYTATOR_VIDEO_FIELD_VOLUME = 1 << 6,
 } WaytatorVideoField;
 
 #define WAYTATOR_VIDEO_FIELDS_VIDEO (WAYTATOR_VIDEO_FIELD_SPEED \
@@ -43,12 +46,16 @@ typedef enum {
                                      | WAYTATOR_VIDEO_FIELD_FLIP_VERTICAL)
 #define WAYTATOR_VIDEO_FIELDS_AUDIO (WAYTATOR_VIDEO_FIELD_SPEED \
                                      | WAYTATOR_VIDEO_FIELD_MUTE \
+                                     | WAYTATOR_VIDEO_FIELD_VOLUME \
                                      | WAYTATOR_VIDEO_FIELD_PITCH \
                                      | WAYTATOR_VIDEO_FIELD_PITCH_FOLLOWS_SPEED)
 
 #define WAYTATOR_VIDEO_MIN_SPEED 0.1
 #define WAYTATOR_VIDEO_MAX_SPEED 16.0
 #define WAYTATOR_VIDEO_MAX_PITCH 24.0
+//quieter than this is as good as muted, louder only clips
+#define WAYTATOR_VIDEO_MIN_VOLUME -30.0
+#define WAYTATOR_VIDEO_MAX_VOLUME 12.0
 
 typedef enum {
   WAYTATOR_VIDEO_RAIL_VIDEO,

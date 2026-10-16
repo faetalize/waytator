@@ -683,6 +683,19 @@ videotimeline > accent {
   padding: 0 10px;
 }
 
+/* a tool set to something other than the usual glows in the accent colour, which a toggle that is on
+   doesn't, so speed, sound, crop and rotation show they are changed without looking pressed */
+.video-editor button.video-changed,
+.video-editor menubutton.video-changed > button {
+  color: mix(@accent_bg_color, white, 0.4);
+  -gtk-icon-shadow: 0 0 6px alpha(@accent_bg_color, 0.9);
+}
+
+.video-popover-value {
+  font-size: 1.6em;
+  font-weight: 700;
+}
+
 .video-time {
   color: white;
   font-weight: 600;

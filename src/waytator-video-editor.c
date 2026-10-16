@@ -25,7 +25,11 @@
 #define WAYTATOR_VIDEO_PROXY_SIZE 540
 #define WAYTATOR_VIDEO_MAX_SHUTTLE 8.0
 
-static const double waytator_video_speed_presets[] = { 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0, 8.0, 16.0 };
+//what the speed slider stops at, so dragging it lands on speeds people pick
+static const double waytator_video_speed_steps[] = {
+  0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0, 8.0,
+  10.0, 12.0, 16.0,
+};
 
 #define WAYTATOR_VIDEO_CONTROLS_GAP 10
 //the panel's margins either side, which the controls fit inside
@@ -243,24 +247,27 @@ struct _WaytatorVideoEditor {
   GtkLabel *time_label;
   GtkLabel *rate_label;
   GtkWidget *tools_group;
-  GtkWidget *tools_separator_1;
-  GtkWidget *tools_separator_2;
-  GtkWidget *speed_icon;
+  GtkWidget *tools_separator;
   GtkLabel *scope_label;
   GtkButton *delete_button;
-  GtkLabel *speed_label;
+  GtkWidget *speed_button;
+  GtkPopover *speed_popover;
   GtkLabel *speed_heading;
-  GtkGrid *speed_presets;
-  GtkSpinButton *speed_spin;
+  GtkLabel *speed_value;
+  GtkRange *speed_scale;
   GtkSwitch *pitch_follows_switch;
   GtkToggleButton *flip_horizontal_button;
   GtkToggleButton *flip_vertical_button;
-  GtkToggleButton *mute_button;
+  GtkMenuButton *sound_button;
+  GtkPopover *sound_popover;
+  GtkLabel *sound_heading;
+  GtkRange *volume_scale;
+  GtkLabel *volume_value;
+  GtkRange *pitch_scale;
+  GtkLabel *pitch_value;
+  GtkSwitch *mute_switch;
   GtkToggleButton *transform_button;
-  GtkWidget *pitch_button;
-  GtkLabel *pitch_label;
-  GtkLabel *pitch_heading;
-  GtkSpinButton *pitch_spin;
+  GtkWidget *rotate_button;
   GtkWidget *zoom_group;
   WaytatorVideoTimeline *timeline;
 
@@ -283,13 +290,15 @@ struct _WaytatorVideoEditor {
   GCancellable *export_cancellable;
   //set while the controls are brought up to date, so their signals don't edit anything
   gboolean updating;
+  //the slider being dragged, its changes undo as one until another control is used or its popover closes
+  GtkWidget *adjusting;
   int fold_width;
   guint fold_id;
   //the widths of what folds away, measured while it showed
   int scope_width;
   int skips_width;
   int zoom_width;
-  //what closing the tools up saves: the separators and the speed's icon
+  //what closing the tools up saves: the separator
   int tight_width;
 };
 
@@ -409,18 +418,52 @@ waytator_video_editor_update_time(WaytatorVideoEditor *self)
   gtk_label_set_text(self->time_label, text);
 }
 
+//a volume or a pitch with its sign, a real minus since the hyphen reads as a dash beside the plus
+static char *
+waytator_video_format_signed(double      value,
+                             const char *unit)
+{
+  char text[G_ASCII_DTOSTR_BUF_SIZE];
+
+  g_ascii_formatd(text, sizeof text, "%.1f", fabs(value));
+  if (g_str_has_suffix(text, ".0"))
+    text[strlen(text) - 2] = '\0';
+
+  return g_strdup_printf("%s%s %s", value > 0 ? "+" : value < 0 ? "−" : "", text, unit);
+}
+
+//a button whose setting is not the usual one glows, without looking pressed like a toggle that is on
+static void
+waytator_video_editor_set_changed(GtkWidget *widget,
+                                  gboolean   changed)
+{
+  if (changed)
+    gtk_widget_add_css_class(widget, "video-changed");
+  else
+    gtk_widget_remove_css_class(widget, "video-changed");
+}
+
+static void waytator_video_editor_stop_adjusting(WaytatorVideoEditor *self);
+
 static void
 waytator_video_editor_update_controls(WaytatorVideoEditor *self)
 {
   g_autoptr(WaytatorVideoState) state = waytator_video_editor_state(self);
   const WaytatorVideoSegment *reference;
+  WaytatorVideoCrop crop;
   gboolean selection;
+  gboolean has_audio;
   gboolean all_flipped_horizontal = TRUE;
   gboolean all_flipped_vertical = TRUE;
   gboolean all_muted = TRUE;
+  gboolean any_muted = FALSE;
   gboolean same_speed = TRUE;
+  gboolean same_volume = TRUE;
   gboolean same_pitch = TRUE;
   gboolean all_follow = TRUE;
+  gboolean speed_changed = FALSE;
+  gboolean sound_changed = FALSE;
+  const char *icon;
   gint64 start;
   gint64 end;
   guint first;
@@ -433,6 +476,7 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
 
   self->updating = TRUE;
   selection = waytator_video_editor_get_scope(self, state, &start, &end);
+  has_audio = waytator_video_state_has_audio(state);
   reference = waytator_video_state_get_segment(state, first);
   for (guint i = first; i <= last; i++) {
     const WaytatorVideoSegment *segment = waytator_video_state_get_segment(state, i);
@@ -440,60 +484,126 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
     all_flipped_horizontal &= segment->flip_horizontal;
     all_flipped_vertical &= segment->flip_vertical;
     all_muted &= segment->mute;
+    any_muted |= segment->mute;
     all_follow &= segment->pitch_follows_speed;
     same_speed &= segment->speed == reference->speed;
+    same_volume &= segment->volume == reference->volume;
     same_pitch &= segment->pitch == reference->pitch;
+    speed_changed |= segment->speed != 1.0;
+    sound_changed |= segment->mute || segment->volume != 0.0 || segment->pitch != 0.0;
   }
 
   if (selection) {
     g_autofree char *length = waytator_video_format_time(end - start, end - start);
 
     gtk_label_set_text(self->scope_label, length);
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->scope_label), "What is selected, the tools change only that");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->scope_label), "What is selected, the tools beside this change only that");
   } else {
     gtk_label_set_text(self->scope_label, "Whole video");
     gtk_widget_set_tooltip_text(GTK_WIDGET(self->scope_label),
-                                "Nothing is selected, so the tools change the whole video. Click a block or drag on the timeline to pick a part");
+                                "Nothing is selected, so the tools beside this change the whole video. Click a block or drag on the timeline to pick a part");
   }
-  gtk_label_set_text(self->speed_heading, selection ? "Speed of the selection" : "Speed of the whole video");
-  gtk_label_set_text(self->pitch_heading, selection ? "Pitch of the selection" : "Pitch of the whole video");
   gtk_widget_set_sensitive(GTK_WIDGET(self->delete_button), selection);
 
   gtk_toggle_button_set_active(self->flip_horizontal_button, all_flipped_horizontal);
   gtk_toggle_button_set_active(self->flip_vertical_button, all_flipped_vertical);
-  gtk_toggle_button_set_active(self->mute_button, all_muted);
-  gtk_switch_set_active(self->pitch_follows_switch, all_follow);
 
+  //the speed: the button only shows that it is changed, its popover says to what
+  gtk_label_set_text(self->speed_heading, selection ? "Speed of the selection" : "Speed of the whole video");
+  gtk_switch_set_active(self->pitch_follows_switch, all_follow);
+  gtk_widget_set_sensitive(GTK_WIDGET(self->pitch_follows_switch), has_audio);
+  waytator_video_editor_set_changed(self->speed_button, speed_changed);
   if (same_speed) {
     g_autofree char *speed = waytator_video_format_factor(reference->speed);
+    g_autofree char *tooltip = g_strdup_printf("Speed, %s", speed);
 
-    gtk_label_set_text(self->speed_label, speed);
-    gtk_spin_button_set_value(self->speed_spin, reference->speed);
+    gtk_label_set_text(self->speed_value, speed);
+    gtk_range_set_value(self->speed_scale, log2(reference->speed));
+    gtk_widget_set_tooltip_text(self->speed_button, speed_changed ? tooltip : "Speed");
   } else {
-    gtk_label_set_text(self->speed_label, "Mixed");
+    gtk_label_set_text(self->speed_value, "Mixed");
+    gtk_widget_set_tooltip_text(self->speed_button, "Speed, mixed");
   }
 
-  if (!same_pitch) {
-    gtk_label_set_text(self->pitch_label, "Mixed");
-  } else if (reference->pitch == 0.0) {
-    gtk_label_set_text(self->pitch_label, "Pitch");
-    gtk_spin_button_set_value(self->pitch_spin, 0.0);
-  } else {
-    g_autofree char *pitch = g_strdup_printf("%s%g st", reference->pitch > 0 ? "+" : "−", fabs(reference->pitch));
+  //the sound: how loud, its pitch and whether it plays at all, in one place
+  gtk_label_set_text(self->sound_heading, selection ? "Sound of the selection" : "Sound of the whole video");
+  gtk_switch_set_active(self->mute_switch, all_muted);
+  gtk_widget_set_sensitive(GTK_WIDGET(self->sound_button), has_audio);
+  gtk_widget_set_sensitive(GTK_WIDGET(self->volume_scale), !all_muted);
+  gtk_widget_set_sensitive(GTK_WIDGET(self->pitch_scale), !all_muted);
+  waytator_video_editor_set_changed(GTK_WIDGET(self->sound_button), has_audio && sound_changed);
+  if (same_volume) {
+    g_autofree char *volume = waytator_video_format_signed(reference->volume, "dB");
 
-    gtk_label_set_text(self->pitch_label, pitch);
-    gtk_spin_button_set_value(self->pitch_spin, reference->pitch);
+    gtk_label_set_text(self->volume_value, volume);
+    gtk_range_set_value(self->volume_scale, reference->volume);
+  } else {
+    gtk_label_set_text(self->volume_value, "Mixed");
+  }
+  if (same_pitch) {
+    g_autofree char *pitch = waytator_video_format_signed(reference->pitch, "st");
+
+    gtk_label_set_text(self->pitch_value, pitch);
+    gtk_range_set_value(self->pitch_scale, reference->pitch);
+  } else {
+    gtk_label_set_text(self->pitch_value, "Mixed");
   }
 
-  //sound settings mean nothing for a video without any
-  gtk_widget_set_sensitive(GTK_WIDGET(self->mute_button), waytator_video_state_has_audio(state));
-  gtk_widget_set_sensitive(self->pitch_button, waytator_video_state_has_audio(state) && !all_muted);
+  if (!has_audio)
+    icon = "audio-volume-muted-symbolic";
+  else if (all_muted)
+    icon = "audio-volume-muted-symbolic";
+  else if (same_volume && reference->volume < 0)
+    icon = "audio-volume-low-symbolic";
+  else if (same_volume && reference->volume > 0)
+    icon = "audio-volume-overamplified-symbolic";
+  else
+    icon = "audio-volume-high-symbolic";
+  gtk_menu_button_set_icon_name(self->sound_button, icon);
+  if (!has_audio) {
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "This video has no sound");
+  } else if (all_muted) {
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "Sound, muted");
+  } else if (sound_changed) {
+    g_autofree char *volume = same_volume ? waytator_video_format_signed(reference->volume, "dB") : g_strdup("mixed");
+    g_autofree char *pitch = same_pitch ? waytator_video_format_signed(reference->pitch, "st") : g_strdup("mixed");
+    g_autofree char *tooltip = g_strdup_printf("Sound, volume %s, pitch %s%s",
+                                               volume,
+                                               pitch,
+                                               any_muted ? ", partly muted" : "");
 
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), tooltip);
+  } else {
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "Sound: volume, pitch and mute (M)");
+  }
+
+  //the whole video's crop and turn
   waytator_video_state_get_output_size(state, &width, &height);
   {
     g_autofree char *size = g_strdup_printf("%d × %d", width, height);
 
     gtk_label_set_text(self->transform_size_label, size);
+  }
+  crop = waytator_video_state_get_crop(state);
+  waytator_video_editor_set_changed(GTK_WIDGET(self->transform_button),
+                                    crop.x != 0 || crop.y != 0
+                                    || crop.width != waytator_video_state_get_source_width(state)
+                                    || crop.height != waytator_video_state_get_source_height(state));
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->transform_button), "Crop the whole video (C)");
+  waytator_video_editor_set_changed(self->rotate_button, waytator_video_state_get_rotation(state) != 0);
+  switch (waytator_video_state_get_rotation(state)) {
+  case 1:
+    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left, which puts it upright again");
+    break;
+  case 2:
+    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left, it is upside down now");
+    break;
+  case 3:
+    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left, it is turned left now");
+    break;
+  default:
+    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left");
+    break;
   }
 
   self->updating = FALSE;
@@ -743,6 +853,7 @@ waytator_video_editor_close(WaytatorVideoEditor *self)
   g_clear_object(&self->open_cancellable);
   self->opening = FALSE;
 
+  waytator_video_editor_stop_adjusting(self);
   waytator_video_editor_set_cropping(self, FALSE);
   waytator_video_timeline_set_selection(self->timeline, 0, 0, WAYTATOR_VIDEO_RAIL_VIDEO);
   waytator_video_timeline_set_sources(self->timeline, NULL, NULL, NULL);
@@ -1213,14 +1324,6 @@ waytator_video_editor_action(GtkWidget  *widget,
       waytator_video_timeline_set_selection(self->timeline, 0, 0, WAYTATOR_VIDEO_RAIL_VIDEO);
       waytator_video_player_seek(self->player, start, FALSE);
     }
-  } else if (g_str_equal(name, "speed")) {
-    const WaytatorVideoSegment values = { .speed = g_variant_get_double(parameter) };
-
-    waytator_video_editor_apply(self, &values, WAYTATOR_VIDEO_FIELD_SPEED);
-  } else if (g_str_equal(name, "reset-pitch")) {
-    const WaytatorVideoSegment values = { .pitch = 0.0 };
-
-    waytator_video_editor_apply(self, &values, WAYTATOR_VIDEO_FIELD_PITCH);
   } else if (g_str_equal(name, "rotate")) {
     waytator_video_edit_set_rotation(self->edit, waytator_video_state_get_rotation(state) + 3);
   } else if (g_str_equal(name, "reset-transform")) {
@@ -1231,10 +1334,7 @@ waytator_video_editor_action(GtkWidget  *widget,
       waytator_video_state_get_source_height(state),
     };
 
-    waytator_video_edit_begin_group(self->edit);
     waytator_video_edit_set_crop(self->edit, &whole);
-    waytator_video_edit_set_rotation(self->edit, 0);
-    waytator_video_edit_end_group(self->edit);
   } else if (g_str_equal(name, "zoom-in")) {
     waytator_video_timeline_zoom_in(self->timeline);
   } else if (g_str_equal(name, "zoom-out")) {
@@ -1366,31 +1466,131 @@ waytator_video_editor_transform_toggled(GtkToggleButton *button,
   waytator_video_editor_set_cropping(WAYTATOR_VIDEO_EDITOR(user_data), gtk_toggle_button_get_active(button));
 }
 
+//a slider's changes undo as one, from when it is first moved until another control is used or its popover
+//closes, rather than one step for every position it passed through
 static void
-waytator_video_editor_mute_toggled(GtkToggleButton *button,
-                                   gpointer         user_data)
+waytator_video_editor_stop_adjusting(WaytatorVideoEditor *self)
 {
-  const WaytatorVideoSegment values = { .mute = gtk_toggle_button_get_active(button) };
+  if (self->adjusting == NULL)
+    return;
 
-  waytator_video_editor_apply(WAYTATOR_VIDEO_EDITOR(user_data), &values, WAYTATOR_VIDEO_FIELD_MUTE);
+  self->adjusting = NULL;
+  if (self->edit != NULL)
+    waytator_video_edit_end_group(self->edit);
 }
 
 static void
-waytator_video_editor_speed_spun(GtkSpinButton *spin,
-                                 gpointer       user_data)
+waytator_video_editor_adjust(WaytatorVideoEditor *self,
+                             GtkWidget           *slider)
 {
-  const WaytatorVideoSegment values = { .speed = gtk_spin_button_get_value(spin) };
+  if (self->adjusting == slider || self->edit == NULL)
+    return;
 
-  waytator_video_editor_apply(WAYTATOR_VIDEO_EDITOR(user_data), &values, WAYTATOR_VIDEO_FIELD_SPEED);
+  waytator_video_editor_stop_adjusting(self);
+  waytator_video_edit_begin_group(self->edit);
+  self->adjusting = slider;
 }
 
 static void
-waytator_video_editor_pitch_spun(GtkSpinButton *spin,
+waytator_video_editor_popover_closed(GtkPopover *popover,
+                                     gpointer    user_data)
+{
+  (void) popover;
+
+  waytator_video_editor_stop_adjusting(WAYTATOR_VIDEO_EDITOR(user_data));
+}
+
+//the slider runs over the speed's logarithm, so slowing down to half takes as much room as speeding up to
+//twice, and it stops at speeds people pick. a key or the wheel that would land on the same one goes on to the
+//next
+static gboolean
+waytator_video_editor_speed_slid(GtkRange      *range,
+                                 GtkScrollType  scroll,
+                                 double         value,
                                  gpointer       user_data)
 {
-  const WaytatorVideoSegment values = { .pitch = gtk_spin_button_get_value(spin) };
+  WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(user_data);
+  const double current = gtk_range_get_value(range);
+  WaytatorVideoSegment values = { 0 };
+  guint nearest = 0;
 
-  waytator_video_editor_apply(WAYTATOR_VIDEO_EDITOR(user_data), &values, WAYTATOR_VIDEO_FIELD_PITCH);
+  for (guint i = 1; i < G_N_ELEMENTS(waytator_video_speed_steps); i++) {
+    if (fabs(log2(waytator_video_speed_steps[i]) - value) < fabs(log2(waytator_video_speed_steps[nearest]) - value))
+      nearest = i;
+  }
+  if (fabs(log2(waytator_video_speed_steps[nearest]) - current) < 1e-9 && scroll != GTK_SCROLL_JUMP) {
+    if (value > current && nearest + 1 < G_N_ELEMENTS(waytator_video_speed_steps))
+      nearest++;
+    else if (value < current && nearest > 0)
+      nearest--;
+  }
+  //normal speed holds on to the pointer a little, it is the one most often gone back to
+  if (scroll == GTK_SCROLL_JUMP && fabs(value) < 0.1)
+    values.speed = 1.0;
+  else
+    values.speed = waytator_video_speed_steps[nearest];
+
+  gtk_range_set_value(range, log2(values.speed));
+  waytator_video_editor_adjust(self, GTK_WIDGET(range));
+  waytator_video_editor_apply(self, &values, WAYTATOR_VIDEO_FIELD_SPEED);
+  return TRUE;
+}
+
+//half a decibel at a time, and the volume as it was holds on to the pointer a little
+static gboolean
+waytator_video_editor_volume_slid(GtkRange      *range,
+                                  GtkScrollType  scroll,
+                                  double         value,
+                                  gpointer       user_data)
+{
+  WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(user_data);
+  WaytatorVideoSegment values = { 0 };
+
+  values.volume = CLAMP(round(value * 2) / 2, WAYTATOR_VIDEO_MIN_VOLUME, WAYTATOR_VIDEO_MAX_VOLUME);
+  if (scroll == GTK_SCROLL_JUMP && fabs(values.volume) < 1)
+    values.volume = 0;
+
+  gtk_range_set_value(range, values.volume);
+  waytator_video_editor_adjust(self, GTK_WIDGET(range));
+  waytator_video_editor_apply(self, &values, WAYTATOR_VIDEO_FIELD_VOLUME);
+  return TRUE;
+}
+
+//whole semitones
+static gboolean
+waytator_video_editor_pitch_slid(GtkRange      *range,
+                                 GtkScrollType  scroll,
+                                 double         value,
+                                 gpointer       user_data)
+{
+  WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(user_data);
+  WaytatorVideoSegment values = { 0 };
+
+  (void) scroll;
+
+  values.pitch = CLAMP(round(value), gtk_adjustment_get_lower(gtk_range_get_adjustment(range)),
+                       gtk_adjustment_get_upper(gtk_range_get_adjustment(range)));
+  gtk_range_set_value(range, values.pitch);
+  waytator_video_editor_adjust(self, GTK_WIDGET(range));
+  waytator_video_editor_apply(self, &values, WAYTATOR_VIDEO_FIELD_PITCH);
+  return TRUE;
+}
+
+static void
+waytator_video_editor_mute_changed(GObject    *object,
+                                   GParamSpec *pspec,
+                                   gpointer    user_data)
+{
+  WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(user_data);
+  const WaytatorVideoSegment values = { .mute = gtk_switch_get_active(GTK_SWITCH(object)) };
+
+  (void) pspec;
+
+  if (self->updating)
+    return;
+
+  waytator_video_editor_stop_adjusting(self);
+  waytator_video_editor_apply(self, &values, WAYTATOR_VIDEO_FIELD_MUTE);
 }
 
 static void
@@ -1398,11 +1598,16 @@ waytator_video_editor_pitch_follows_changed(GObject    *object,
                                             GParamSpec *pspec,
                                             gpointer    user_data)
 {
+  WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(user_data);
   const WaytatorVideoSegment values = { .pitch_follows_speed = gtk_switch_get_active(GTK_SWITCH(object)) };
 
   (void) pspec;
 
-  waytator_video_editor_apply(WAYTATOR_VIDEO_EDITOR(user_data), &values, WAYTATOR_VIDEO_FIELD_PITCH_FOLLOWS_SPEED);
+  if (self->updating)
+    return;
+
+  waytator_video_editor_stop_adjusting(self);
+  waytator_video_editor_apply(self, &values, WAYTATOR_VIDEO_FIELD_PITCH_FOLLOWS_SPEED);
 }
 
 gboolean
@@ -1488,8 +1693,8 @@ waytator_video_editor_handle_key(WaytatorVideoEditor *self,
     return TRUE;
   case GDK_KEY_m:
   case GDK_KEY_M:
-    if (gtk_widget_get_sensitive(GTK_WIDGET(self->mute_button)))
-      gtk_toggle_button_set_active(self->mute_button, !gtk_toggle_button_get_active(self->mute_button));
+    if (gtk_widget_get_sensitive(GTK_WIDGET(self->sound_button)))
+      gtk_switch_set_active(self->mute_switch, !gtk_switch_get_active(self->mute_switch));
     return TRUE;
   case GDK_KEY_c:
   case GDK_KEY_C:
@@ -1541,14 +1746,12 @@ waytator_video_editor_fold(gpointer user_data)
   }
   if (gtk_widget_get_visible(self->zoom_group))
     waytator_video_controls_width(self->zoom_group, NULL, &self->zoom_width);
-  if (gtk_widget_get_visible(self->speed_icon)) {
+  if (gtk_widget_get_visible(self->tools_separator)) {
     int separator;
-    int icon;
 
-    gtk_widget_measure(self->tools_separator_1, GTK_ORIENTATION_HORIZONTAL, -1, NULL, &separator, NULL, NULL);
-    waytator_video_controls_width(self->speed_icon, NULL, &icon);
-    //the separators' margins and the gap the icon leaves come along
-    self->tight_width = 2 * (separator + 8) + icon + 6;
+    gtk_widget_measure(self->tools_separator, GTK_ORIENTATION_HORIZONTAL, -1, NULL, &separator, NULL, NULL);
+    //its margins and the gap beside it come along
+    self->tight_width = separator + 8 + 2;
   }
 
   waytator_video_controls_width(self->transport_group, NULL, &transport);
@@ -1557,7 +1760,7 @@ waytator_video_editor_fold(gpointer user_data)
     transport += self->skips_width;
   if (!gtk_widget_get_visible(GTK_WIDGET(self->scope_label)))
     tools += self->scope_width;
-  if (!gtk_widget_get_visible(self->speed_icon))
+  if (!gtk_widget_get_visible(self->tools_separator))
     tools += self->tight_width;
 
   if (transport + tools + self->zoom_width + 2 * gap <= available)
@@ -1576,9 +1779,7 @@ waytator_video_editor_fold(gpointer user_data)
   gtk_widget_set_visible(GTK_WIDGET(self->scope_label), level < 2);
   gtk_widget_set_visible(self->start_button, level < 3);
   gtk_widget_set_visible(self->end_button, level < 3);
-  gtk_widget_set_visible(self->tools_separator_1, level < 4);
-  gtk_widget_set_visible(self->tools_separator_2, level < 4);
-  gtk_widget_set_visible(self->speed_icon, level < 4);
+  gtk_widget_set_visible(self->tools_separator, level < 4);
   return G_SOURCE_REMOVE;
 }
 
@@ -1665,7 +1866,7 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
   static const char *const actions[] = {
     "play-pause", "step-back", "step-forward", "go-start", "go-end", "split", "delete",
-    "reset-pitch", "rotate", "reset-transform", "zoom-in", "zoom-out", "zoom-fit", "cancel-export",
+    "rotate", "reset-transform", "zoom-in", "zoom-out", "zoom-fit", "cancel-export",
   };
 
   object_class->get_property = waytator_video_editor_get_property;
@@ -1709,23 +1910,26 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, rate_label);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, tools_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, scope_label);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, tools_separator_1);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, tools_separator_2);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_icon);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, tools_separator);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, delete_button);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_label);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_popover);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_heading);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_presets);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_spin);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_value);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, speed_scale);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, pitch_follows_switch);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, flip_horizontal_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, flip_vertical_button);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, mute_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, sound_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, sound_popover);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, sound_heading);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, volume_scale);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, volume_value);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, pitch_scale);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, pitch_value);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, mute_switch);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, transform_button);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, pitch_button);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, pitch_label);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, pitch_heading);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, pitch_spin);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, rotate_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, zoom_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, timeline);
 
@@ -1735,7 +1939,6 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
     gtk_widget_class_install_action(widget_class, name, NULL, waytator_video_editor_action);
   }
   gtk_widget_class_install_action(widget_class, "video.rate", "d", waytator_video_editor_action);
-  gtk_widget_class_install_action(widget_class, "video.speed", "d", waytator_video_editor_action);
   gtk_widget_class_install_property_action(widget_class, "video.transform", "cropping");
 }
 
@@ -1745,23 +1948,31 @@ waytator_video_editor_init(WaytatorVideoEditor *self)
   self->spool_fd = -1;
   gtk_widget_init_template(GTK_WIDGET(self));
 
-  for (guint i = 0; i < G_N_ELEMENTS(waytator_video_speed_presets); i++) {
-    g_autofree char *label = waytator_video_format_factor(waytator_video_speed_presets[i]);
-    GtkWidget *button = gtk_button_new_with_label(label);
+  {
+    static const struct {
+      double speed;
+      const char *label;
+    } marks[] = {
+      { 0.25, "¼×" }, { 0.5, "½×" }, { 1.0, "1×" }, { 2.0, "2×" }, { 4.0, "4×" }, { 8.0, "8×" }, { 16.0, "16×" },
+    };
 
-    gtk_actionable_set_action_name(GTK_ACTIONABLE(button), "video.speed");
-    gtk_actionable_set_action_target_value(GTK_ACTIONABLE(button),
-                                           g_variant_new_double(waytator_video_speed_presets[i]));
-    gtk_grid_attach(self->speed_presets, button, i % 4, i / 4, 1, 1);
+    for (guint i = 0; i < G_N_ELEMENTS(marks); i++)
+      gtk_scale_add_mark(GTK_SCALE(self->speed_scale), log2(marks[i].speed), GTK_POS_BOTTOM, marks[i].label);
   }
+  //where each sounds as it was
+  gtk_scale_add_mark(GTK_SCALE(self->volume_scale), 0, GTK_POS_BOTTOM, NULL);
+  gtk_scale_add_mark(GTK_SCALE(self->pitch_scale), 0, GTK_POS_BOTTOM, NULL);
 
   g_signal_connect(self->flip_horizontal_button, "toggled", G_CALLBACK(waytator_video_editor_flip_horizontal_toggled), self);
   g_signal_connect(self->flip_vertical_button, "toggled", G_CALLBACK(waytator_video_editor_flip_vertical_toggled), self);
-  g_signal_connect(self->mute_button, "toggled", G_CALLBACK(waytator_video_editor_mute_toggled), self);
   g_signal_connect(self->transform_button, "toggled", G_CALLBACK(waytator_video_editor_transform_toggled), self);
-  g_signal_connect(self->speed_spin, "value-changed", G_CALLBACK(waytator_video_editor_speed_spun), self);
-  g_signal_connect(self->pitch_spin, "value-changed", G_CALLBACK(waytator_video_editor_pitch_spun), self);
+  g_signal_connect(self->speed_scale, "change-value", G_CALLBACK(waytator_video_editor_speed_slid), self);
+  g_signal_connect(self->volume_scale, "change-value", G_CALLBACK(waytator_video_editor_volume_slid), self);
+  g_signal_connect(self->pitch_scale, "change-value", G_CALLBACK(waytator_video_editor_pitch_slid), self);
+  g_signal_connect(self->mute_switch, "notify::active", G_CALLBACK(waytator_video_editor_mute_changed), self);
   g_signal_connect(self->pitch_follows_switch, "notify::active", G_CALLBACK(waytator_video_editor_pitch_follows_changed), self);
+  g_signal_connect(self->speed_popover, "closed", G_CALLBACK(waytator_video_editor_popover_closed), self);
+  g_signal_connect(self->sound_popover, "closed", G_CALLBACK(waytator_video_editor_popover_closed), self);
   g_signal_connect(self->timeline, "seek", G_CALLBACK(waytator_video_editor_timeline_seek), self);
   g_signal_connect(self->timeline, "selection-changed", G_CALLBACK(waytator_video_editor_selection_changed), self);
 }

@@ -76,6 +76,8 @@ struct _WaytatorVideoAudio {
   gint64 run_end;
   gint64 fade_start;
   gint64 source_position;
+  //how much louder or quieter the run plays, 1 as it was
+  double gain;
   //the stretcher is fed from source_position on, skip source frames for each frame it takes
   double skip;
   gint64 fed;
@@ -527,6 +529,7 @@ waytator_video_audio_sound_continues(const WaytatorVideoSegment *before,
   return before->source_end == after->source_start
       && before->speed == after->speed
       && before->mute == after->mute
+      && before->volume == after->volume
       && before->pitch == after->pitch
       && before->pitch_follows_speed == after->pitch_follows_speed;
 }
@@ -568,6 +571,8 @@ waytator_video_audio_begin_run(WaytatorVideoAudio *audio)
   segment = waytator_video_state_get_segment(state, first);
   if (segment->mute)
     return;
+
+  audio->gain = pow(10.0, segment->volume / 20.0);
 
   pace = MIN(segment->speed * audio->rate, WAYTATOR_VIDEO_AUDIO_MAX_STRETCH);
   ratio = 1.0 / pace;
@@ -657,6 +662,37 @@ static double
 waytator_video_audio_fade_gain(gint64 frame)
 {
   return 0.5 - 0.5 * cos(G_PI * (frame + 0.5) / WAYTATOR_VIDEO_AUDIO_FADE);
+}
+
+//above the knee a louder sound bends towards full scale rather than clipping at it
+#define WAYTATOR_VIDEO_AUDIO_KNEE 0.9f
+
+static float
+waytator_video_audio_limit(float sample)
+{
+  const float size = fabsf(sample);
+
+  if (size <= WAYTATOR_VIDEO_AUDIO_KNEE)
+    return sample;
+
+  return copysignf(WAYTATOR_VIDEO_AUDIO_KNEE
+                   + (1.0f - WAYTATOR_VIDEO_AUDIO_KNEE)
+                     * tanhf((size - WAYTATOR_VIDEO_AUDIO_KNEE) / (1.0f - WAYTATOR_VIDEO_AUDIO_KNEE)),
+                   sample);
+}
+
+static void
+waytator_video_audio_amplify(WaytatorVideoAudio *audio,
+                             float              *samples,
+                             gsize               n_frames)
+{
+  const float gain = (float) audio->gain;
+
+  if (audio->gain == 1.0)
+    return;
+
+  for (gsize i = 0; i < n_frames * WAYTATOR_VIDEO_AUDIO_CHANNELS; i++)
+    samples[i] = gain > 1.0f ? waytator_video_audio_limit(samples[i] * gain) : samples[i] * gain;
 }
 
 //fades in from where the run started playing and out to where it ends, so a cut never clicks
@@ -809,8 +845,10 @@ waytator_video_audio_read(WaytatorVideoAudio *audio,
       return 0;
     }
 
-    if (audio->mode != WAYTATOR_VIDEO_AUDIO_SILENT)
+    if (audio->mode != WAYTATOR_VIDEO_AUDIO_SILENT) {
+      waytator_video_audio_amplify(audio, chunk_samples, chunk);
       waytator_video_audio_fade(audio, chunk_samples, chunk);
+    }
     audio->position += chunk;
     done += chunk;
     if (audio->position >= audio->run_end)

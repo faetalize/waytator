@@ -108,6 +108,8 @@ waytator_video_segment_fields_equal(const WaytatorVideoSegment *first,
     return FALSE;
   if ((fields & WAYTATOR_VIDEO_FIELD_MUTE) != 0 && first->mute != second->mute)
     return FALSE;
+  if ((fields & WAYTATOR_VIDEO_FIELD_VOLUME) != 0 && first->volume != second->volume)
+    return FALSE;
   if ((fields & WAYTATOR_VIDEO_FIELD_PITCH) != 0 && first->pitch != second->pitch)
     return FALSE;
   if ((fields & WAYTATOR_VIDEO_FIELD_PITCH_FOLLOWS_SPEED) != 0
@@ -865,6 +867,8 @@ waytator_video_edit_set(WaytatorVideoEdit          *self,
       segment->flip_vertical = values->flip_vertical;
     if ((fields & WAYTATOR_VIDEO_FIELD_MUTE) != 0)
       segment->mute = values->mute;
+    if ((fields & WAYTATOR_VIDEO_FIELD_VOLUME) != 0)
+      segment->volume = CLAMP(values->volume, WAYTATOR_VIDEO_MIN_VOLUME, WAYTATOR_VIDEO_MAX_VOLUME);
     if ((fields & WAYTATOR_VIDEO_FIELD_PITCH) != 0)
       segment->pitch = CLAMP(values->pitch, -WAYTATOR_VIDEO_MAX_PITCH, WAYTATOR_VIDEO_MAX_PITCH);
     if ((fields & WAYTATOR_VIDEO_FIELD_PITCH_FOLLOWS_SPEED) != 0)
