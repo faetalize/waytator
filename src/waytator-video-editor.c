@@ -6,7 +6,10 @@
 #include <math.h>
 #include <unistd.h>
 
+#include <gio/gunixoutputstream.h>
+
 #include "waytator-video-audio.h"
+#include "waytator-video-cache.h"
 #include "waytator-video-export.h"
 #include "waytator-video-player.h"
 #include "waytator-video-proxy.h"
@@ -263,8 +266,9 @@ struct _WaytatorVideoEditor {
 
   GFile *file;
   char *display_name;
-  //where a piped video was put, deleted again with the editor
+  //where a piped video was put, deleted again with the editor, and held open so a sweep leaves it alone
   char *spool_path;
+  int spool_fd;
   gboolean opening;
   //counts opens, so one that finishes after another started can tell it is no longer wanted
   guint open_serial;
@@ -775,6 +779,10 @@ waytator_video_editor_close(WaytatorVideoEditor *self)
     g_unlink(self->spool_path);
     g_clear_pointer(&self->spool_path, g_free);
   }
+  if (self->spool_fd >= 0) {
+    close(self->spool_fd);
+    self->spool_fd = -1;
+  }
 
   waytator_video_editor_set_loading(self, NULL);
   gtk_label_set_text(self->time_label, "");
@@ -889,6 +897,7 @@ waytator_video_editor_begin_open(WaytatorVideoEditor *self,
                                  GCancellable        *cancellable)
 {
   waytator_video_editor_close(self);
+  waytator_video_cache_sweep();
   self->open_serial++;
   self->opening = TRUE;
   self->open_cancellable = cancellable != NULL ? g_object_ref(cancellable) : g_cancellable_new();
@@ -966,13 +975,9 @@ waytator_video_editor_open_stream_async(WaytatorVideoEditor *self,
 {
   g_autoptr(GTask) task = NULL;
   g_autoptr(GError) error = NULL;
-  g_autoptr(GFile) spool = NULL;
-  g_autoptr(GFileOutputStream) output = NULL;
-  g_autofree char *folder = NULL;
-  g_autofree char *template = NULL;
+  g_autoptr(GOutputStream) output = NULL;
   gsize head_size = 0;
   const guint8 *head_data = head != NULL ? g_bytes_get_data(head, &head_size) : NULL;
-  int fd;
 
   g_return_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self));
   g_return_if_fail(G_IS_INPUT_STREAM(stream));
@@ -983,24 +988,20 @@ waytator_video_editor_open_stream_async(WaytatorVideoEditor *self,
   self->display_name = g_strdup(display_name != NULL ? display_name : "Video");
 
   //the cache folder rather than the temporary one, which is often memory, and a recording can be long
-  folder = g_build_filename(g_get_user_cache_dir(), "waytator", NULL);
-  g_mkdir_with_parents(folder, 0700);
-  template = g_build_filename(folder, "piped-XXXXXX", NULL);
-  fd = g_mkstemp_full(template, O_RDWR, 0600);
-  if (fd < 0) {
+  self->spool_fd = waytator_video_cache_create("piped-", &self->spool_path);
+  if (self->spool_fd < 0) {
+    g_autofree char *folder = g_build_filename(g_get_user_cache_dir(), "waytator", NULL);
+    const int saved_errno = errno;
+
     waytator_video_editor_close(self);
-    g_task_return_new_error(task, G_IO_ERROR, g_io_error_from_errno(errno),
-                            "Could not make room for the video in %s", folder);
+    g_task_return_new_error(task, G_IO_ERROR, g_io_error_from_errno(saved_errno),
+                            "Could not make room for the video in %s: %s", folder, g_strerror(saved_errno));
     return;
   }
-  close(fd);
-  self->spool_path = g_steal_pointer(&template);
 
-  spool = g_file_new_for_path(self->spool_path);
-  output = g_file_replace(spool, NULL, FALSE, G_FILE_CREATE_PRIVATE, self->open_cancellable, &error);
-  if (output == NULL
-      || (head_size > 0 && !g_output_stream_write_all(G_OUTPUT_STREAM(output), head_data, head_size,
-                                                       NULL, self->open_cancellable, &error))) {
+  //written through the descriptor that holds the file, the stream leaves it open
+  output = g_unix_output_stream_new(self->spool_fd, FALSE);
+  if (head_size > 0 && !g_output_stream_write_all(output, head_data, head_size, NULL, self->open_cancellable, &error)) {
     waytator_video_editor_close(self);
     g_task_return_error(task, g_steal_pointer(&error));
     return;
@@ -1008,7 +1009,7 @@ waytator_video_editor_open_stream_async(WaytatorVideoEditor *self,
 
   g_task_set_task_data(task, GUINT_TO_POINTER(self->open_serial), NULL);
   waytator_video_editor_set_loading(self, "Receiving video…");
-  g_output_stream_splice_async(G_OUTPUT_STREAM(output),
+  g_output_stream_splice_async(output,
                                stream,
                                G_OUTPUT_STREAM_SPLICE_CLOSE_TARGET,
                                G_PRIORITY_DEFAULT,
@@ -1741,6 +1742,7 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
 static void
 waytator_video_editor_init(WaytatorVideoEditor *self)
 {
+  self->spool_fd = -1;
   gtk_widget_init_template(GTK_WIDGET(self));
 
   for (guint i = 0; i < G_N_ELEMENTS(waytator_video_speed_presets); i++) {

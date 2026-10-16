@@ -3,6 +3,8 @@
 
 #include "waytator-video-proxy.h"
 
+#include "waytator-video-cache.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <glib/gstdio.h>
@@ -358,17 +360,13 @@ waytator_video_proxy_new(WaytatorVideoSource *source,
                          int                  size)
 {
   WaytatorVideoProxy *self = g_object_new(WAYTATOR_TYPE_VIDEO_PROXY, NULL);
-  g_autofree char *folder = g_build_filename(g_get_user_cache_dir(), "waytator", NULL);
 
   self->source = waytator_video_source_ref(source);
   self->size = size;
   self->n_frames = waytator_video_source_get_frames(source)->n_frames;
-  g_mkdir_with_parents(folder, 0700);
-  self->path = g_build_filename(folder, "optimized-XXXXXX", NULL);
-  self->fd = g_mkstemp_full(self->path, O_RDWR, 0600);
+  self->fd = waytator_video_cache_create("optimized-", &self->path);
   if (self->fd < 0) {
-    g_debug("Could not make room to optimize the video in %s", folder);
-    g_clear_pointer(&self->path, g_free);
+    g_debug("Could not make room to optimize the video: %s", g_strerror(errno));
     return self;
   }
 

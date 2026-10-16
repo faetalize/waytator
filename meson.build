@@ -30,7 +30,8 @@ swresample_dep = dependency('libswresample', version: '>=4.10')
 libdrm_dep = dependency('libdrm')
 pipewire_dep = dependency('libpipewire-0.3', version: '>=0.3.50')
 rubberband_dep = dependency('rubberband', version: '>=3.0')
-video_deps = [avformat_dep, avcodec_dep, avfilter_dep, avutil_dep, swscale_dep, swresample_dep, libdrm_dep, pipewire_dep, rubberband_dep]
+gio_unix_dep = dependency('gio-unix-2.0')
+video_deps = [avformat_dep, avcodec_dep, avfilter_dep, avutil_dep, swscale_dep, swresample_dep, libdrm_dep, pipewire_dep, rubberband_dep, gio_unix_dep]
 cc = meson.get_compiler('c')
 m_dep = cc.find_library('m', required: false)
 

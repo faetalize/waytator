@@ -43,6 +43,8 @@ waytator_sources = files(
   'waytator-video-audio.c',
   'waytator-video-audio-output.c',
   'waytator-video-audio.h',
+  'waytator-video-cache.c',
+  'waytator-video-cache.h',
   'waytator-video-edit.h',
   'waytator-video-editor.c',
   'waytator-video-editor.h',
