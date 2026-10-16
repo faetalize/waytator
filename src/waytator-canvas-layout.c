@@ -143,6 +143,9 @@ waytator_window_drawing_area_resized(GtkDrawingArea *drawing_area,
   waytator_window_update_ocr_overlay(WAYTATOR_WINDOW(user_data));
 }
 
+//the canvas view lays the image out at exactly the size it is shown at, so it fills the widget. not worked out from
+//the zoom: that changes straight away while the widget only takes its new size at the next layout, and pointer
+//positions measured against the old one would land on the wrong part of the image
 gboolean
 waytator_window_get_display_rect(WaytatorWindow *self,
                                  double          widget_width,
@@ -152,22 +155,13 @@ waytator_window_get_display_rect(WaytatorWindow *self,
                                  double         *display_width,
                                  double         *display_height)
 {
-  const int image_width = self->texture != NULL
-                        ? gdk_paintable_get_intrinsic_width(GDK_PAINTABLE(self->texture))
-                        : 0;
-  const int image_height = self->texture != NULL
-                         ? gdk_paintable_get_intrinsic_height(GDK_PAINTABLE(self->texture))
-                         : 0;
-  const double zoom = waytator_window_get_effective_zoom(self);
-
-  if (widget_width <= 0 || widget_height <= 0 || image_width <= 0 || image_height <= 0)
+  if (self->texture == NULL || widget_width <= 0 || widget_height <= 0)
     return FALSE;
 
-  *display_width = MIN(widget_width, image_width * zoom);
-  *display_height = MIN(widget_height, image_height * zoom);
-  *display_x = MAX(0.0, (widget_width - *display_width) / 2.0);
-  *display_y = MAX(0.0, (widget_height - *display_height) / 2.0);
-
+  *display_x = 0.0;
+  *display_y = 0.0;
+  *display_width = widget_width;
+  *display_height = widget_height;
   return TRUE;
 }
 

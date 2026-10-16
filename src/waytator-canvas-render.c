@@ -166,6 +166,16 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
   if (self->pointer_in
       && (!self->drawing || self->active_tool == WAYTATOR_TOOL_ERASER)
       && !waytator_tool_is_non_drawing(self->active_tool)) {
+    //where the pointer is over the image now that this frame is laid out. the last motion was measured against
+    //where the image was before, which a pan or zoom since has moved
+    if (!self->drawing && self->pointer_over_canvas) {
+      const graphene_point_t viewport_point = GRAPHENE_POINT_INIT(self->pointer_viewport_x, self->pointer_viewport_y);
+      graphene_point_t point;
+
+      if (gtk_widget_compute_point(GTK_WIDGET(self->canvas_view), GTK_WIDGET(area), &viewport_point, &point))
+        waytator_window_get_image_point(self, point.x, point.y, TRUE, &self->pointer_x, &self->pointer_y);
+    }
+
     cairo_save(cr);
     cairo_rectangle(cr, display_x, display_y, display_width, display_height);
     cairo_clip(cr);
