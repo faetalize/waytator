@@ -3654,6 +3654,7 @@ waytator_window_set_image(WaytatorWindow *self,
 
   waytator_window_sync_state(self);
   waytator_window_queue_opening_zoom(self);
+  waytator_window_apply_zoom_mode(self);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
 
@@ -4524,7 +4525,7 @@ static void
 waytator_window_bind_template_children(GtkWidgetClass *widget_class)
 {
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_stack);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_scroller);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_view);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, empty_page);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_surface);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, picture);
@@ -4904,6 +4905,7 @@ waytator_window_class_init(WaytatorWindowClass *klass)
 
   object_class->dispose = waytator_window_dispose;
 
+  g_type_ensure(WAYTATOR_TYPE_CANVAS_VIEW);
   gtk_widget_class_set_template_from_resource(widget_class, WAYTATOR_RESOURCE_PREFIX "/ui/window.ui");
 
   waytator_window_bind_template_children(widget_class);

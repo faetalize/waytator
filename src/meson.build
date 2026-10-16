@@ -7,6 +7,8 @@ waytator_sources = files(
   'waytator-canvas-layout.c',
   'waytator-canvas-render.c',
   'waytator-canvas-state.c',
+  'waytator-canvas-view.c',
+  'waytator-canvas-view.h',
   'waytator-chrome-layout.c',
   'waytator-capture.c',
   'waytator-capture.h',
