@@ -16,7 +16,7 @@ G_DECLARE_FINAL_TYPE(WaytatorVideoThumbnails, waytator_video_thumbnails, WAYTATO
 WaytatorVideoThumbnails *waytator_video_thumbnails_new(WaytatorVideoSource *source,
                                                        int                  height);
 //the thumbnail of the frame, or of the closest frame before it that has one, NULL when none does yet.
-//shown_frame says which frame it really is
+//the caller owns the reference. shown_frame says which frame it really is
 GdkTexture *waytator_video_thumbnails_lookup(WaytatorVideoThumbnails *self,
                                              guint                    frame,
                                              guint                   *shown_frame);
