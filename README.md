@@ -6,11 +6,13 @@
 
 Using niri or GNOME? See [Desktop-specific notes](#desktop-specific-notes).
 
+
 <p  align="center">
-<img width="600" alt="Screenshot from 2026-04-19 03-04-52" src="https://github.com/user-attachments/assets/4bcc1c58-5834-4f35-877b-5f94a914d6ce" />
+  <img width="600" src="https://github.com/user-attachments/assets/489d2d45-5422-47c0-b8d4-d96d0b42dba1" />
 </p>
 <p  align="center">
-<img width="600" alt="image" src="https://github.com/user-attachments/assets/91c949f3-f106-433f-a1d6-62742a72831d" />
+  
+<img width="600" src="https://github.com/user-attachments/assets/7bd789a5-f45c-4a10-a6d2-a778225ff345" />
 </p>
 
 ## Build & Install
