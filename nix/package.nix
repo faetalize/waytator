@@ -20,6 +20,7 @@
   pipewire,
   rubberband,
   wl-clipboard,
+  gifski,
   tesseract,
   withOcr ? true,
 }:
@@ -57,10 +58,10 @@ stdenv.mkDerivation {
 
   mesonBuildType = "release";
 
-  # the app runs wl-copy for the clipboard and tesseract for OCR
+  # the app runs wl-copy for the clipboard, gifski for GIFs and tesseract for OCR
   preFixup = ''
     gappsWrapperArgs+=(
-      --prefix PATH : ${lib.makeBinPath ([ wl-clipboard ] ++ lib.optional withOcr tesseract)}
+      --prefix PATH : ${lib.makeBinPath ([ wl-clipboard gifski ] ++ lib.optional withOcr tesseract)}
     )
   '';
 
