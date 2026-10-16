@@ -903,6 +903,19 @@ waytator_video_timeline_draw_thumbnail(WaytatorVideoTimeline      *self,
   gtk_snapshot_pop(snapshot);
 }
 
+
+//how loud a sample sounds rather than how big it is, over 48 dB down to silence, so a quiet voice still
+//fills the rail
+static double
+waytator_video_timeline_loudness(float sample)
+{
+  const double level = fabs(sample);
+
+  if (level <= 0.0)
+    return 0.0;
+
+  return CLAMP((20.0 * log10(MIN(level, 1.0)) + 48.0) / 48.0, 0.0, 1.0) * (sample < 0 ? -1.0 : 1.0);
+}
 static void
 waytator_video_timeline_draw_waveform(WaytatorVideoTimeline *self,
                                       GtkSnapshot           *snapshot,
@@ -938,7 +951,7 @@ waytator_video_timeline_draw_waveform(WaytatorVideoTimeline *self,
   //the top runs out along the highest samples and the bottom comes back along the lowest
   builder = gsk_path_builder_new();
   for (gint64 column = first; column < end; column++) {
-    const double top = middle - CLAMP(peaks->maximum[column - peaks->first], -1.0f, 1.0f) * height - 0.5;
+    const double top = middle - waytator_video_timeline_loudness(peaks->maximum[column - peaks->first]) * height - 0.5;
 
     if (column == first)
       gsk_path_builder_move_to(builder, block_left + column * width, top);
@@ -947,7 +960,7 @@ waytator_video_timeline_draw_waveform(WaytatorVideoTimeline *self,
       gsk_path_builder_line_to(builder, block_left + (column + 1) * width, top);
   }
   for (gint64 column = end - 1; column >= first; column--) {
-    const double bottom = middle - CLAMP(peaks->minimum[column - peaks->first], -1.0f, 1.0f) * height + 0.5;
+    const double bottom = middle - waytator_video_timeline_loudness(peaks->minimum[column - peaks->first]) * height + 0.5;
 
     if (column == end - 1)
       gsk_path_builder_line_to(builder, block_left + (column + 1) * width, bottom);
