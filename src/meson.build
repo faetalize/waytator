@@ -20,6 +20,8 @@ waytator_sources = files(
   'waytator-export.h',
   'waytator-ocr.c',
   'waytator-ocr.h',
+  'waytator-passthrough.c',
+  'waytator-passthrough.h',
   'waytator-pointer-brake.c',
   'waytator-pointer-brake.h',
   'waytator-render.c',

@@ -5,6 +5,7 @@
 #include "waytator-capture-overlay.h"
 #include "waytator-export.h"
 #include "waytator-ocr.h"
+#include "waytator-passthrough.h"
 #include "waytator-render.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
@@ -4906,6 +4907,8 @@ waytator_window_class_init(WaytatorWindowClass *klass)
   object_class->dispose = waytator_window_dispose;
 
   g_type_ensure(WAYTATOR_TYPE_CANVAS_VIEW);
+  g_type_ensure(WAYTATOR_TYPE_PASSTHROUGH_BOX);
+  g_type_ensure(WAYTATOR_TYPE_PASSTHROUGH_CENTER_BOX);
   gtk_widget_class_set_template_from_resource(widget_class, WAYTATOR_RESOURCE_PREFIX "/ui/window.ui");
 
   waytator_window_bind_template_children(widget_class);
