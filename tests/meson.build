@@ -30,3 +30,14 @@ executable(
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep],
 )
+
+#the sound of the editor against a stand-in for the source, so it builds without the decoder
+test_video_audio = executable(
+  'test-video-audio',
+  'test-video-audio.c',
+  waytator_video_edit_sources,
+  files('../src/waytator-video-audio.c', '../src/waytator-video-audio-output.c', '../src/waytator-video-waveform.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, m_dep, video_deps],
+)
+test('video-audio', test_video_audio, timeout: 120)
