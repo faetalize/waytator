@@ -8,11 +8,13 @@ G_BEGIN_DECLS
 
 G_DECLARE_FINAL_TYPE(WaytatorCanvasView, waytator_canvas_view, WAYTATOR, CANVAS_VIEW, GtkWidget)
 
-//how big the child is shown at the viewport's current size, FALSE when there is nothing to show and it just fills
-//the viewport. asked during layout, so it must not change any widget
-typedef gboolean (*WaytatorCanvasViewSizeFunc)(int     *width,
-                                               int     *height,
-                                               gpointer user_data);
+//how big the child is shown at the viewport's current size, and whether it is locked in the middle where it can't be
+//moved. FALSE when there is nothing to show and it just fills the viewport. asked during layout, so it must not
+//change any widget
+typedef gboolean (*WaytatorCanvasViewSizeFunc)(int      *width,
+                                               int      *height,
+                                               gboolean *locked,
+                                               gpointer  user_data);
 
 void waytator_canvas_view_set_size_func(WaytatorCanvasView        *self,
                                         WaytatorCanvasViewSizeFunc func,
@@ -21,9 +23,6 @@ void waytator_canvas_view_set_size_func(WaytatorCanvasView        *self,
 void waytator_canvas_view_get_viewport_size(WaytatorCanvasView *self,
                                             double             *width,
                                             double             *height);
-//a locked child stays in the middle and can't be moved
-void waytator_canvas_view_set_locked(WaytatorCanvasView *self,
-                                     gboolean            locked);
 void waytator_canvas_view_centre(WaytatorCanvasView *self);
 //the point across the child under viewport_x, viewport_y, outside 0..1 beside it
 gboolean waytator_canvas_view_get_child_point(WaytatorCanvasView *self,

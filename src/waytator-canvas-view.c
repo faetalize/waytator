@@ -19,7 +19,6 @@ struct _WaytatorCanvasView {
   //the point across the child at the middle of the viewport, a resize keeps it there
   double centre_x;
   double centre_y;
-  gboolean locked;
   guint resized_idle_id;
 };
 
@@ -35,9 +34,10 @@ G_DEFINE_FINAL_TYPE(WaytatorCanvasView, waytator_canvas_view, GTK_TYPE_WIDGET)
 static gboolean
 waytator_canvas_view_get_child_size(WaytatorCanvasView *self,
                                     int                *width,
-                                    int                *height)
+                                    int                *height,
+                                    gboolean           *locked)
 {
-  if (self->size_func == NULL || !self->size_func(width, height, self->size_func_data))
+  if (self->size_func == NULL || !self->size_func(width, height, locked, self->size_func_data))
     return FALSE;
 
   *width = MAX(1, *width);
@@ -66,14 +66,27 @@ waytator_canvas_view_clamp_axis(double   centre,
 static void
 waytator_canvas_view_clamp(WaytatorCanvasView *self,
                            int                 width,
-                           int                 height)
+                           int                 height,
+                           gboolean            locked)
 {
   //not before the first layout, there is no viewport to keep the child in yet
   if (self->viewport_width <= 0 || self->viewport_height <= 0)
     return;
 
-  self->centre_x = waytator_canvas_view_clamp_axis(self->centre_x, self->viewport_width, width, self->locked);
-  self->centre_y = waytator_canvas_view_clamp_axis(self->centre_y, self->viewport_height, height, self->locked);
+  self->centre_x = waytator_canvas_view_clamp_axis(self->centre_x, self->viewport_width, width, locked);
+  self->centre_y = waytator_canvas_view_clamp_axis(self->centre_y, self->viewport_height, height, locked);
+}
+
+//where the child's top left corner goes in the viewport
+static void
+waytator_canvas_view_get_child_origin(WaytatorCanvasView *self,
+                                      int                 width,
+                                      int                 height,
+                                      double             *x,
+                                      double             *y)
+{
+  *x = self->viewport_width / 2.0 - self->centre_x * width;
+  *y = self->viewport_height / 2.0 - self->centre_y * height;
 }
 
 //told after the layout rather than during it, so whoever listens can change widgets
@@ -120,12 +133,15 @@ waytator_canvas_view_size_allocate(GtkWidget *widget,
   GtkWidget *child = gtk_widget_get_first_child(widget);
   int child_width;
   int child_height;
+  gboolean locked;
+  double x;
+  double y;
 
   if (width != self->viewport_width || height != self->viewport_height) {
     self->viewport_width = width;
     self->viewport_height = height;
     if (self->resized_idle_id == 0)
-      self->resized_idle_id = g_idle_add(waytator_canvas_view_resized_idle, self);
+      self->resized_idle_id = g_idle_add_full(G_PRIORITY_HIGH_IDLE, waytator_canvas_view_resized_idle, self, NULL);
   }
 
   if (child == NULL || !gtk_widget_should_layout(child))
@@ -133,16 +149,17 @@ waytator_canvas_view_size_allocate(GtkWidget *widget,
 
   gtk_widget_measure(child, GTK_ORIENTATION_HORIZONTAL, -1, NULL, NULL, NULL, NULL);
   gtk_widget_measure(child, GTK_ORIENTATION_VERTICAL, -1, NULL, NULL, NULL, NULL);
-  if (!waytator_canvas_view_get_child_size(self, &child_width, &child_height)) {
+  if (!waytator_canvas_view_get_child_size(self, &child_width, &child_height, &locked)) {
     gtk_widget_allocate(child, width, height, baseline, NULL);
     return;
   }
 
-  waytator_canvas_view_clamp(self, child_width, child_height);
+  waytator_canvas_view_clamp(self, child_width, child_height, locked);
+  waytator_canvas_view_get_child_origin(self, child_width, child_height, &x, &y);
   gtk_widget_size_allocate(child,
                            &(GtkAllocation) {
-                             .x = (int) floor(width / 2.0 - self->centre_x * child_width + 0.5),
-                             .y = (int) floor(height / 2.0 - self->centre_y * child_height + 0.5),
+                             .x = (int) floor(x + 0.5),
+                             .y = (int) floor(y + 0.5),
                              .width = child_width,
                              .height = child_height,
                            },
@@ -211,17 +228,6 @@ waytator_canvas_view_get_viewport_size(WaytatorCanvasView *self,
 }
 
 void
-waytator_canvas_view_set_locked(WaytatorCanvasView *self,
-                                gboolean            locked)
-{
-  if (self->locked == locked)
-    return;
-
-  self->locked = locked;
-  gtk_widget_queue_allocate(GTK_WIDGET(self));
-}
-
-void
 waytator_canvas_view_centre(WaytatorCanvasView *self)
 {
   self->centre_x = 0.5;
@@ -238,8 +244,9 @@ waytator_canvas_view_get_child_point(WaytatorCanvasView *self,
 {
   int width;
   int height;
+  gboolean locked;
 
-  if (!waytator_canvas_view_get_child_size(self, &width, &height))
+  if (!waytator_canvas_view_get_child_size(self, &width, &height, &locked))
     return FALSE;
 
   *rel_x = self->centre_x + (viewport_x - self->viewport_width / 2.0) / width;
@@ -256,11 +263,12 @@ waytator_canvas_view_place(WaytatorCanvasView *self,
 {
   int width;
   int height;
+  gboolean locked;
 
-  if (waytator_canvas_view_get_child_size(self, &width, &height)) {
+  if (waytator_canvas_view_get_child_size(self, &width, &height, &locked)) {
     self->centre_x = rel_x + (self->viewport_width / 2.0 - viewport_x) / width;
     self->centre_y = rel_y + (self->viewport_height / 2.0 - viewport_y) / height;
-    waytator_canvas_view_clamp(self, width, height);
+    waytator_canvas_view_clamp(self, width, height, locked);
   }
   gtk_widget_queue_allocate(GTK_WIDGET(self));
 }
@@ -272,15 +280,15 @@ waytator_canvas_view_get_offset(WaytatorCanvasView *self,
 {
   int width;
   int height;
+  gboolean locked;
 
-  if (!waytator_canvas_view_get_child_size(self, &width, &height)) {
+  if (!waytator_canvas_view_get_child_size(self, &width, &height, &locked)) {
     *x = 0.0;
     *y = 0.0;
     return;
   }
 
-  *x = self->viewport_width / 2.0 - self->centre_x * width;
-  *y = self->viewport_height / 2.0 - self->centre_y * height;
+  waytator_canvas_view_get_child_origin(self, width, height, x, y);
 }
 
 void

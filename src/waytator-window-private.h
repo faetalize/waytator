@@ -231,9 +231,6 @@ struct _WaytatorWindow {
   double pointer_viewport_y;
   gboolean pointer_over_canvas;
   gboolean pointer_in;
-  //the image's size when it was last laid out, a new one is centred
-  int shown_image_width;
-  int shown_image_height;
   WaytatorWindowBackgroundMode window_background_mode;
   WaytatorChromeFolds folds;
   int chrome_width;
@@ -317,29 +314,21 @@ void waytator_window_update_tool_shortcut_hints(WaytatorWindow *self);
 void waytator_window_restore_strokes(WaytatorWindow *self,
                                      GPtrArray      *strokes);
 
-gboolean waytator_window_get_display_rect(WaytatorWindow *self,
-                                          double          widget_width,
-                                          double          widget_height,
-                                          double         *display_x,
-                                          double         *display_y,
-                                          double         *display_width,
-                                          double         *display_height);
 gboolean waytator_window_get_image_point(WaytatorWindow *self,
                                          double          widget_x,
                                          double          widget_y,
                                          gboolean        clamp_to_image,
                                          double         *image_x,
                                          double         *image_y);
-gboolean waytator_window_get_pointer_viewport_position(WaytatorWindow *self,
-                                                       double         *x,
-                                                       double         *y);
+void waytator_window_get_zoom_anchor(WaytatorWindow *self,
+                                    double         *x,
+                                    double         *y);
 void waytator_window_get_viewport_center(WaytatorWindow *self,
                                          double         *x,
                                          double         *y);
 double waytator_window_get_effective_zoom(WaytatorWindow *self);
 void waytator_window_apply_zoom_mode(WaytatorWindow *self);
 void waytator_window_update_zoom_label(WaytatorWindow *self);
-void waytator_window_update_picture_size(WaytatorWindow *self);
 void waytator_window_refresh_document_state(WaytatorWindow *self);
 cairo_surface_t *waytator_window_render_composited_surface(WaytatorWindow *self);
 void waytator_window_apply_crop(WaytatorWindow *self,
@@ -350,6 +339,12 @@ void waytator_window_apply_crop(WaytatorWindow *self,
 void waytator_window_queue_opening_zoom(WaytatorWindow *self);
 void waytator_window_toggle_fit(WaytatorWindow *self);
 void waytator_window_settle_opening_zoom(WaytatorWindow *self);
+void waytator_window_zoom_about(WaytatorWindow *self,
+                               double          zoom,
+                               double          rel_x,
+                               double          rel_y,
+                               double          viewport_x,
+                               double          viewport_y);
 void waytator_window_set_zoom_at(WaytatorWindow *self,
                                  double          zoom,
                                  double          viewport_x,

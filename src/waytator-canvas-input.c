@@ -4,8 +4,6 @@
 
 #include <math.h>
 
-#define WAYTATOR_MIN_ZOOM 0.10
-#define WAYTATOR_MAX_ZOOM 8.00
 #define WAYTATOR_TOUCH_TAP_MAX_DISTANCE 24.0
 #define WAYTATOR_TOUCH_TAP_MAX_DURATION_US (700 * G_TIME_SPAN_MILLISECOND)
 
@@ -427,17 +425,12 @@ waytator_window_apply_pinch_gesture(WaytatorWindow   *self,
                                               &viewport_y))
     waytator_window_get_viewport_center(self, &viewport_x, &viewport_y);
 
-  self->fit_mode = FALSE;
-  self->opening_zoom = FALSE;
-  self->zoom = CLAMP(self->pinch_start_zoom * scale, WAYTATOR_MIN_ZOOM, WAYTATOR_MAX_ZOOM);
-  waytator_canvas_view_set_locked(self->canvas_view, FALSE);
-  waytator_canvas_view_place(self->canvas_view,
+  waytator_window_zoom_about(self,
+                             self->pinch_start_zoom * scale,
                              self->pinch_anchor_rel_x,
                              self->pinch_anchor_rel_y,
                              viewport_x,
                              viewport_y);
-  waytator_window_update_ocr_overlay(self);
-  waytator_window_update_zoom_label(self);
 }
 
 static gboolean
@@ -604,8 +597,7 @@ waytator_window_zoom_in_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
-  if (!waytator_window_get_pointer_viewport_position(self, &center_x, &center_y))
-    waytator_window_get_viewport_center(self, &center_x, &center_y);
+  waytator_window_get_zoom_anchor(self, &center_x, &center_y);
   zoom = waytator_window_get_effective_zoom(self);
   waytator_window_set_zoom_at(self, zoom * WAYTATOR_ZOOM_STEP, center_x, center_y);
 }
@@ -623,8 +615,7 @@ waytator_window_zoom_out_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
-  if (!waytator_window_get_pointer_viewport_position(self, &center_x, &center_y))
-    waytator_window_get_viewport_center(self, &center_x, &center_y);
+  waytator_window_get_zoom_anchor(self, &center_x, &center_y);
   zoom = waytator_window_get_effective_zoom(self);
   waytator_window_set_zoom_at(self, zoom / WAYTATOR_ZOOM_STEP, center_x, center_y);
 }
@@ -642,8 +633,7 @@ waytator_window_zoom_actual_size_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
-  if (!waytator_window_get_pointer_viewport_position(self, &center_x, &center_y))
-    waytator_window_get_viewport_center(self, &center_x, &center_y);
+  waytator_window_get_zoom_anchor(self, &center_x, &center_y);
   waytator_window_set_zoom_at(self, 1.0, center_x, center_y);
 }
 
@@ -657,6 +647,22 @@ waytator_window_zoom_fit_action(GtkWidget  *widget,
 
   waytator_window_toggle_fit(WAYTATOR_WINDOW(widget));
   waytator_window_flash_zoom_readout(WAYTATOR_WINDOW(widget));
+}
+
+static void
+waytator_window_begin_pan(WaytatorWindow *self)
+{
+  waytator_canvas_view_get_offset(self->canvas_view, &self->drag_start_offset_x, &self->drag_start_offset_y);
+}
+
+static void
+waytator_window_update_pan(WaytatorWindow *self,
+                           double          offset_x,
+                           double          offset_y)
+{
+  waytator_canvas_view_set_offset(self->canvas_view,
+                                  self->drag_start_offset_x + offset_x,
+                                  self->drag_start_offset_y + offset_y);
 }
 
 static void
@@ -677,7 +683,7 @@ waytator_window_drag_begin(GtkGestureDrag *gesture,
     return;
 
   gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
-  waytator_canvas_view_get_offset(self->canvas_view, &self->drag_start_offset_x, &self->drag_start_offset_y);
+  waytator_window_begin_pan(self);
 }
 
 static void
@@ -696,25 +702,7 @@ waytator_window_drag_update(GtkGestureDrag *gesture,
   if (gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture)) != GDK_BUTTON_MIDDLE)
     return;
 
-  waytator_canvas_view_set_offset(self->canvas_view,
-                                  self->drag_start_offset_x + offset_x,
-                                  self->drag_start_offset_y + offset_y);
-}
-
-static void
-waytator_window_begin_pan(WaytatorWindow *self)
-{
-  waytator_canvas_view_get_offset(self->canvas_view, &self->drag_start_offset_x, &self->drag_start_offset_y);
-}
-
-static void
-waytator_window_update_pan(WaytatorWindow *self,
-                           double          offset_x,
-                           double          offset_y)
-{
-  waytator_canvas_view_set_offset(self->canvas_view,
-                                  self->drag_start_offset_x + offset_x,
-                                  self->drag_start_offset_y + offset_y);
+  waytator_window_update_pan(self, offset_x, offset_y);
 }
 
 static void
@@ -1102,25 +1090,15 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
     GdkRectangle rect;
     const int img_w = gdk_paintable_get_intrinsic_width(GDK_PAINTABLE(self->texture));
     const int img_h = gdk_paintable_get_intrinsic_height(GDK_PAINTABLE(self->texture));
-    double disp_x;
-    double disp_y;
-    double disp_w;
-    double disp_h;
+    const double disp_w = gtk_widget_get_width(GTK_WIDGET(self->drawing_area));
+    const double disp_h = gtk_widget_get_height(GTK_WIDGET(self->drawing_area));
     const WaytatorPoint *p = &g_array_index(self->current_stroke->points, WaytatorPoint, 0);
 
     gtk_popover_set_child(GTK_POPOVER(popover), entry);
     gtk_widget_set_parent(popover, self->canvas_surface);
 
-    waytator_window_get_display_rect(self,
-                                     gtk_widget_get_width(GTK_WIDGET(self->drawing_area)),
-                                     gtk_widget_get_height(GTK_WIDGET(self->drawing_area)),
-                                     &disp_x,
-                                     &disp_y,
-                                     &disp_w,
-                                     &disp_h);
-
-    rect.x = (int) lround(disp_x + p->x * (disp_w / img_w));
-    rect.y = (int) lround(disp_y + p->y * (disp_h / img_h));
+    rect.x = (int) lround(p->x * (disp_w / img_w));
+    rect.y = (int) lround(p->y * (disp_h / img_h));
     rect.width = 1;
     rect.height = 1;
 
@@ -1198,8 +1176,7 @@ waytator_window_scroll_zoom(GtkEventControllerScroll *controller,
   }
 
   //not the event's own position, that is across the whole window surface, shadow and all
-  if (!waytator_window_get_pointer_viewport_position(self, &anchor_x, &anchor_y))
-    waytator_window_get_viewport_center(self, &anchor_x, &anchor_y);
+  waytator_window_get_zoom_anchor(self, &anchor_x, &anchor_y);
 
   waytator_window_set_zoom_at(self,
                               zoom * pow(WAYTATOR_ZOOM_STEP, -dy),
@@ -1238,14 +1215,11 @@ waytator_window_zoom_gesture_begin(GtkGesture       *gesture,
   self->pointer_viewport_x = viewport_x;
   self->pointer_viewport_y = viewport_y;
 
-  if (!waytator_canvas_view_get_child_point(self->canvas_view,
-                                            viewport_x,
-                                            viewport_y,
-                                            &self->pinch_anchor_rel_x,
-                                            &self->pinch_anchor_rel_y)) {
-    self->pinch_anchor_rel_x = 0.5;
-    self->pinch_anchor_rel_y = 0.5;
-  }
+  waytator_canvas_view_get_child_point(self->canvas_view,
+                                       viewport_x,
+                                       viewport_y,
+                                       &self->pinch_anchor_rel_x,
+                                       &self->pinch_anchor_rel_y);
 }
 
 static void
