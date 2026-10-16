@@ -68,15 +68,17 @@ OCR is included. For a smaller install without it, use `.default.override { with
 
 1) Required build dependencies:
 
-`meson` - `ninja` - `pkg-config` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `gcc`/`clang`/any C compiler
+`meson` - `ninja` - `pkg-config` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `ffmpeg` - `pipewire` - `rubberband` - `libdrm` - `gcc`/`clang`/any C compiler
 
 2) Required runtime dependencies:
 
 `wl-clipboard` for clipboard support
 
-3) Recommended runtime dependency:
+3) Recommended runtime dependencies:
 
 `tesseract` for OCR support
+
+`gifski` for better looking GIFs
 
 4) Install into `~/.local`:
 
@@ -120,6 +122,21 @@ waytator                            # open the app empty
 Add `--name "Screenshot.png"` to name a piped image.
 
 Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts.
+
+### Editing videos
+
+Open a screen recording or any other video to cut it down, then copy or save it:
+
+```bash
+waytator path/to/recording.mp4      # open a video
+cat recording.mkv | waytator        # open a video piped in
+```
+
+The timeline shows the picture and the sound under a ruler, and zooms in down to single frames. Split at the playhead with `S`, select part of the timeline and cut it out with `Delete`, drag pieces to reorder them and drag their edges to trim. Speed, flips, mute and pitch change the selection, or the whole video when nothing is selected. `C` crops and rotates the whole video.
+
+`Space` plays and pauses, `J`, `K` and `L` play backwards and forwards at speed, and the arrow keys step a frame at a time.
+
+Save offers four export profiles, Share, Small, High quality and GIF, which can be changed in Preferences → Videos. Copy saves with the first one into your Videos folder and puts the file on the clipboard. Turn on Optimize media there for instant scrubbing through long recordings.
 
 ### Taking screenshots
 
