@@ -27,8 +27,8 @@ typedef struct {
                     float   *maximum);
 } WaytatorVideoTimelineSources;
 
-//the video, audio and objects rails under a ruler, scrolled and zoomed from the whole video down to
-//single frames. cuts, trims and moves made on it go straight into the edit
+//the video, audio and objects rails under a ruler, scrolled and zoomed from the whole recording with room to
+//spare down to single frames. cuts, trims and moves made on it go straight into the edit
 #define WAYTATOR_TYPE_VIDEO_TIMELINE (waytator_video_timeline_get_type())
 G_DECLARE_FINAL_TYPE(WaytatorVideoTimeline, waytator_video_timeline, WAYTATOR, VIDEO_TIMELINE, GtkWidget)
 

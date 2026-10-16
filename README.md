@@ -132,7 +132,7 @@ waytator path/to/recording.mp4      # open a video
 cat recording.mkv | waytator        # open a video piped in
 ```
 
-The timeline shows the picture and the sound under a ruler, and zooms in down to single frames. Split at the playhead with `S`, select part of the timeline and cut it out with `Delete`, drag pieces to reorder them and drag their edges to trim. Speed, flips, mute and pitch change the selection, or the whole video when nothing is selected. `C` crops and rotates the whole video.
+The timeline shows the picture and the sound under a ruler, and zooms in down to single frames, or out until the whole recording fits beside the edit so a trimmed end can be pulled back out in one drag. Split at the playhead with `S`, select part of the timeline and cut it out with `Delete`, drag pieces to reorder them and drag their edges to trim. Speed, flips, mute and pitch change the selection, or the whole video when nothing is selected. `C` crops and rotates the whole video.
 
 `Space` plays and pauses, `J`, `K` and `L` play backwards and forwards at speed, and the arrow keys step a frame at a time.
 

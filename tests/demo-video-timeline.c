@@ -43,7 +43,7 @@ static gboolean option_stock_colors = FALSE;
 static const GOptionEntry demo_options[] = {
   { "width", 0, 0, G_OPTION_ARG_INT, &option_width, "Window width", "PX" },
   { "height", 0, 0, G_OPTION_ARG_INT, &option_height, "Window height", "PX" },
-  { "zoom", 0, 0, G_OPTION_ARG_STRING, &option_zoom, "fit, seconds or frames", "ZOOM" },
+  { "zoom", 0, 0, G_OPTION_ARG_STRING, &option_zoom, "fit, out, seconds or frames", "ZOOM" },
   { "scenario", 0, 0, G_OPTION_ARG_STRING, &option_scenario, "select, range, move, trim or hover", "NAME" },
   { "pill", 0, 0, G_OPTION_ARG_NONE, &option_pill, "Put the timeline on a dark floating pill", NULL },
   { "check", 0, 0, G_OPTION_ARG_NONE, &option_check, "Drive the handlers, check the results and quit", NULL },
@@ -484,6 +484,36 @@ demo_check(Demo *demo)
   waytator_video_timeline_zoom_fit(timeline);
   demo_expect(demo, timeline->offset == 0 && timeline->fitted, "zoom to fit shows everything");
 
+  //zoomed out past the whole video, the end of one cut short goes back out in a single drag
+  waytator_video_timeline_set_playhead(timeline, 0);
+  waytator_video_edit_remove(demo->edit, S(72.5), waytator_video_timeline_duration(timeline));
+  waytator_video_timeline_zoom_fit(timeline);
+  {
+    const double fit = waytator_video_timeline_fit_scale(timeline);
+    const gint64 duration = waytator_video_timeline_duration(timeline);
+    const double y = demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO);
+    double span;
+
+    waytator_video_timeline_zoom_out(timeline);
+    demo_expect(demo, timeline->scale > fit && !timeline->fitted, "zooming out goes on past the whole video");
+    for (int i = 0; i < 30; i++)
+      waytator_video_timeline_zoom_out(timeline);
+    span = timeline->track_width * timeline->scale;
+    demo_expect(demo, fabs(span - (duration + S(DEMO_SECONDS))) < timeline->scale,
+                "zooming out stops once the whole recording fits beside the video");
+    demo_expect(demo, timeline->offset <= 0 && timeline->offset + span >= duration, "the whole video stays in view");
+
+    demo_drag(demo, demo_x(demo, 72.5) - 2, y, demo_x(demo, 97.5) - 2, 0, TRUE);
+    demo_expect(demo, llabs(waytator_video_timeline_duration(timeline) - S(97.5)) < S(0.2),
+                "its end is pulled out 25 s in one drag");
+    waytator_video_edit_undo(demo->edit);
+
+    for (int i = 0; i < 10 && !timeline->fitted; i++)
+      waytator_video_timeline_zoom_in(timeline);
+    demo_expect(demo, timeline->fitted && fabs(timeline->offset) < 1, "zooming back in stops at the whole video");
+  }
+  waytator_video_edit_undo(demo->edit);
+
   //the selection stays inside a video that got shorter
   {
     const gint64 duration = waytator_video_timeline_duration(timeline);
@@ -510,6 +540,8 @@ demo_set_zoom(Demo *demo)
     waytator_video_timeline_set_view(timeline, S(option_playhead) - S(6), timeline->scale);
     waytator_video_timeline_zoom_around(timeline, S(12) / timeline->track_width, middle);
     waytator_video_timeline_set_view(timeline, S(option_playhead) - S(6), timeline->scale);
+  } else if (g_strcmp0(option_zoom, "out") == 0) {
+    waytator_video_timeline_zoom_around(timeline, G_MAXDOUBLE, middle);
   } else if (g_strcmp0(option_zoom, "frames") == 0) {
     waytator_video_timeline_zoom_around(timeline, 0, middle);
     waytator_video_timeline_set_view(timeline, S(option_playhead) - timeline->track_width / 2 * timeline->scale,

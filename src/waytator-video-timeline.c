@@ -293,6 +293,28 @@ waytator_video_timeline_min_scale(WaytatorVideoTimeline *self)
              waytator_video_timeline_fit_scale(self));
 }
 
+//zoomed all the way out the whole recording fits beside the edit, so an edge trimmed in can be pulled back out
+//in one go, from either side
+static double
+waytator_video_timeline_max_scale(WaytatorVideoTimeline *self)
+{
+  if (self->state == NULL)
+    return 1.0;
+
+  return MAX(waytator_video_timeline_fit_scale(self),
+             (waytator_video_timeline_duration(self) + waytator_video_state_get_frames(self->state)->duration)
+             / self->track_width);
+}
+
+static gboolean
+waytator_video_timeline_is_fit(WaytatorVideoTimeline *self,
+                               double                 scale)
+{
+  const double fit = waytator_video_timeline_fit_scale(self);
+
+  return fabs(scale - fit) <= fit * 1e-9;
+}
+
 static gboolean
 waytator_video_timeline_zoomed(WaytatorVideoTimeline *self)
 {
@@ -342,8 +364,12 @@ waytator_video_timeline_set_view(WaytatorVideoTimeline *self,
                                  double                 offset,
                                  double                 scale)
 {
-  scale = CLAMP(scale, waytator_video_timeline_min_scale(self), waytator_video_timeline_fit_scale(self));
-  offset = CLAMP(offset, 0.0, MAX(0.0, waytator_video_timeline_duration(self) - self->track_width * scale));
+  double room;
+
+  scale = CLAMP(scale, waytator_video_timeline_min_scale(self), waytator_video_timeline_max_scale(self));
+  //zoomed out past the whole video, it sits anywhere in view with the room left either side of it
+  room = waytator_video_timeline_duration(self) - self->track_width * scale;
+  offset = CLAMP(offset, MIN(0.0, room), MAX(0.0, room));
   if (offset == self->offset && scale == self->scale)
     return;
 
@@ -362,7 +388,7 @@ waytator_video_timeline_update_view(WaytatorVideoTimeline *self)
   const double fit = waytator_video_timeline_fit_scale(self);
 
   waytator_video_timeline_set_view(self, self->offset, self->fitted ? fit : self->scale);
-  self->fitted = self->scale >= fit * (1.0 - 1e-9);
+  self->fitted = waytator_video_timeline_is_fit(self, self->scale);
 }
 
 static void
@@ -376,8 +402,11 @@ waytator_video_timeline_zoom_around(WaytatorVideoTimeline *self,
   if (self->state == NULL)
     return;
 
-  scale = CLAMP(scale, waytator_video_timeline_min_scale(self), fit);
-  self->fitted = scale >= fit * (1.0 - 1e-9);
+  //the whole video filling the width is a stop on the way, out or in
+  if (!waytator_video_timeline_is_fit(self, self->scale) && (self->scale < fit) != (scale < fit))
+    scale = fit;
+  scale = CLAMP(scale, waytator_video_timeline_min_scale(self), waytator_video_timeline_max_scale(self));
+  self->fitted = waytator_video_timeline_is_fit(self, scale);
   waytator_video_timeline_set_view(self, time - (x - self->track_x) * scale, scale);
 }
 
@@ -2423,7 +2452,6 @@ waytator_video_timeline_pinch_changed(GtkGestureZoom *gesture,
                                       gpointer        user_data)
 {
   WaytatorVideoTimeline *self = WAYTATOR_VIDEO_TIMELINE(user_data);
-  const double fit = waytator_video_timeline_fit_scale(self);
   double x;
   double y;
   double zoom;
@@ -2432,8 +2460,10 @@ waytator_video_timeline_pinch_changed(GtkGestureZoom *gesture,
     return;
 
   //the time under the fingers stays under them, so a pinch can pan too
-  zoom = CLAMP(self->pinch_scale / scale, waytator_video_timeline_min_scale(self), fit);
-  self->fitted = zoom >= fit * (1.0 - 1e-9);
+  zoom = CLAMP(self->pinch_scale / scale,
+               waytator_video_timeline_min_scale(self),
+               waytator_video_timeline_max_scale(self));
+  self->fitted = waytator_video_timeline_is_fit(self, zoom);
   waytator_video_timeline_set_view(self, self->pinch_time - (x - self->track_x) * zoom, zoom);
 }
 
