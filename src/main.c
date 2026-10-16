@@ -128,6 +128,7 @@ app_open(GApplication  *app,
   "                                          e.g. DP-1. Doesn't support GNOME\n" \
   "  --notify                                With --screenshot: save, copy and notify\n" \
   "                                          instead of opening the editor\n" \
+  "  --gapplication-service                  Run as a background application service\n" \
   "  --delay SECONDS                         With --screenshot: wait this many whole\n" \
   "                                          seconds first, at most 300\n" \
   "  --close-on-copy, --no-close-on-copy     Override the \"Close on copy\" preference\n" \
@@ -570,6 +571,18 @@ app_skip_desktop_themes(void)
   settings_class->constructed = app_settings_constructed;
 }
 
+//under --gapplication-service nothing holds the app until a window opens, and gio drops a service it
+//is not holding after a few idle seconds, so the service holds itself to stay loaded
+static void
+app_startup(GApplication *app,
+            gpointer      user_data)
+{
+  (void) user_data;
+
+  if ((g_application_get_flags(app) & G_APPLICATION_IS_SERVICE) != 0)
+    g_application_hold(app);
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -613,6 +626,7 @@ main(int   argc,
   gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.flip-vertical", (const char *[]) { "<Primary><Shift>v", NULL });
   gtk_application_set_accels_for_action(GTK_APPLICATION(app), "app.quit", (const char *[]) { "<Primary>q", NULL });
 
+  g_signal_connect(app, "startup", G_CALLBACK(app_startup), NULL);
   g_signal_connect(app, "activate", G_CALLBACK(app_activate), NULL);
   g_signal_connect(app, "open", G_CALLBACK(app_open), NULL);
   g_signal_connect(app, "command-line", G_CALLBACK(app_command_line), NULL);

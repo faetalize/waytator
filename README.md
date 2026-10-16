@@ -146,6 +146,16 @@ Bind these to keys in your compositor to capture and annotate in one step. On so
 
 Run `waytator --help` for every option, including overriding shortcuts for one launch.
 
+### Running in background
+
+To keep Waytator running in the background as a GLib application service ("daemon"), run:
+
+```bash
+waytator --gapplication-service
+```
+
+This will keep Waytator loaded in memory, allowing it to load faster in subsequent command invocations.
+
 ## Desktop-specific notes
 
 Screenshots are tested on niri and GNOME.
