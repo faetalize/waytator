@@ -15,6 +15,10 @@
   wayland,
   wayland-protocols,
   adwaita-icon-theme,
+  ffmpeg,
+  libdrm,
+  pipewire,
+  rubberband,
   wl-clipboard,
   tesseract,
   withOcr ? true,
@@ -45,6 +49,10 @@ stdenv.mkDerivation {
     wayland
     wayland-protocols
     adwaita-icon-theme
+    ffmpeg
+    libdrm
+    pipewire
+    rubberband
   ];
 
   mesonBuildType = "release";
@@ -58,7 +66,7 @@ stdenv.mkDerivation {
 
   meta = {
     homepage = "https://github.com/faetalize/waytator";
-    description = "Screenshot annotator and lightweight image editor";
+    description = "Screenshot annotator and lightweight image and video editor";
     license = lib.licenses.gpl3Plus;
     mainProgram = "waytator";
     platforms = lib.platforms.linux;

@@ -1,6 +1,13 @@
 waytator_conf = configuration_data()
 waytator_conf.set_quoted('WAYTATOR_VERSION', meson.project_version())
 
+#the edit model has no gtk in it, so the tests build it on its own
+waytator_video_edit_sources = files(
+  'waytator-video-edit.c',
+  'waytator-video-frames.c',
+)
+waytator_include = include_directories('.')
+
 waytator_sources = files(
   'main.c',
   'waytator-canvas-input.c',
@@ -33,6 +40,18 @@ waytator_sources = files(
   'waytator-stroke.c',
   'waytator-stroke.h',
   'waytator-types.h',
+  'waytator-video-audio.c',
+  'waytator-video-audio-output.c',
+  'waytator-video-audio.h',
+  'waytator-video-edit.h',
+  'waytator-video-frames.h',
+  'waytator-video-source.c',
+  'waytator-video-source.h',
+  'waytator-video-thumbnails.c',
+  'waytator-video-thumbnails.h',
+  'waytator-video-timeline.c',
+  'waytator-video-timeline.h',
+  'waytator-video-waveform.c',
   'waytator-window.c',
   'waytator-window.h',
   'waytator-window-private.h',
@@ -55,9 +74,10 @@ executable(
   'waytator',
   waytator_sources,
   waytator_resources,
+  waytator_video_edit_sources,
   wayland_protocol_sources,
   #the layer shell has to be linked ahead of libwayland-client to hook into it
-  dependencies: [layer_shell_dep, gtk_dep, adw_dep, wayland_client_dep, m_dep],
+  dependencies: [layer_shell_dep, gtk_dep, adw_dep, wayland_client_dep, m_dep, video_deps],
   install: true,
 )
 
