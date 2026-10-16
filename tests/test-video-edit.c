@@ -280,6 +280,44 @@ test_group(void)
   g_assert_false(waytator_video_edit_has_unsaved_changes(edit));
 }
 
+//frames at 60 a second land on rounded microseconds, and so does the timeline's grid
+static void
+test_speed_rounding(void)
+{
+  g_autoptr(WaytatorVideoFrames) frames = waytator_video_frames_new(600);
+  g_autoptr(WaytatorVideoEdit) edit = NULL;
+  g_autoptr(WaytatorVideoState) state = NULL;
+  WaytatorVideoSegment values = { .speed = 2.0 };
+
+  for (guint i = 0; i < 600; i++) {
+    frames->pts[i] = (gint64) (i * 1000000.0 / 60.0 + 0.5);
+    frames->keyframe[i] = i % 60 == 0;
+  }
+  frames->duration = MS(10000);
+  frames->rate_num = 60;
+  frames->rate_den = 1;
+  edit = waytator_video_edit_new(frames, 640, 480, FALSE);
+
+  //every step shows the frame it means, not the one before
+  state = waytator_video_edit_get_state(edit);
+  for (gint64 step = 0; step < 600; step++)
+    g_assert_cmpuint(frame_at(edit, waytator_video_state_step_time(state, step)), ==, step);
+  g_clear_pointer(&state, waytator_video_state_unref);
+
+  //twice as fast shows every second frame
+  g_assert_true(waytator_video_edit_set(edit, 0, MS(10000), &values, WAYTATOR_VIDEO_FIELD_SPEED));
+  state = waytator_video_edit_get_state(edit);
+  for (gint64 step = 0; step < 300; step++)
+    g_assert_cmpuint(frame_at(edit, waytator_video_state_step_time(state, step)), ==, step * 2);
+  g_clear_pointer(&state, waytator_video_state_unref);
+
+  values.speed = 3.0;
+  g_assert_true(waytator_video_edit_set(edit, 0, MS(10000), &values, WAYTATOR_VIDEO_FIELD_SPEED));
+  state = waytator_video_edit_get_state(edit);
+  for (gint64 step = 0; step < 200; step++)
+    g_assert_cmpuint(frame_at(edit, waytator_video_state_step_time(state, step)), ==, step * 3);
+}
+
 static void
 test_move_edge(void)
 {
@@ -378,6 +416,7 @@ main(int   argc,
   g_test_add_func("/video-edit/split-on-setting-edge", test_split_on_setting_edge);
   g_test_add_func("/video-edit/swap-halves", test_swap_halves);
   g_test_add_func("/video-edit/speed", test_speed);
+  g_test_add_func("/video-edit/speed-rounding", test_speed_rounding);
   g_test_add_func("/video-edit/remove", test_remove);
   g_test_add_func("/video-edit/trim", test_trim);
   g_test_add_func("/video-edit/group", test_group);

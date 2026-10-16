@@ -377,8 +377,14 @@ waytator_video_state_frame_at(const WaytatorVideoState *state,
   source_time = waytator_video_state_source_in_segment(state, index, time);
   if (segment_index != NULL)
     *segment_index = index;
-  if (frame != NULL)
-    *frame = waytator_video_frames_find(state->frames, source_time);
+  if (frame != NULL) {
+    const WaytatorVideoSegment *segment = &g_array_index(state->segments, WaytatorVideoSegment, index);
+    //the grid and the frames are both rounded to microseconds, and a speed up scales the grid's rounding,
+    //which can leave a step a hair short of the frame it means. frames are thousands apart, so this is safe
+    const gint64 slack = 1 + (gint64) ceil(segment->speed);
+
+    *frame = waytator_video_frames_find(state->frames, MIN(source_time + slack, segment->source_end - 1));
+  }
   return TRUE;
 }
 
