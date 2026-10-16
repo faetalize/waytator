@@ -9,7 +9,7 @@ G_BEGIN_DECLS
 //where the rails get their pictures and sound from, so the timeline needs nothing but these
 typedef struct {
   //the thumbnail of a source frame, or of the closest frame before it that has one. NULL when none does
-  //yet, shown_frame says which frame it really is
+  //yet, shown_frame says which frame it really is. the caller owns the reference
   GdkTexture *(*thumbnail)(gpointer data,
                            guint    frame,
                            guint   *shown_frame);

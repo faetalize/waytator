@@ -20,3 +20,13 @@ test_video_source = executable(
   dependencies: [gtk_dep, m_dep, video_deps],
 )
 test('video-source', test_video_source, timeout: 120)
+
+#the timeline on its own, for looking at it by hand. built with the rest but not a test, it needs a display
+executable(
+  'demo-video-timeline',
+  'demo-video-timeline.c',
+  waytator_resources,
+  waytator_video_edit_sources,
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)

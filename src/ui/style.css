@@ -632,3 +632,9 @@ popover .zoom-row button.selected-tool {
   font-weight: 700;
   font-feature-settings: "tnum";
 }
+
+/* the video editor's timeline draws itself. this only hands it the accent colour, so it follows the theme
+   and anything that overrides it */
+videotimeline > accent {
+  color: @accent_bg_color;
+}

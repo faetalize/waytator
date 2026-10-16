@@ -24,6 +24,8 @@
     <file>ui/icons/stroke-thick-symbolic.svg</file>
     <file>ui/icons/chevron-up-symbolic.svg</file>
     <file>ui/icons/magnifier-symbolic.svg</file>
+    <file>ui/icons/rail-video-symbolic.svg</file>
+    <file>ui/icons/rail-audio-symbolic.svg</file>
   </gresource>
   <gresource prefix="/dev/faetalize/waytator/icons/hicolor/scalable/actions">
     <file alias="waytator-pan-symbolic.svg">ui/icons/hand-openyay-symbolic.svg</file>
@@ -47,6 +49,8 @@
     <file alias="waytator-stroke-thick-symbolic.svg">ui/icons/stroke-thick-symbolic.svg</file>
     <file alias="waytator-magnifier-symbolic.svg">ui/icons/magnifier-symbolic.svg</file>
     <file alias="waytator-chevron-up-symbolic.svg">ui/icons/chevron-up-symbolic.svg</file>
+    <file alias="waytator-rail-video-symbolic.svg">ui/icons/rail-video-symbolic.svg</file>
+    <file alias="waytator-rail-audio-symbolic.svg">ui/icons/rail-audio-symbolic.svg</file>
     <!-- from adwaita-icon-theme (CC-BY-SA-3.0 OR LGPL-3.0-only), the ones gtk and libadwaita don't bring along -->
     <file alias="alarm-symbolic.svg">ui/icons/adwaita/alarm-symbolic.svg</file>
     <file alias="camera-photo-symbolic.svg">ui/icons/adwaita/camera-photo-symbolic.svg</file>
