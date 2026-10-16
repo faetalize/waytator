@@ -198,22 +198,12 @@
                 </child>
 
                 <child>
-                  <object class="GtkScrolledWindow" id="canvas_scroller">
+                  <object class="WaytatorCanvasView" id="canvas_view">
                     <property name="hexpand">True</property>
                     <property name="vexpand">True</property>
-                    <property name="has-frame">False</property>
-                    <property name="kinetic-scrolling">False</property>
-                    <property name="overlay-scrolling">True</property>
-                    <property name="hscrollbar-policy">automatic</property>
-                    <property name="vscrollbar-policy">automatic</property>
-                    <style>
-                      <class name="canvas-scroller"/>
-                    </style>
 
                     <child>
                       <object class="GtkOverlay" id="canvas_surface">
-                        <property name="halign">center</property>
-                        <property name="valign">center</property>
                         <style>
                           <class name="canvas-surface"/>
                         </style>
@@ -550,7 +540,7 @@
             </child>
 
             <child type="overlay">
-              <object class="GtkCenterBox" id="bottom_bar">
+              <object class="WaytatorPassthroughCenterBox" id="bottom_bar">
                 <property name="halign">fill</property>
                 <property name="valign">end</property>
                 <property name="margin-start">16</property>
@@ -559,12 +549,12 @@
 
 
                 <property name="center-widget">
-                  <object class="GtkBox" id="dock_box">
+                  <object class="WaytatorPassthroughBox" id="dock_box">
                     <property name="orientation">vertical</property>
                     <property name="spacing">8</property>
                     <property name="valign">end</property>
                     <child>
-                  <object class="GtkBox" id="options_row">
+                  <object class="WaytatorPassthroughBox" id="options_row">
                     <property name="spacing">10</property>
                     <property name="halign">center</property>
                     <child>
@@ -1032,7 +1022,7 @@
                 </property>
 
                 <property name="end-widget">
-                  <object class="GtkBox">
+                  <object class="WaytatorPassthroughBox">
                     <property name="spacing">10</property>
                     <property name="valign">fill</property>
 

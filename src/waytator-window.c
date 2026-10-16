@@ -5,6 +5,7 @@
 #include "waytator-capture-overlay.h"
 #include "waytator-export.h"
 #include "waytator-ocr.h"
+#include "waytator-passthrough.h"
 #include "waytator-render.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
@@ -2135,24 +2136,11 @@ waytator_window_update_ocr_overlay(WaytatorWindow *self)
                          : 0;
   const double widget_width = gtk_widget_get_width(GTK_WIDGET(self->drawing_area));
   const double widget_height = gtk_widget_get_height(GTK_WIDGET(self->drawing_area));
-  double display_x;
-  double display_y;
-  double display_width;
-  double display_height;
   guint i;
 
-  if (!waytator_window_ocr_is_visible(self)) {
-    gtk_widget_set_visible(GTK_WIDGET(self->ocr_overlay), FALSE);
-    return;
-  }
-
-  if (!waytator_window_get_display_rect(self,
-                                        widget_width,
-                                        widget_height,
-                                        &display_x,
-                                        &display_y,
-                                        &display_width,
-                                        &display_height)
+  if (!waytator_window_ocr_is_visible(self)
+      || widget_width <= 0
+      || widget_height <= 0
       || image_width <= 0
       || image_height <= 0) {
     gtk_widget_set_visible(GTK_WIDGET(self->ocr_overlay), FALSE);
@@ -2161,12 +2149,13 @@ waytator_window_update_ocr_overlay(WaytatorWindow *self)
 
   gtk_widget_set_visible(GTK_WIDGET(self->ocr_overlay), TRUE);
 
+  //the canvas view lays the image out to fill the drawing area exactly
   for (i = 0; i < self->ocr_lines->len; i++) {
     WaytatorOcrLine *line = g_ptr_array_index(self->ocr_lines, i);
-    const double scale_x = display_width / image_width;
-    const double scale_y = display_height / image_height;
-    const int x = (int) floor(display_x + line->left * scale_x);
-    const int y = (int) floor(display_y + line->top * scale_y);
+    const double scale_x = widget_width / image_width;
+    const double scale_y = widget_height / image_height;
+    const int x = (int) floor(line->left * scale_x);
+    const int y = (int) floor(line->top * scale_y);
     const int width = MAX(18, (int) ceil(line->width * scale_x));
     const int height = MAX(18, (int) ceil(line->height * scale_y));
 
@@ -2715,6 +2704,8 @@ static gboolean
 waytator_window_refresh_image_from_document(WaytatorWindow *self)
 {
   g_autoptr(GBytes) pixels = NULL;
+  const int old_width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
+  const int old_height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
   int width = 0;
   int height = 0;
   gsize stride = 0;
@@ -2738,6 +2729,10 @@ waytator_window_refresh_image_from_document(WaytatorWindow *self)
   self->image_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
   waytator_window_copy_image_bytes_to_surface(self->image_surface, pixels, stride);
   gtk_picture_set_paintable(self->picture, GDK_PAINTABLE(self->texture));
+  //a new image, or one cropped or rotated to a new size, starts out in the middle. anything else, like undoing a
+  //stroke, leaves it where it is
+  if (width != old_width || height != old_height)
+    waytator_canvas_view_centre(self->canvas_view);
   return TRUE;
 }
 
@@ -3615,7 +3610,7 @@ waytator_window_clear_image(WaytatorWindow *self)
   gtk_picture_set_paintable(self->picture, NULL);
   self->fit_mode = TRUE;
   self->opening_zoom = FALSE;
-  waytator_window_update_picture_size(self);
+  gtk_widget_queue_allocate(GTK_WIDGET(self->canvas_view));
   waytator_window_sync_state(self);
 }
 
@@ -4524,7 +4519,7 @@ static void
 waytator_window_bind_template_children(GtkWidgetClass *widget_class)
 {
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_stack);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_scroller);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_view);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, empty_page);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, canvas_surface);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, picture);
@@ -4904,6 +4899,9 @@ waytator_window_class_init(WaytatorWindowClass *klass)
 
   object_class->dispose = waytator_window_dispose;
 
+  g_type_ensure(WAYTATOR_TYPE_CANVAS_VIEW);
+  g_type_ensure(WAYTATOR_TYPE_PASSTHROUGH_BOX);
+  g_type_ensure(WAYTATOR_TYPE_PASSTHROUGH_CENTER_BOX);
   gtk_widget_class_set_template_from_resource(widget_class, WAYTATOR_RESOURCE_PREFIX "/ui/window.ui");
 
   waytator_window_bind_template_children(widget_class);

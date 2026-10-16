@@ -103,30 +103,21 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
   const int image_height = self->texture != NULL
                          ? gdk_paintable_get_intrinsic_height(GDK_PAINTABLE(self->texture))
                          : 0;
-  double display_x;
-  double display_y;
-  double display_width;
-  double display_height;
   GPtrArray *strokes = waytator_window_strokes(self);
-  (void) area;
+  double scale_x;
+  double scale_y;
 
   if (strokes == NULL || width <= 0 || height <= 0 || image_width <= 0 || image_height <= 0)
     return;
 
-  if (!waytator_window_get_display_rect(self,
-                                        width,
-                                        height,
-                                        &display_x,
-                                        &display_y,
-                                        &display_width,
-                                        &display_height))
-    return;
+  //the canvas view lays the image out to fill the drawing area exactly
+  scale_x = (double) width / image_width;
+  scale_y = (double) height / image_height;
 
   cairo_save(cr);
-  cairo_rectangle(cr, display_x, display_y, display_width, display_height);
+  cairo_rectangle(cr, 0, 0, width, height);
   cairo_clip(cr);
-  cairo_translate(cr, display_x, display_y);
-  cairo_scale(cr, display_width / image_width, display_height / image_height);
+  cairo_scale(cr, scale_x, scale_y);
   waytator_render_strokes(cr,
                           strokes,
                           self->image_surface,
@@ -140,16 +131,16 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
     const double crop_top = MIN(self->crop_start_y, self->crop_end_y);
     const double crop_width = fabs(self->crop_end_x - self->crop_start_x);
     const double crop_height = fabs(self->crop_end_y - self->crop_start_y);
-    const double rect_x = display_x + crop_left * display_width / image_width;
-    const double rect_y = display_y + crop_top * display_height / image_height;
-    const double rect_width = crop_width * display_width / image_width;
-    const double rect_height = crop_height * display_height / image_height;
+    const double rect_x = crop_left * scale_x;
+    const double rect_y = crop_top * scale_y;
+    const double rect_width = crop_width * scale_x;
+    const double rect_height = crop_height * scale_y;
     const double dash[] = { 8.0, 6.0 };
 
     if (rect_width > 0.0 && rect_height > 0.0) {
       cairo_save(cr);
       cairo_set_fill_rule(cr, CAIRO_FILL_RULE_EVEN_ODD);
-      cairo_rectangle(cr, display_x, display_y, display_width, display_height);
+      cairo_rectangle(cr, 0, 0, width, height);
       cairo_rectangle(cr, rect_x, rect_y, rect_width, rect_height);
       cairo_set_source_rgba(cr, 0.0, 0.0, 0.0, 0.4);
       cairo_fill(cr);
@@ -166,15 +157,24 @@ waytator_window_drawing_area_draw(GtkDrawingArea *area,
   if (self->pointer_in
       && (!self->drawing || self->active_tool == WAYTATOR_TOOL_ERASER)
       && !waytator_tool_is_non_drawing(self->active_tool)) {
+    //where the pointer is over the image now that this frame is laid out. the last motion was measured against
+    //where the image was before, which a pan or zoom since has moved
+    if (!self->drawing && self->pointer_over_canvas) {
+      const graphene_point_t viewport_point = GRAPHENE_POINT_INIT(self->pointer_viewport_x, self->pointer_viewport_y);
+      graphene_point_t point;
+
+      if (gtk_widget_compute_point(GTK_WIDGET(self->canvas_view), GTK_WIDGET(area), &viewport_point, &point))
+        waytator_window_get_image_point(self, point.x, point.y, TRUE, &self->pointer_x, &self->pointer_y);
+    }
+
     cairo_save(cr);
-    cairo_rectangle(cr, display_x, display_y, display_width, display_height);
+    cairo_rectangle(cr, 0, 0, width, height);
     cairo_clip(cr);
-    cairo_translate(cr, display_x, display_y);
-    cairo_scale(cr, display_width / image_width, display_height / image_height);
+    cairo_scale(cr, scale_x, scale_y);
 
     double tool_width = self->tool_widths[self->active_tool];
     GdkRGBA tool_color = self->tool_colors[self->active_tool];
-    const double scale = display_width / image_width;
+    const double scale = scale_x;
 
     if (self->active_tool == WAYTATOR_TOOL_TEXT) {
       cairo_select_font_face(cr, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
