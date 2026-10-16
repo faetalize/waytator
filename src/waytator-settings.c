@@ -29,6 +29,7 @@ waytator_settings_init(WaytatorSettings *settings)
   settings->capture_brake_speed = 0.5;
   settings->floating_controls_blur = TRUE;
   settings->floating_controls_opacity = 0.7;
+  settings->video_optimize_media = FALSE;
 }
 
 void
@@ -95,6 +96,12 @@ waytator_settings_read(WaytatorSettings *settings,
     if (opacity >= 0.0 && opacity <= 1.0)
       settings->floating_controls_opacity = opacity;
   }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "video_optimize_media", NULL))
+    settings->video_optimize_media = g_key_file_get_boolean(key_file,
+                                                            WAYTATOR_SETTINGS_GROUP,
+                                                            "video_optimize_media",
+                                                            NULL);
 }
 
 void
@@ -129,6 +136,10 @@ waytator_settings_write(const WaytatorSettings *settings,
                         WAYTATOR_SETTINGS_GROUP,
                         "floating_controls_opacity",
                         settings->floating_controls_opacity);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "video_optimize_media",
+                         settings->video_optimize_media);
 }
 
 //for the code that runs without a window, which has no copy of the preferences to ask

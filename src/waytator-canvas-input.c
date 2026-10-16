@@ -450,6 +450,13 @@ waytator_window_global_key_pressed(GtkEventControllerKey *controller,
   if (focus != NULL && GTK_IS_EDITABLE(focus))
     return FALSE;
 
+  //the video editor's keys come first, and the image tools have nothing to work on
+  if (waytator_window_is_video(self)) {
+    if ((focus == NULL || gtk_widget_get_ancestor(focus, ADW_TYPE_DIALOG) == NULL)
+        && waytator_window_video_handle_key(self, keyval, state))
+      return TRUE;
+  }
+
   if (keyval == GDK_KEY_Escape
       && (state & gtk_accelerator_get_default_mod_mask()) == 0) {
     if (waytator_window_cancel_current_interaction(self))
@@ -464,6 +471,9 @@ waytator_window_global_key_pressed(GtkEventControllerKey *controller,
   for (int i = 0; i < WAYTATOR_N_SHORTCUTS; i++) {
     if (!waytator_window_shortcut_is_active(self, i)
         || !waytator_window_parse_shortcut_match(waytator_window_shortcut_accel(self, i), keyval, state))
+      continue;
+
+    if (i >= WAYTATOR_SHORTCUT_TOOL_FIRST && waytator_window_is_video(self))
       continue;
 
     //the toolbar ones are mostly bare letters, keep them out of preferences and friends
@@ -597,6 +607,12 @@ waytator_window_zoom_in_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
+  //a video's zoom is its timeline's
+  if (waytator_window_is_video(self)) {
+    gtk_widget_activate_action(self->video_editor, "video.zoom-in", NULL);
+    return;
+  }
+
   waytator_window_get_zoom_anchor(self, &center_x, &center_y);
   zoom = waytator_window_get_effective_zoom(self);
   waytator_window_set_zoom_at(self, zoom * WAYTATOR_ZOOM_STEP, center_x, center_y);
@@ -614,6 +630,12 @@ waytator_window_zoom_out_action(GtkWidget  *widget,
 
   (void) action_name;
   (void) parameter;
+
+  //a video's zoom is its timeline's
+  if (waytator_window_is_video(self)) {
+    gtk_widget_activate_action(self->video_editor, "video.zoom-out", NULL);
+    return;
+  }
 
   waytator_window_get_zoom_anchor(self, &center_x, &center_y);
   zoom = waytator_window_get_effective_zoom(self);
@@ -644,6 +666,11 @@ waytator_window_zoom_fit_action(GtkWidget  *widget,
 {
   (void) action_name;
   (void) parameter;
+
+  if (waytator_window_is_video(WAYTATOR_WINDOW(widget))) {
+    gtk_widget_activate_action(WAYTATOR_WINDOW(widget)->video_editor, "video.zoom-fit", NULL);
+    return;
+  }
 
   waytator_window_toggle_fit(WAYTATOR_WINDOW(widget));
   waytator_window_flash_zoom_readout(WAYTATOR_WINDOW(widget));

@@ -2,6 +2,7 @@
 <gresources>
   <gresource prefix="/dev/faetalize/waytator">
     <file>ui/window.ui</file>
+    <file>ui/video-editor.ui</file>
     <file>ui/style.css</file>
     <file>ui/icons/hand-openyay-symbolic.svg</file>
     <file>ui/icons/pencil-symbolic.svg</file>
@@ -58,8 +59,11 @@
     <file alias="edit-undo-symbolic.svg">ui/icons/adwaita/edit-undo-symbolic.svg</file>
     <file alias="folder-open-symbolic.svg">ui/icons/adwaita/folder-open-symbolic.svg</file>
     <file alias="list-drag-handle-symbolic.svg">ui/icons/adwaita/list-drag-handle-symbolic.svg</file>
+    <file alias="media-skip-backward-symbolic.svg">ui/icons/adwaita/media-skip-backward-symbolic.svg</file>
+    <file alias="media-skip-forward-symbolic.svg">ui/icons/adwaita/media-skip-forward-symbolic.svg</file>
     <file alias="object-flip-horizontal-symbolic.svg">ui/icons/adwaita/object-flip-horizontal-symbolic.svg</file>
     <file alias="object-flip-vertical-symbolic.svg">ui/icons/adwaita/object-flip-vertical-symbolic.svg</file>
+    <file alias="power-profile-performance-symbolic.svg">ui/icons/adwaita/power-profile-performance-symbolic.svg</file>
     <file alias="preferences-desktop-keyboard-shortcuts-symbolic.svg">ui/icons/adwaita/preferences-desktop-keyboard-shortcuts-symbolic.svg</file>
     <file alias="preferences-system-symbolic.svg">ui/icons/adwaita/preferences-system-symbolic.svg</file>
   </gresource>

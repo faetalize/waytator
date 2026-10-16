@@ -41,3 +41,19 @@ test_video_audio = executable(
   dependencies: [gtk_dep, m_dep, video_deps],
 )
 test('video-audio', test_video_audio, timeout: 120)
+
+#makes its own videos and saves them through every turn and flip, checking the corners land where the editor shows them
+test_video_export = executable(
+  'test-video-export',
+  'test-video-export.c',
+  files(
+    '../src/waytator-video-audio.c',
+    '../src/waytator-video-export.c',
+    '../src/waytator-video-profile.c',
+    '../src/waytator-video-source.c',
+  ),
+  waytator_video_edit_sources,
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
+)
+test('video-export', test_video_export, timeout: 300)

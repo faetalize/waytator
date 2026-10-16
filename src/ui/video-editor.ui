@@ -1,0 +1,703 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="Adw" version="1.0"/>
+
+  <template class="WaytatorVideoEditor" parent="GtkWidget">
+    <style>
+      <class name="video-editor"/>
+    </style>
+    <child>
+      <object class="GtkBox" id="root">
+        <property name="orientation">vertical</property>
+
+        <child>
+          <object class="GtkOverlay">
+            <property name="vexpand">True</property>
+
+            <property name="child">
+              <object class="WaytatorVideoView" id="view">
+                <property name="focusable">True</property>
+              </object>
+            </property>
+
+            <child type="overlay">
+              <object class="GtkBox" id="loading_box">
+                <property name="orientation">vertical</property>
+                <property name="spacing">12</property>
+                <property name="halign">center</property>
+                <property name="valign">center</property>
+                <property name="visible">False</property>
+                <style>
+                  <class name="overlay-pill"/>
+                  <class name="video-loading"/>
+                </style>
+
+                <child>
+                  <object class="AdwSpinner">
+                    <property name="width-request">32</property>
+                    <property name="height-request">32</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkLabel" id="loading_label">
+                    <property name="label">Opening video…</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+            <child type="overlay">
+              <object class="GtkLabel" id="optimize_label">
+                <property name="halign">start</property>
+                <property name="valign">end</property>
+                <property name="margin-start">12</property>
+                <property name="margin-bottom">12</property>
+                <property name="visible">False</property>
+                <property name="tooltip-text">Making a copy of the video that scrubs instantly, see Optimize media in Preferences</property>
+                <style>
+                  <class name="overlay-pill"/>
+                  <class name="video-optimize-label"/>
+                  <class name="numeric"/>
+                </style>
+              </object>
+            </child>
+
+            <child type="overlay">
+              <object class="GtkBox" id="export_bar">
+                <property name="halign">center</property>
+                <property name="valign">start</property>
+                <property name="margin-top">72</property>
+                <property name="spacing">10</property>
+                <property name="visible">False</property>
+                <style>
+                  <class name="overlay-pill"/>
+                  <class name="tool-group"/>
+                  <class name="video-export-bar"/>
+                </style>
+
+                <child>
+                  <object class="GtkLabel" id="export_label">
+                    <property name="margin-start">8</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkProgressBar" id="export_progress">
+                    <property name="valign">center</property>
+                    <property name="width-request">140</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkButton">
+                    <property name="label">Cancel</property>
+                    <property name="action-name">video.cancel-export</property>
+                    <style>
+                      <class name="video-text-button"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+            <child type="overlay">
+              <object class="GtkBox" id="transform_bar">
+                <property name="halign">center</property>
+                <property name="valign">end</property>
+                <property name="margin-bottom">12</property>
+                <property name="spacing">4</property>
+                <property name="visible">False</property>
+                <style>
+                  <class name="overlay-pill"/>
+                  <class name="tool-group"/>
+                  <class name="video-transform-bar"/>
+                </style>
+
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Drag to crop</property>
+                    <property name="margin-start">8</property>
+                    <property name="margin-end">4</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkLabel" id="transform_size_label">
+                    <property name="margin-end">4</property>
+                    <style>
+                      <class name="video-dim-label"/>
+                      <class name="numeric"/>
+                    </style>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkButton">
+                    <property name="icon-name">waytator-rotate-counter-clockwise-symbolic</property>
+                    <property name="tooltip-text">Rotate the whole video counter clockwise</property>
+                    <property name="action-name">video.rotate</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkButton">
+                    <property name="label">Reset</property>
+                    <property name="tooltip-text">Keep the whole picture, upright</property>
+                    <property name="action-name">video.reset-transform</property>
+                    <style>
+                      <class name="video-text-button"/>
+                    </style>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkButton">
+                    <property name="label">Done</property>
+                    <property name="action-name">video.transform</property>
+                    <style>
+                      <class name="video-text-button"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+
+        <child>
+          <object class="GtkBox" id="panel">
+            <property name="orientation">vertical</property>
+            <property name="spacing">8</property>
+            <property name="margin-start">16</property>
+            <property name="margin-end">16</property>
+            <property name="margin-bottom">16</property>
+            <property name="margin-top">8</property>
+
+            <child>
+              <object class="WaytatorVideoControls" id="controls">
+
+                <child>
+                  <object class="GtkBox" id="transport_group">
+                    <property name="halign">start</property>
+                    <property name="spacing">2</property>
+                    <style>
+                      <class name="overlay-pill"/>
+                      <class name="tool-group"/>
+                    </style>
+
+                    <child>
+                      <object class="GtkButton" id="start_button">
+                        <property name="icon-name">media-skip-backward-symbolic</property>
+                        <property name="tooltip-text">Go to the start (Home)</property>
+                        <property name="action-name">video.go-start</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="icon-name">go-previous-symbolic</property>
+                        <property name="tooltip-text">Back a frame (←)</property>
+                        <property name="action-name">video.step-back</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton" id="play_button">
+                        <property name="icon-name">media-playback-start-symbolic</property>
+                        <property name="tooltip-text">Play (Space)</property>
+                        <property name="action-name">video.play-pause</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="icon-name">go-next-symbolic</property>
+                        <property name="tooltip-text">Forward a frame (→)</property>
+                        <property name="action-name">video.step-forward</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton" id="end_button">
+                        <property name="icon-name">media-skip-forward-symbolic</property>
+                        <property name="tooltip-text">Go to the end (End)</property>
+                        <property name="action-name">video.go-end</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkLabel" id="time_label">
+                        <property name="margin-start">6</property>
+                        <property name="margin-end">4</property>
+                        <style>
+                          <class name="numeric"/>
+                          <class name="video-time"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkMenuButton" id="rate_button">
+                        <property name="tooltip-text">Playback speed (J, K, L)</property>
+                        <property name="always-show-arrow">False</property>
+                        <property name="direction">up</property>
+                        <property name="child">
+                          <object class="GtkLabel" id="rate_label">
+                            <property name="label">1×</property>
+                            <style>
+                              <class name="numeric"/>
+                            </style>
+                          </object>
+                        </property>
+                        <property name="popover">
+                          <object class="GtkPopover">
+                            <property name="child">
+                              <object class="GtkBox">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">6</property>
+                                <style>
+                                  <class name="video-popover"/>
+                                </style>
+
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label">Playback speed</property>
+                                    <property name="xalign">0</property>
+                                    <style>
+                                      <class name="caption-heading"/>
+                                    </style>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkBox">
+                                    <property name="spacing">4</property>
+                                    <property name="homogeneous">True</property>
+
+                                    <child>
+                                      <object class="GtkButton">
+                                        <property name="label">0.25×</property>
+                                        <property name="action-name">video.rate</property>
+                                        <property name="action-target">0.25</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton">
+                                        <property name="label">0.5×</property>
+                                        <property name="action-name">video.rate</property>
+                                        <property name="action-target">0.5</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton">
+                                        <property name="label">1×</property>
+                                        <property name="action-name">video.rate</property>
+                                        <property name="action-target">1.0</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton">
+                                        <property name="label">1.5×</property>
+                                        <property name="action-name">video.rate</property>
+                                        <property name="action-target">1.5</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton">
+                                        <property name="label">2×</property>
+                                        <property name="action-name">video.rate</property>
+                                        <property name="action-target">2.0</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton">
+                                        <property name="label">4×</property>
+                                        <property name="action-name">video.rate</property>
+                                        <property name="action-target">4.0</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label">L plays faster, J backwards, K stops</property>
+                                    <property name="xalign">0</property>
+                                    <style>
+                                      <class name="dim-label"/>
+                                      <class name="caption"/>
+                                    </style>
+                                  </object>
+                                </child>
+                              </object>
+                            </property>
+                          </object>
+                        </property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkBox" id="tools_group">
+                    <property name="halign">center</property>
+                    <property name="hexpand">True</property>
+                    <property name="spacing">2</property>
+                    <style>
+                      <class name="overlay-pill"/>
+                      <class name="tool-group"/>
+                    </style>
+
+                    <child>
+                      <object class="GtkLabel" id="scope_label">
+                        <property name="margin-start">8</property>
+                        <property name="margin-end">6</property>
+                        <property name="width-chars">9</property>
+                        <property name="xalign">0</property>
+                        <property name="ellipsize">end</property>
+                        <style>
+                          <class name="video-dim-label"/>
+                          <class name="numeric"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton" id="split_button">
+                        <property name="icon-name">edit-cut-symbolic</property>
+                        <property name="tooltip-text">Split at the playhead (S)</property>
+                        <property name="action-name">video.split</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton" id="delete_button">
+                        <property name="icon-name">user-trash-symbolic</property>
+                        <property name="tooltip-text">Cut out the selection (Delete)</property>
+                        <property name="action-name">video.delete</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkSeparator" id="tools_separator_1">
+                        <property name="orientation">vertical</property>
+                        <property name="margin-start">4</property>
+                        <property name="margin-end">4</property>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkMenuButton" id="speed_button">
+                        <property name="tooltip-text">Speed</property>
+                        <property name="always-show-arrow">False</property>
+                        <property name="direction">up</property>
+                        <property name="child">
+                          <object class="GtkBox">
+                            <property name="spacing">6</property>
+                            <child>
+                              <object class="GtkImage" id="speed_icon">
+                                <property name="icon-name">power-profile-performance-symbolic</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="speed_label">
+                                <style>
+                                  <class name="numeric"/>
+                                </style>
+                              </object>
+                            </child>
+                          </object>
+                        </property>
+                        <property name="popover">
+                          <object class="GtkPopover" id="speed_popover">
+                            <property name="child">
+                              <object class="GtkBox">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">8</property>
+                                <style>
+                                  <class name="video-popover"/>
+                                </style>
+
+                                <child>
+                                  <object class="GtkLabel" id="speed_heading">
+                                    <property name="xalign">0</property>
+                                    <style>
+                                      <class name="caption-heading"/>
+                                    </style>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkGrid" id="speed_presets">
+                                    <property name="column-spacing">4</property>
+                                    <property name="row-spacing">4</property>
+                                    <property name="column-homogeneous">True</property>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkBox">
+                                    <property name="spacing">8</property>
+                                    <child>
+                                      <object class="GtkLabel">
+                                        <property name="label">Custom</property>
+                                        <property name="hexpand">True</property>
+                                        <property name="xalign">0</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkSpinButton" id="speed_spin">
+                                        <property name="digits">2</property>
+                                        <property name="numeric">True</property>
+                                        <property name="adjustment">
+                                          <object class="GtkAdjustment">
+                                            <property name="lower">0.1</property>
+                                            <property name="upper">16</property>
+                                            <property name="step-increment">0.05</property>
+                                            <property name="page-increment">0.5</property>
+                                            <property name="value">1</property>
+                                          </object>
+                                        </property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkSeparator"/>
+                                </child>
+
+                                <child>
+                                  <object class="GtkBox">
+                                    <property name="spacing">12</property>
+                                    <child>
+                                      <object class="GtkLabel">
+                                        <property name="label">Change pitch with speed</property>
+                                        <property name="hexpand">True</property>
+                                        <property name="xalign">0</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkSwitch" id="pitch_follows_switch">
+                                        <property name="valign">center</property>
+                                        <property name="tooltip-text">Faster sounds higher, like a tape. Off keeps the pitch</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </property>
+                          </object>
+                        </property>
+                        <style>
+                          <class name="video-value-button"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkToggleButton" id="flip_horizontal_button">
+                        <property name="icon-name">object-flip-horizontal-symbolic</property>
+                        <property name="tooltip-text">Flip horizontally</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkToggleButton" id="flip_vertical_button">
+                        <property name="icon-name">object-flip-vertical-symbolic</property>
+                        <property name="tooltip-text">Flip vertically</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkToggleButton" id="mute_button">
+                        <property name="icon-name">audio-volume-muted-symbolic</property>
+                        <property name="tooltip-text">Mute (M)</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkMenuButton" id="pitch_button">
+                        <property name="tooltip-text">Pitch</property>
+                        <property name="always-show-arrow">False</property>
+                        <property name="direction">up</property>
+                        <property name="child">
+                          <object class="GtkLabel" id="pitch_label">
+                            <style>
+                              <class name="numeric"/>
+                            </style>
+                          </object>
+                        </property>
+                        <property name="popover">
+                          <object class="GtkPopover">
+                            <property name="child">
+                              <object class="GtkBox">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">8</property>
+                                <style>
+                                  <class name="video-popover"/>
+                                </style>
+
+                                <child>
+                                  <object class="GtkLabel" id="pitch_heading">
+                                    <property name="xalign">0</property>
+                                    <style>
+                                      <class name="caption-heading"/>
+                                    </style>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkBox">
+                                    <property name="spacing">8</property>
+                                    <child>
+                                      <object class="GtkSpinButton" id="pitch_spin">
+                                        <property name="digits">1</property>
+                                        <property name="numeric">True</property>
+                                        <property name="hexpand">True</property>
+                                        <property name="adjustment">
+                                          <object class="GtkAdjustment">
+                                            <property name="lower">-24</property>
+                                            <property name="upper">24</property>
+                                            <property name="step-increment">1</property>
+                                            <property name="page-increment">12</property>
+                                          </object>
+                                        </property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkLabel">
+                                        <property name="label">semitones</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+
+                                <child>
+                                  <object class="GtkButton">
+                                    <property name="label">Reset</property>
+                                    <property name="action-name">video.reset-pitch</property>
+                                  </object>
+                                </child>
+                              </object>
+                            </property>
+                          </object>
+                        </property>
+                        <style>
+                          <class name="video-value-button"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkSeparator" id="tools_separator_2">
+                        <property name="orientation">vertical</property>
+                        <property name="margin-start">4</property>
+                        <property name="margin-end">4</property>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkToggleButton" id="transform_button">
+                        <property name="icon-name">waytator-crop-symbolic</property>
+                        <property name="tooltip-text">Crop and rotate the whole video (C)</property>
+                        <style>
+                          <class name="flat"/>
+                        </style>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkBox" id="zoom_group">
+                    <property name="halign">end</property>
+                    <property name="spacing">2</property>
+                    <style>
+                      <class name="overlay-pill"/>
+                      <class name="zoom-group"/>
+                    </style>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="icon-name">zoom-out-symbolic</property>
+                        <property name="tooltip-text">Zoom the timeline out</property>
+                        <property name="action-name">video.zoom-out</property>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="label">Fit</property>
+                        <property name="tooltip-text">Show the whole timeline</property>
+                        <property name="action-name">video.zoom-fit</property>
+                        <style>
+                          <class name="zoom-fit"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="icon-name">zoom-in-symbolic</property>
+                        <property name="tooltip-text">Zoom the timeline in, down to single frames</property>
+                        <property name="action-name">video.zoom-in</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+
+            <child>
+              <object class="GtkBox" id="timeline_pill">
+                <style>
+                  <class name="overlay-pill"/>
+                  <class name="video-timeline-pill"/>
+                </style>
+
+                <child>
+                  <object class="WaytatorVideoTimeline" id="timeline">
+                    <property name="hexpand">True</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

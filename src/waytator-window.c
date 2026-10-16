@@ -9,6 +9,8 @@
 #include "waytator-render.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
+#include "waytator-video-editor.h"
+#include "waytator-video-profile.h"
 
 #include <cairo.h>
 #include <string.h>
@@ -24,8 +26,6 @@ static void waytator_window_set_ocr_panel_visible(WaytatorWindow *self,
 static void waytator_window_ocr_panel_open_changed(GObject    *object,
                                                    GParamSpec *pspec,
                                                    gpointer    user_data);
-static void waytator_window_show_error(WaytatorWindow *self,
-                                       const char     *message);
 static gboolean waytator_window_has_unsaved_changes(WaytatorWindow *self);
 static void waytator_window_copy_export_ready(GObject      *source_object,
                                               GAsyncResult *result,
@@ -403,7 +403,7 @@ static const struct {
   const char *action;
   const char *title;
 } waytator_fixed_shortcuts[] = {
-  { "win.open", "Open image" },
+  { "win.open", "Open" },
   { "win.preferences", "Preferences" },
   { "win.undo", "Undo" },
   { "win.redo", "Redo" },
@@ -767,9 +767,13 @@ waytator_window_save_preferences(WaytatorWindow *self)
   g_autofree char *default_primary_color = gdk_rgba_to_string(&self->default_primary_color);
   g_autofree char *default_highlighter_color = gdk_rgba_to_string(&self->default_highlighter_color);
   g_autofree char *default_fill_color = gdk_rgba_to_string(&self->default_fill_color);
+  g_autoptr(GKeyFile) previous = g_key_file_new();
   gsize data_length = 0;
   g_autoptr(GError) error = NULL;
 
+  //the video profiles are kept in the file by the preferences that edit them
+  if (g_key_file_load_from_file(previous, path, G_KEY_FILE_NONE, NULL))
+    waytator_video_profiles_carry_over(previous, key_file);
   g_key_file_set_integer(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "eraser_style",
@@ -1870,6 +1874,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   waytator_window_update_shortcut_conflicts(self);
   adw_preferences_dialog_add(dialog, page);
   adw_preferences_dialog_add(dialog, waytator_window_new_screenshots_page(self));
+  adw_preferences_dialog_add(dialog, waytator_window_new_videos_page(self));
   adw_preferences_dialog_add(dialog, shortcuts_page);
   adw_dialog_set_title(ADW_DIALOG(dialog), "Preferences");
   adw_preferences_dialog_set_search_enabled(dialog, FALSE);
@@ -2437,6 +2442,11 @@ waytator_window_update_save_menu(WaytatorWindow *self)
   if (self->save_menu == NULL)
     return;
 
+  if (waytator_window_is_video(self)) {
+    waytator_window_update_video_save_menu(self);
+    return;
+  }
+
   gtk_widget_set_visible(GTK_WIDGET(self->save_button), has_menu && self->folds.save);
   gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), !has_menu && self->folds.save);
 
@@ -2467,6 +2477,11 @@ waytator_window_reset_save_button(WaytatorWindow *self)
   //a capture or a piped image is worth saving before the first edit, it exists nowhere else
   const gboolean can_save = !self->capture_storing
                           && (has_unsaved_changes || (self->texture != NULL && self->never_saved));
+
+  if (waytator_window_is_video(self)) {
+    waytator_window_update_video_save_controls(self);
+    return;
+  }
 
   //the spinner and the tick put the plain icon back themselves once they are done
   if (!self->save_in_progress && self->save_spinner_timeout_id == 0 && self->save_feedback_timeout_id == 0)
@@ -2504,7 +2519,7 @@ waytator_window_show_save_success(gpointer user_data)
   return G_SOURCE_REMOVE;
 }
 
-static void
+void
 waytator_window_begin_save_feedback(WaytatorWindow *self)
 {
   if (self->save_spinner_timeout_id != 0)
@@ -2524,7 +2539,7 @@ waytator_window_begin_save_feedback(WaytatorWindow *self)
   gtk_widget_action_set_enabled(GTK_WIDGET(self), "win.save-copy", FALSE);
 }
 
-static void
+void
 waytator_window_finish_save_feedback(WaytatorWindow *self)
 {
   const gint64 min_spinner_us = 500 * G_TIME_SPAN_MILLISECOND;
@@ -2543,7 +2558,7 @@ waytator_window_finish_save_feedback(WaytatorWindow *self)
 }
 
 
-static void
+void
 waytator_window_show_error(WaytatorWindow *self,
                            const char     *message)
 {
@@ -2599,6 +2614,11 @@ void
 waytator_window_update_history_buttons(WaytatorWindow *self)
 {
   const gboolean has_image = self->texture != NULL;
+
+  if (waytator_window_is_video(self)) {
+    waytator_window_update_video_history_buttons(self);
+    return;
+  }
 
   gtk_widget_set_sensitive(GTK_WIDGET(self->undo_button), has_image && waytator_document_can_undo(self->document));
   gtk_widget_set_sensitive(GTK_WIDGET(self->redo_button), has_image && waytator_document_can_redo(self->document));
@@ -3245,6 +3265,11 @@ waytator_window_save_as_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
+  if (waytator_window_is_video(self)) {
+    waytator_window_video_save_as(self);
+    return;
+  }
+
   if (self->texture == NULL || self->save_in_progress || self->capture_storing
       || self->after_save != WAYTATOR_AFTER_SAVE_NONE)
     return;
@@ -3279,6 +3304,11 @@ waytator_window_save_image_action(GtkWidget  *widget,
 
   (void) action_name;
   (void) parameter;
+
+  if (waytator_window_is_video(self)) {
+    waytator_window_video_save(self, NULL, NULL, FALSE, FALSE);
+    return;
+  }
 
   if (self->texture == NULL || self->save_in_progress || self->capture_storing
       || self->after_save != WAYTATOR_AFTER_SAVE_NONE)
@@ -3321,10 +3351,15 @@ waytator_window_save_and_close_action(GtkWidget  *widget,
                                       const char *action_name,
                                       GVariant   *parameter)
 {
+  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+
   (void) action_name;
   (void) parameter;
 
-  waytator_window_save_then(WAYTATOR_WINDOW(widget), WAYTATOR_AFTER_SAVE_CLOSE);
+  if (waytator_window_is_video(self))
+    waytator_window_video_save(self, NULL, NULL, FALSE, TRUE);
+  else
+    waytator_window_save_then(self, WAYTATOR_AFTER_SAVE_CLOSE);
 }
 
 static void
@@ -3332,10 +3367,15 @@ waytator_window_save_copy_and_close_action(GtkWidget  *widget,
                                            const char *action_name,
                                            GVariant   *parameter)
 {
+  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+
   (void) action_name;
   (void) parameter;
 
-  waytator_window_save_then(WAYTATOR_WINDOW(widget), WAYTATOR_AFTER_SAVE_COPY_CLOSE);
+  if (waytator_window_is_video(self))
+    waytator_window_video_save(self, NULL, NULL, TRUE, TRUE);
+  else
+    waytator_window_save_then(self, WAYTATOR_AFTER_SAVE_COPY_CLOSE);
 }
 
 static void
@@ -3543,6 +3583,11 @@ waytator_window_copy_clicked(GtkButton *button,
 
   (void) button;
 
+  if (waytator_window_is_video(self)) {
+    waytator_window_video_save(self, NULL, NULL, TRUE, waytator_window_closes_on_copy(self));
+    return;
+  }
+
   g_clear_pointer(&self->saved_path, g_free);
   waytator_window_start_copy(self, waytator_window_closes_on_copy(self));
 }
@@ -3551,9 +3596,14 @@ static void
 waytator_window_copy_keep_open_clicked(GtkButton *button,
                                        gpointer   user_data)
 {
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+
   (void) button;
 
-  waytator_window_start_copy(WAYTATOR_WINDOW(user_data), FALSE);
+  if (waytator_window_is_video(self))
+    waytator_window_video_save(self, NULL, NULL, TRUE, FALSE);
+  else
+    waytator_window_start_copy(self, FALSE);
 }
 
 static void
@@ -3569,7 +3619,10 @@ waytator_window_copy_keep_open_action(GtkWidget  *widget,
   if (!gtk_widget_is_sensitive(GTK_WIDGET(self->copy_button)))
     return;
 
-  waytator_window_start_copy(self, FALSE);
+  if (waytator_window_is_video(self))
+    waytator_window_video_save(self, NULL, NULL, TRUE, FALSE);
+  else
+    waytator_window_start_copy(self, FALSE);
 }
 
 static void
@@ -3668,6 +3721,9 @@ waytator_window_open_file(WaytatorWindow *self,
     return TRUE;
   }
 
+  if (waytator_video_editor_handles_file(file))
+    return waytator_window_open_video(self, file);
+
   texture = gdk_texture_new_from_file(file, error);
   if (texture == NULL)
     return FALSE;
@@ -3721,7 +3777,7 @@ waytator_window_is_empty(WaytatorWindow *self)
 {
   g_return_val_if_fail(WAYTATOR_IS_WINDOW(self), FALSE);
 
-  return self->texture == NULL && !self->capture_in_progress;
+  return self->texture == NULL && !self->capture_in_progress && !waytator_window_is_video(self);
 }
 
 //a new image never replaces one that is being worked on, it gets the first empty window or a fresh one
@@ -3772,13 +3828,29 @@ waytator_window_open_ready(GObject      *source_object,
 static void
 waytator_window_open(WaytatorWindow *self)
 {
+  static const char *const image_types[] = {
+    "image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/svg+xml",
+  };
   g_autoptr(GtkFileDialog) dialog = NULL;
+  g_autoptr(GtkFileFilter) everything = NULL;
   g_autoptr(GtkFileFilter) images = NULL;
+  g_autoptr(GtkFileFilter) videos = NULL;
   g_autoptr(GListStore) filters = NULL;
 
   dialog = gtk_file_dialog_new();
+  everything = gtk_file_filter_new();
   images = gtk_file_filter_new();
+  videos = gtk_file_filter_new();
   filters = g_list_store_new(GTK_TYPE_FILE_FILTER);
+
+  gtk_file_filter_set_name(everything, "Images and videos");
+  for (guint i = 0; i < G_N_ELEMENTS(image_types); i++)
+    gtk_file_filter_add_mime_type(everything, image_types[i]);
+  gtk_file_filter_add_mime_type(everything, "video/*");
+  g_list_store_append(filters, everything);
+
+  gtk_file_filter_set_name(videos, "Videos");
+  gtk_file_filter_add_mime_type(videos, "video/*");
 
   gtk_file_filter_set_name(images, "Images");
   gtk_file_filter_add_mime_type(images, "image/png");
@@ -3788,10 +3860,11 @@ waytator_window_open(WaytatorWindow *self)
   gtk_file_filter_add_mime_type(images, "image/bmp");
   gtk_file_filter_add_mime_type(images, "image/svg+xml");
   g_list_store_append(filters, images);
+  g_list_store_append(filters, videos);
 
-  gtk_file_dialog_set_title(dialog, "Open image");
+  gtk_file_dialog_set_title(dialog, "Open");
   gtk_file_dialog_set_filters(dialog, G_LIST_MODEL(filters));
-  gtk_file_dialog_set_default_filter(dialog, images);
+  gtk_file_dialog_set_default_filter(dialog, everything);
 
   gtk_file_dialog_open(dialog,
                        GTK_WINDOW(self),
@@ -4358,15 +4431,16 @@ waytator_window_open_current_file_action(GtkWidget  *widget,
                                          GVariant   *parameter)
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+  GFile *file = waytator_window_get_shown_file(self);
   g_autoptr(GtkFileLauncher) launcher = NULL;
 
   (void) action_name;
   (void) parameter;
 
-  if (self->current_file == NULL)
+  if (file == NULL)
     return;
 
-  launcher = gtk_file_launcher_new(self->current_file);
+  launcher = gtk_file_launcher_new(file);
   gtk_file_launcher_launch(launcher,
                            GTK_WINDOW(self),
                            NULL,
@@ -4377,13 +4451,14 @@ waytator_window_open_current_file_action(GtkWidget  *widget,
 static void
 waytator_window_open_parent_folder(WaytatorWindow *self)
 {
+  GFile *file = waytator_window_get_shown_file(self);
   g_autoptr(GtkFileLauncher) launcher = NULL;
   g_autoptr(GFile) parent = NULL;
 
-  if (self->current_file == NULL)
+  if (file == NULL)
     return;
 
-  parent = g_file_get_parent(self->current_file);
+  parent = g_file_get_parent(file);
   if (parent == NULL)
     return;
 
@@ -4401,6 +4476,7 @@ waytator_window_open_containing_folder_action(GtkWidget  *widget,
                                               GVariant   *parameter)
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(widget);
+  GFile *file = waytator_window_get_shown_file(self);
   g_autoptr(GDBusConnection) bus = NULL;
   g_autoptr(GError) error = NULL;
   g_autofree char *uri = NULL;
@@ -4408,10 +4484,10 @@ waytator_window_open_containing_folder_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
-  if (self->current_file == NULL)
+  if (file == NULL)
     return;
 
-  uri = g_file_get_uri(self->current_file);
+  uri = g_file_get_uri(file);
   if (uri == NULL)
     return;
 
@@ -4642,6 +4718,7 @@ waytator_window_install_actions(GtkWidgetClass *widget_class)
   gtk_widget_class_install_action(widget_class, "win.flip-vertical", NULL, waytator_window_flip_vertical_action);
   gtk_widget_class_install_action(widget_class, "win.preferences", NULL, waytator_window_preferences_action);
   gtk_widget_class_install_action(widget_class, "win.about", NULL, waytator_window_about_action);
+  waytator_window_install_video_actions(widget_class);
   waytator_window_install_canvas_actions(widget_class);
 }
 
@@ -4856,7 +4933,7 @@ waytator_window_setup_capture_delay(WaytatorWindow *self)
   gtk_menu_button_set_menu_model(self->capture_delay_button, G_MENU_MODEL(menu));
   gtk_menu_button_set_menu_model(self->home_delay_button, G_MENU_MODEL(menu));
   //what the Open and capture buttons do, for when the bar is too short for them
-  g_menu_append(open_section, "Open image…", "win.open");
+  g_menu_append(open_section, "Open…", "win.open");
   g_menu_append(open_section, "Capture area", "win.capture-area");
   g_menu_append_section(open_menu, NULL, G_MENU_MODEL(open_section));
   g_menu_append_section(open_menu, "Delay", G_MENU_MODEL(section));
@@ -4891,6 +4968,16 @@ waytator_window_setup_popovers(WaytatorWindow *self)
                                             GTK_POS_BOTTOM);
 }
 
+//an edited video gets a chance to stay, its edits exist nowhere else
+static gboolean
+waytator_window_close_request(GtkWindow *window)
+{
+  if (waytator_window_video_close_request(WAYTATOR_WINDOW(window)))
+    return TRUE;
+
+  return GTK_WINDOW_CLASS(waytator_window_parent_class)->close_request(window);
+}
+
 static void
 waytator_window_class_init(WaytatorWindowClass *klass)
 {
@@ -4898,6 +4985,7 @@ waytator_window_class_init(WaytatorWindowClass *klass)
   GObjectClass *object_class = G_OBJECT_CLASS(klass);
 
   object_class->dispose = waytator_window_dispose;
+  GTK_WINDOW_CLASS(klass)->close_request = waytator_window_close_request;
 
   g_type_ensure(WAYTATOR_TYPE_CANVAS_VIEW);
   g_type_ensure(WAYTATOR_TYPE_PASSTHROUGH_BOX);
@@ -4923,6 +5011,7 @@ waytator_window_init(WaytatorWindow *self)
                                  self,
                                  NULL);
   waytator_window_setup_ocr_panel(self);
+  waytator_window_setup_video(self);
   waytator_window_setup_window_controls(self);
   //built here rather than in the template, its entries depend on where the image can be saved
   self->save_menu = g_menu_new();

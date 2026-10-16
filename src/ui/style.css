@@ -638,3 +638,75 @@ popover .zoom-row button.selected-tool {
 videotimeline > accent {
   color: @accent_bg_color;
 }
+
+/* the video editor's controls, in the same pills as the image tools. kept to the video editor, the image
+   tools have their own look for the one that is picked */
+.video-editor button.flat {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  box-shadow: none;
+}
+
+.video-editor button.flat:hover {
+  background: alpha(white, 0.08);
+}
+
+.video-editor button.flat:checked,
+.video-editor button.flat:checked:hover {
+  background: alpha(white, 0.16);
+}
+
+.video-editor button.flat:disabled,
+.video-editor menubutton:disabled > button {
+  color: alpha(white, 0.35);
+}
+
+.video-editor button.video-text-button {
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  box-shadow: none;
+}
+
+.video-editor button.video-text-button:hover {
+  background: alpha(white, 0.08);
+}
+
+.video-editor menubutton.video-value-button > button {
+  min-width: 0;
+  padding: 0 10px;
+}
+
+.video-time {
+  color: white;
+  font-weight: 600;
+}
+
+.video-dim-label {
+  color: alpha(white, 0.7);
+  font-size: 0.9em;
+}
+
+.video-loading {
+  padding: 20px 28px;
+}
+
+.video-popover {
+  padding: 6px;
+}
+
+.video-timeline-pill {
+  padding: 6px;
+}
+
+.video-optimize-label {
+  padding: 4px 10px;
+  font-size: 0.85em;
+  color: alpha(white, 0.8);
+}
