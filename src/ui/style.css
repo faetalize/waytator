@@ -698,7 +698,18 @@ videotimeline > accent {
 
 .video-time {
   color: white;
+  font-size: 0.9em;
   font-weight: 600;
+}
+
+/* smaller still on a narrow window, before the buttons to the start and the end have to go */
+.video-time.video-time-small {
+  font-size: 0.8em;
+}
+
+.video-footer {
+  min-height: 18px;
+  padding: 0 8px;
 }
 
 .video-dim-label {

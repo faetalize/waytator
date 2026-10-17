@@ -40,7 +40,7 @@ static const double waytator_video_speed_steps[] = {
 #define WAYTATOR_VIDEO_STRIP_GAP 2
 
 //the timeline under a strip of the tools on the left and its zoom on the right, with playback in the middle
-//of the strip while it fits there, or else on a row of its own above, in the middle. the editor decides which,
+//of the strip while it fits there, or else on a row of its own above, in the middle, and over a footer. the editor decides which,
 //so this never holds the window wider than it is
 #define WAYTATOR_TYPE_VIDEO_PANEL (waytator_video_panel_get_type())
 G_DECLARE_FINAL_TYPE(WaytatorVideoPanel, waytator_video_panel, WAYTATOR, VIDEO_PANEL, GtkWidget)
@@ -60,6 +60,7 @@ typedef struct {
   GtkWidget *tools;
   GtkWidget *zoom;
   GtkWidget *timeline;
+  GtkWidget *footer;
 } WaytatorVideoPanelChildren;
 
 //in the order the template adds them
@@ -69,6 +70,7 @@ waytator_video_panel_children(GtkWidget                  *widget,
 {
   GtkWidget **slots[] = {
     &children->backdrop, &children->transport, &children->tools, &children->zoom, &children->timeline,
+    &children->footer,
   };
   GtkWidget *child = gtk_widget_get_first_child(widget);
 
@@ -149,7 +151,8 @@ waytator_video_panel_measure(GtkWidget      *widget,
                     : 0;
     const int frame = 2 * WAYTATOR_VIDEO_PANEL_PADDING
                     + waytator_video_panel_strip_height(self, &children)
-                    + WAYTATOR_VIDEO_STRIP_GAP;
+                    + WAYTATOR_VIDEO_STRIP_GAP
+                    + waytator_video_controls_height(children.footer);
     int timeline_minimum;
     int timeline_natural;
 
@@ -189,6 +192,7 @@ waytator_video_panel_size_allocate(GtkWidget *widget,
   int tools;
   int zoom;
   int strip;
+  int footer;
   int top = 0;
 
   (void) baseline;
@@ -225,8 +229,12 @@ waytator_video_panel_size_allocate(GtkWidget *widget,
     waytator_video_controls_place(children.transport, x, top, transport, strip);
   }
   top += strip + WAYTATOR_VIDEO_STRIP_GAP;
+  footer = waytator_video_controls_height(children.footer);
   gtk_widget_size_allocate(children.timeline,
-                           &(GtkAllocation) { padding, top, MAX(width - 2 * padding, 0), MAX(height - top - padding, 0) },
+                           &(GtkAllocation) { padding, top, MAX(width - 2 * padding, 0), MAX(height - top - padding - footer, 0) },
+                           -1);
+  gtk_widget_size_allocate(children.footer,
+                           &(GtkAllocation) { padding, height - padding - footer, MAX(width - 2 * padding, 0), footer },
                            -1);
 }
 
@@ -345,13 +353,6 @@ struct _WaytatorVideoEditor {
   GtkWidget *adjusting;
   int fold_width;
   guint fold_id;
-  //the widths of what folds away, measured while it showed
-  int scope_width;
-  int skips_width;
-  int zoom_width;
-  int zoom_menu_width;
-  //what closing the tools up saves: the separator
-  int tight_width;
 };
 
 G_DEFINE_FINAL_TYPE(WaytatorVideoEditor, waytator_video_editor, GTK_TYPE_WIDGET)
@@ -545,15 +546,14 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
     sound_changed |= segment->mute || segment->volume != 0.0 || segment->pitch != 0.0;
   }
 
+  //with nothing selected the tools change the whole video, which their menus say
   if (selection) {
     g_autofree char *length = waytator_video_format_time(end - start, end - start);
+    g_autofree char *text = g_strdup_printf("%s selected", length);
 
-    gtk_label_set_text(self->scope_label, length);
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->scope_label), "What is selected, the tools beside this change only that");
+    gtk_label_set_text(self->scope_label, text);
   } else {
-    gtk_label_set_text(self->scope_label, "Whole video");
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->scope_label),
-                                "Nothing is selected, so the tools beside this change the whole video. Click a block or drag on the timeline to pick a part");
+    gtk_label_set_text(self->scope_label, "");
   }
   gtk_widget_set_sensitive(GTK_WIDGET(self->delete_button), selection);
 
@@ -1773,10 +1773,19 @@ waytator_video_editor_handle_key(WaytatorVideoEditor *self,
   }
 }
 
-//folds the controls to the editor's width, least needed first. playback stays in the middle of the strip
-//without the buttons to the start and the end, which Home and End still do, then moves to a row of its own
-//above where they come back. the strip then gives up the selection's length, folds the zoom into one button,
-//closes the tools up, and last lets the zoom go, which pinching, ctrl and the wheel, and ctrl+0 still do
+static int
+waytator_video_editor_width_of(GtkWidget *widget)
+{
+  int width;
+
+  waytator_video_controls_width(widget, NULL, &width);
+  return width;
+}
+
+//folds the controls to the editor's width. playback stays in the middle of the strip until it would touch the
+//tools or the zoom, then moves to a row of its own above, where its time gets smaller before the buttons to
+//the start and the end go, which Home and End still do. the strip folds its zoom into one button, then closes
+//the tools up. everything is unfolded and measured first, then folded, before anything is drawn
 static gboolean
 waytator_video_editor_fold(gpointer user_data)
 {
@@ -1785,72 +1794,45 @@ waytator_video_editor_fold(gpointer user_data)
   const int strip = available - 2 * WAYTATOR_VIDEO_PANEL_PADDING;
   const int gap = WAYTATOR_VIDEO_CONTROLS_GAP;
   gboolean apart;
-  gboolean show_skips;
   int transport;
   int tools;
+  int tight_tools;
   int zoom;
-  int width;
+  int zoom_menu;
 
   self->fold_id = 0;
 
-  //what folding took away is measured while it was still there
-  if (gtk_widget_get_visible(GTK_WIDGET(self->scope_label)))
-    waytator_video_controls_width(GTK_WIDGET(self->scope_label), NULL, &self->scope_width);
-  if (gtk_widget_get_visible(self->start_button)) {
-    waytator_video_controls_width(self->start_button, NULL, &width);
-    self->skips_width = 2 * width;
-  }
-  if (gtk_widget_get_visible(self->tools_separator)) {
-    int separator;
+  gtk_widget_remove_css_class(GTK_WIDGET(self->time_label), "video-time-small");
+  gtk_widget_set_visible(self->start_button, TRUE);
+  gtk_widget_set_visible(self->end_button, TRUE);
+  gtk_widget_set_visible(self->tools_separator, TRUE);
+  gtk_widget_set_visible(self->zoom_buttons, FALSE);
+  gtk_widget_set_visible(self->zoom_menu_button, TRUE);
+  zoom_menu = waytator_video_editor_width_of(self->zoom_group);
+  gtk_widget_set_visible(self->zoom_menu_button, FALSE);
+  gtk_widget_set_visible(self->zoom_buttons, TRUE);
+  zoom = waytator_video_editor_width_of(self->zoom_group);
+  tools = waytator_video_editor_width_of(self->tools_group);
+  transport = waytator_video_editor_width_of(self->transport_group);
 
-    gtk_widget_measure(self->tools_separator, GTK_ORIENTATION_HORIZONTAL, -1, NULL, &separator, NULL, NULL);
-    //its margins and the gap beside it come along
-    self->tight_width = separator + 8 + 2;
-  }
-  if (gtk_widget_get_visible(self->zoom_group) && gtk_widget_get_visible(self->zoom_buttons))
-    waytator_video_controls_width(self->zoom_group, NULL, &self->zoom_width);
-  if (gtk_widget_get_visible(self->zoom_group) && gtk_widget_get_visible(self->zoom_menu_button))
-    waytator_video_controls_width(self->zoom_group, NULL, &self->zoom_menu_width);
-  if (self->zoom_menu_width == 0) {
-    int button;
-
-    //measured once without having been shown: the button and the group's padding around it
-    waytator_video_controls_width(self->zoom_menu_button, NULL, &button);
-    self->zoom_menu_width = button + 8;
-  }
-
-  //the widths with everything showing
-  waytator_video_controls_width(self->transport_group, NULL, &transport);
-  waytator_video_controls_width(self->tools_group, NULL, &tools);
-  if (!gtk_widget_get_visible(self->start_button))
-    transport += self->skips_width;
-  if (!gtk_widget_get_visible(GTK_WIDGET(self->scope_label)))
-    tools += self->scope_width;
-  if (!gtk_widget_get_visible(self->tools_separator))
-    tools += self->tight_width;
-  zoom = self->zoom_width;
-
-  apart = tools + transport - self->skips_width + zoom + 2 * gap > strip;
-  show_skips = apart ? transport <= available : tools + transport + zoom + 2 * gap <= strip;
+  //in the middle of the strip, clear of whichever of the tools and the zoom is wider
+  apart = transport + 2 * (MAX(tools, zoom) + gap) > strip;
   waytator_video_panel_set_apart(self->panel, self->transport_group, apart);
-  gtk_widget_set_visible(self->start_button, show_skips);
-  gtk_widget_set_visible(self->end_button, show_skips);
-
-  //the strip on its own, its tools then its zoom giving way a step at a time
-  {
-    const gboolean show_scope = !apart || tools + gap + zoom <= strip;
-    const int folded_tools = show_scope ? tools : tools - self->scope_width;
-    const gboolean full_zoom = !apart || folded_tools + gap + zoom <= strip;
-    const int zoom_now = full_zoom ? zoom : self->zoom_menu_width;
-    const gboolean show_separator = folded_tools + gap + zoom_now <= strip;
-    const int tight_tools = show_separator ? folded_tools : folded_tools - self->tight_width;
-
-    gtk_widget_set_visible(GTK_WIDGET(self->scope_label), show_scope);
-    gtk_widget_set_visible(self->tools_separator, show_separator);
-    gtk_widget_set_visible(self->zoom_buttons, full_zoom);
-    gtk_widget_set_visible(self->zoom_menu_button, !full_zoom);
-    gtk_widget_set_visible(self->zoom_group, tight_tools + gap + zoom_now <= strip);
+  if (apart && transport > available) {
+    gtk_widget_add_css_class(GTK_WIDGET(self->time_label), "video-time-small");
+    transport = waytator_video_editor_width_of(self->transport_group);
+    gtk_widget_set_visible(self->start_button, transport <= available);
+    gtk_widget_set_visible(self->end_button, transport <= available);
   }
+
+  if (tools + gap + zoom > strip) {
+    zoom = zoom_menu;
+    gtk_widget_set_visible(self->zoom_buttons, FALSE);
+    gtk_widget_set_visible(self->zoom_menu_button, TRUE);
+  }
+  gtk_widget_set_visible(self->tools_separator, FALSE);
+  tight_tools = waytator_video_editor_width_of(self->tools_group);
+  gtk_widget_set_visible(self->tools_separator, tools + gap + zoom <= strip || tight_tools + gap + zoom > strip);
   return G_SOURCE_REMOVE;
 }
 

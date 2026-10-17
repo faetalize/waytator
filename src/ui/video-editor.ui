@@ -364,18 +364,6 @@
                 </style>
 
                 <child>
-                  <object class="GtkLabel" id="scope_label">
-                    <property name="margin-start">8</property>
-                    <property name="margin-end">4</property>
-                    <property name="ellipsize">end</property>
-                    <style>
-                      <class name="video-dim-label"/>
-                      <class name="numeric"/>
-                    </style>
-                  </object>
-                </child>
-
-                <child>
                   <object class="GtkButton" id="delete_button">
                     <property name="icon-name">user-trash-symbolic</property>
                     <property name="tooltip-text">Cut out the selection (Delete)</property>
@@ -799,6 +787,26 @@
 
             <child>
               <object class="WaytatorVideoTimeline" id="timeline"/>
+            </child>
+
+            <!-- what is selected, and room for more about the edit later -->
+            <child>
+              <object class="GtkBox" id="footer">
+                <style>
+                  <class name="video-footer"/>
+                </style>
+
+                <child>
+                  <object class="GtkLabel" id="scope_label">
+                    <property name="xalign">0</property>
+                    <property name="ellipsize">end</property>
+                    <style>
+                      <class name="video-dim-label"/>
+                      <class name="numeric"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
             </child>
           </object>
         </child>
