@@ -34,29 +34,52 @@ static const double waytator_video_speed_steps[] = {
 #define WAYTATOR_VIDEO_CONTROLS_GAP 10
 //the panel's margins either side, which the controls fit inside
 #define WAYTATOR_VIDEO_PANEL_MARGINS 32
+//between the edge of the timeline's backdrop and what is in it
+#define WAYTATOR_VIDEO_PANEL_PADDING 6
+//between the strip and the timeline under it
+#define WAYTATOR_VIDEO_STRIP_GAP 2
 
-//playback on the left and the tools on the right, or the tools in the middle of a row of their own above
-//playback in the middle of its own. the editor decides which, so this never holds the window wider than it is
-#define WAYTATOR_TYPE_VIDEO_CONTROLS (waytator_video_controls_get_type())
-G_DECLARE_FINAL_TYPE(WaytatorVideoControls, waytator_video_controls, WAYTATOR, VIDEO_CONTROLS, GtkWidget)
+//the timeline under a strip of the tools on the left and its zoom on the right, with playback in the middle
+//of the strip while it fits there, or else on a row of its own above, in the middle. the editor decides which,
+//so this never holds the window wider than it is
+#define WAYTATOR_TYPE_VIDEO_PANEL (waytator_video_panel_get_type())
+G_DECLARE_FINAL_TYPE(WaytatorVideoPanel, waytator_video_panel, WAYTATOR, VIDEO_PANEL, GtkWidget)
 
-struct _WaytatorVideoControls {
+struct _WaytatorVideoPanel {
   GtkWidget parent_instance;
 
-  gboolean stacked;
+  //playback has a row of its own above the strip
+  gboolean apart;
 };
 
-G_DEFINE_FINAL_TYPE(WaytatorVideoControls, waytator_video_controls, GTK_TYPE_WIDGET)
+G_DEFINE_FINAL_TYPE(WaytatorVideoPanel, waytator_video_panel, GTK_TYPE_WIDGET)
 
-//the playback group and the tools, in the order the template adds them
+typedef struct {
+  GtkWidget *backdrop;
+  GtkWidget *transport;
+  GtkWidget *tools;
+  GtkWidget *zoom;
+  GtkWidget *timeline;
+} WaytatorVideoPanelChildren;
+
+//in the order the template adds them
 static gboolean
-waytator_video_controls_children(GtkWidget  *widget,
-                                 GtkWidget **transport,
-                                 GtkWidget **tools)
+waytator_video_panel_children(GtkWidget                  *widget,
+                              WaytatorVideoPanelChildren *children)
 {
-  *transport = gtk_widget_get_first_child(widget);
-  *tools = *transport != NULL ? gtk_widget_get_next_sibling(*transport) : NULL;
-  return *tools != NULL;
+  GtkWidget **slots[] = {
+    &children->backdrop, &children->transport, &children->tools, &children->zoom, &children->timeline,
+  };
+  GtkWidget *child = gtk_widget_get_first_child(widget);
+
+  for (guint i = 0; i < G_N_ELEMENTS(slots); i++) {
+    *slots[i] = child;
+    if (child == NULL)
+      return FALSE;
+    child = gtk_widget_get_next_sibling(child);
+  }
+
+  return TRUE;
 }
 
 static void
@@ -70,51 +93,69 @@ waytator_video_controls_width(GtkWidget *widget,
 static int
 waytator_video_controls_height(GtkWidget *widget)
 {
-  int height;
+  int height = 0;
 
-  gtk_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, NULL, &height, NULL, NULL);
+  if (gtk_widget_get_visible(widget))
+    gtk_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, NULL, &height, NULL, NULL);
   return height;
 }
 
-static void
-waytator_video_controls_measure(GtkWidget      *widget,
-                                GtkOrientation  orientation,
-                                int             for_size,
-                                int            *minimum,
-                                int            *natural,
-                                int            *minimum_baseline,
-                                int            *natural_baseline)
+static int
+waytator_video_panel_strip_height(WaytatorVideoPanel               *self,
+                                  const WaytatorVideoPanelChildren *children)
 {
-  WaytatorVideoControls *self = WAYTATOR_VIDEO_CONTROLS(widget);
-  GtkWidget *transport;
-  GtkWidget *tools;
+  const int height = MAX(waytator_video_controls_height(children->tools),
+                         waytator_video_controls_height(children->zoom));
+
+  return self->apart ? height : MAX(height, waytator_video_controls_height(children->transport));
+}
+
+static void
+waytator_video_panel_measure(GtkWidget      *widget,
+                             GtkOrientation  orientation,
+                             int             for_size,
+                             int            *minimum,
+                             int            *natural,
+                             int            *minimum_baseline,
+                             int            *natural_baseline)
+{
+  WaytatorVideoPanel *self = WAYTATOR_VIDEO_PANEL(widget);
+  WaytatorVideoPanelChildren children;
 
   (void) for_size;
   (void) minimum_baseline;
   (void) natural_baseline;
 
   *minimum = *natural = 0;
-  if (!waytator_video_controls_children(widget, &transport, &tools))
+  if (!waytator_video_panel_children(widget, &children))
     return;
 
   if (orientation == GTK_ORIENTATION_HORIZONTAL) {
-    int transport_width;
-    int tools_width;
+    int transport;
+    int tools;
+    int zoom;
 
     //no minimum of its own: the editor folds it to fit before anything has to give
-    waytator_video_controls_width(transport, NULL, &transport_width);
-    waytator_video_controls_width(tools, NULL, &tools_width);
-    *natural = transport_width + tools_width + WAYTATOR_VIDEO_CONTROLS_GAP;
+    waytator_video_controls_width(children.transport, NULL, &transport);
+    waytator_video_controls_width(children.tools, NULL, &tools);
+    waytator_video_controls_width(children.zoom, NULL, &zoom);
+    *natural = tools + transport + zoom + 2 * WAYTATOR_VIDEO_CONTROLS_GAP + 2 * WAYTATOR_VIDEO_PANEL_PADDING;
     return;
   }
 
   {
-    const int transport_height = waytator_video_controls_height(transport);
-    const int tools_height = waytator_video_controls_height(tools);
+    const int above = self->apart
+                    ? waytator_video_controls_height(children.transport) + WAYTATOR_VIDEO_CONTROLS_GAP - 2
+                    : 0;
+    const int frame = 2 * WAYTATOR_VIDEO_PANEL_PADDING
+                    + waytator_video_panel_strip_height(self, &children)
+                    + WAYTATOR_VIDEO_STRIP_GAP;
+    int timeline_minimum;
+    int timeline_natural;
 
-    *minimum = *natural = self->stacked
-                        ? tools_height + WAYTATOR_VIDEO_CONTROLS_GAP - 2 + transport_height
-                        : MAX(transport_height, tools_height);
+    gtk_widget_measure(children.timeline, GTK_ORIENTATION_VERTICAL, -1, &timeline_minimum, &timeline_natural, NULL, NULL);
+    *minimum = above + frame + timeline_minimum;
+    *natural = above + frame + timeline_natural;
   }
 }
 
@@ -136,80 +177,100 @@ waytator_video_controls_place(GtkWidget *child,
 }
 
 static void
-waytator_video_controls_size_allocate(GtkWidget *widget,
-                                      int        width,
-                                      int        height,
-                                      int        baseline)
+waytator_video_panel_size_allocate(GtkWidget *widget,
+                                   int        width,
+                                   int        height,
+                                   int        baseline)
 {
-  WaytatorVideoControls *self = WAYTATOR_VIDEO_CONTROLS(widget);
-  GtkWidget *transport;
-  GtkWidget *tools;
-  int transport_width;
-  int tools_width;
-  int top;
+  WaytatorVideoPanel *self = WAYTATOR_VIDEO_PANEL(widget);
+  const int padding = WAYTATOR_VIDEO_PANEL_PADDING;
+  WaytatorVideoPanelChildren children;
+  int transport;
+  int tools;
+  int zoom;
+  int strip;
+  int top = 0;
 
   (void) baseline;
 
-  if (!waytator_video_controls_children(widget, &transport, &tools))
+  if (!waytator_video_panel_children(widget, &children))
     return;
 
-  waytator_video_controls_width(transport, NULL, &transport_width);
-  waytator_video_controls_width(tools, NULL, &tools_width);
-  transport_width = MIN(transport_width, width);
-  tools_width = MIN(tools_width, width);
+  waytator_video_controls_width(children.transport, NULL, &transport);
+  waytator_video_controls_width(children.tools, NULL, &tools);
+  waytator_video_controls_width(children.zoom, NULL, &zoom);
+  transport = MIN(transport, width);
+  if (!gtk_widget_get_visible(children.zoom))
+    zoom = 0;
 
-  if (!self->stacked) {
-    //the tools keep to the right end, so a label in them changing length moves nothing but their left end
-    waytator_video_controls_place(transport, 0, 0, transport_width, height);
-    waytator_video_controls_place(tools,
-                                  MAX(width - tools_width, transport_width + WAYTATOR_VIDEO_CONTROLS_GAP),
-                                  0,
-                                  tools_width,
-                                  height);
-    return;
+  if (self->apart) {
+    const int transport_height = waytator_video_controls_height(children.transport);
+
+    waytator_video_controls_place(children.transport, (width - transport) / 2, 0, transport, transport_height);
+    top = transport_height + WAYTATOR_VIDEO_CONTROLS_GAP - 2;
   }
 
-  top = waytator_video_controls_height(tools);
-  waytator_video_controls_place(tools, (width - tools_width) / 2, 0, tools_width, top);
-  top += WAYTATOR_VIDEO_CONTROLS_GAP - 2;
-  waytator_video_controls_place(transport, (width - transport_width) / 2, top, transport_width, height - top);
+  strip = waytator_video_panel_strip_height(self, &children);
+  gtk_widget_size_allocate(children.backdrop, &(GtkAllocation) { 0, top, width, height - top }, -1);
+  top += padding;
+  waytator_video_controls_place(children.tools, padding, top, MIN(tools, width - 2 * padding), strip);
+  waytator_video_controls_place(children.zoom, width - padding - zoom, top, zoom, strip);
+  if (!self->apart) {
+    //in the middle of the strip, or as near it as the tools and the zoom either side let it be
+    const int x = CLAMP((width - transport) / 2,
+                        padding + tools + WAYTATOR_VIDEO_CONTROLS_GAP,
+                        MAX(width - padding - zoom - WAYTATOR_VIDEO_CONTROLS_GAP - transport,
+                            padding + tools + WAYTATOR_VIDEO_CONTROLS_GAP));
+
+    waytator_video_controls_place(children.transport, x, top, transport, strip);
+  }
+  top += strip + WAYTATOR_VIDEO_STRIP_GAP;
+  gtk_widget_size_allocate(children.timeline,
+                           &(GtkAllocation) { padding, top, MAX(width - 2 * padding, 0), MAX(height - top - padding, 0) },
+                           -1);
 }
 
+//playback alone on its row is a floating group of its own, in the strip it is part of the timeline's
 static void
-waytator_video_controls_set_stacked(WaytatorVideoControls *self,
-                                    gboolean               stacked)
+waytator_video_panel_set_apart(WaytatorVideoPanel *self,
+                               GtkWidget          *transport,
+                               gboolean            apart)
 {
-  if (self->stacked == stacked)
+  if (self->apart == apart)
     return;
 
-  self->stacked = stacked;
+  self->apart = apart;
+  if (apart)
+    gtk_widget_add_css_class(transport, "overlay-pill");
+  else
+    gtk_widget_remove_css_class(transport, "overlay-pill");
   gtk_widget_queue_resize(GTK_WIDGET(self));
 }
 
 static void
-waytator_video_controls_dispose(GObject *object)
+waytator_video_panel_dispose(GObject *object)
 {
   GtkWidget *child;
 
   while ((child = gtk_widget_get_first_child(GTK_WIDGET(object))) != NULL)
     gtk_widget_unparent(child);
 
-  G_OBJECT_CLASS(waytator_video_controls_parent_class)->dispose(object);
+  G_OBJECT_CLASS(waytator_video_panel_parent_class)->dispose(object);
 }
 
 static void
-waytator_video_controls_class_init(WaytatorVideoControlsClass *klass)
+waytator_video_panel_class_init(WaytatorVideoPanelClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS(klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
 
-  object_class->dispose = waytator_video_controls_dispose;
-  widget_class->measure = waytator_video_controls_measure;
-  widget_class->size_allocate = waytator_video_controls_size_allocate;
+  object_class->dispose = waytator_video_panel_dispose;
+  widget_class->measure = waytator_video_panel_measure;
+  widget_class->size_allocate = waytator_video_panel_size_allocate;
 }
 
 static void
-waytator_video_controls_init(WaytatorVideoControls *self)
+waytator_video_panel_init(WaytatorVideoPanel *self)
 {
   gtk_widget_set_overflow(GTK_WIDGET(self), GTK_OVERFLOW_HIDDEN);
 }
@@ -227,7 +288,7 @@ struct _WaytatorVideoEditor {
   GtkLabel *optimize_label;
   GtkLabel *export_label;
   GtkProgressBar *export_progress;
-  WaytatorVideoControls *controls;
+  WaytatorVideoPanel *panel;
   GtkWidget *transport_group;
   GtkWidget *start_button;
   GtkWidget *end_button;
@@ -257,6 +318,8 @@ struct _WaytatorVideoEditor {
   GtkToggleButton *transform_button;
   GtkWidget *rotate_button;
   GtkWidget *zoom_group;
+  GtkWidget *zoom_buttons;
+  GtkWidget *zoom_menu_button;
   WaytatorVideoTimeline *timeline;
 
   GFile *file;
@@ -285,6 +348,8 @@ struct _WaytatorVideoEditor {
   //the widths of what folds away, measured while it showed
   int scope_width;
   int skips_width;
+  int zoom_width;
+  int zoom_menu_width;
   //what closing the tools up saves: the separator
   int tight_width;
 };
@@ -1708,20 +1773,22 @@ waytator_video_editor_handle_key(WaytatorVideoEditor *self,
   }
 }
 
-//folds the controls to the editor's width, least needed first: the buttons to the start and the end go, which
-//Home and End still do, then the tools take a row of their own above playback and the buttons come back. the
-//tools' row folds on its own: the selection's length goes once it no longer fits, then the tools close up
+//folds the controls to the editor's width, least needed first. playback stays in the middle of the strip
+//without the buttons to the start and the end, which Home and End still do, then moves to a row of its own
+//above where they come back. the strip then gives up the selection's length, folds the zoom into one button,
+//closes the tools up, and last lets the zoom go, which pinching, ctrl and the wheel, and ctrl+0 still do
 static gboolean
 waytator_video_editor_fold(gpointer user_data)
 {
   WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(user_data);
   const int available = gtk_widget_get_width(GTK_WIDGET(self)) - WAYTATOR_VIDEO_PANEL_MARGINS;
+  const int strip = available - 2 * WAYTATOR_VIDEO_PANEL_PADDING;
   const int gap = WAYTATOR_VIDEO_CONTROLS_GAP;
-  gboolean stacked;
+  gboolean apart;
   gboolean show_skips;
-  gboolean show_scope;
   int transport;
   int tools;
+  int zoom;
   int width;
 
   self->fold_id = 0;
@@ -1740,9 +1807,17 @@ waytator_video_editor_fold(gpointer user_data)
     //its margins and the gap beside it come along
     self->tight_width = separator + 8 + 2;
   }
+  if (gtk_widget_get_visible(self->zoom_group) && gtk_widget_get_visible(self->zoom_buttons))
+    waytator_video_controls_width(self->zoom_group, NULL, &self->zoom_width);
+  if (gtk_widget_get_visible(self->zoom_group) && gtk_widget_get_visible(self->zoom_menu_button))
+    waytator_video_controls_width(self->zoom_group, NULL, &self->zoom_menu_width);
+  if (self->zoom_menu_width == 0) {
+    int button;
 
-  waytator_video_controls_width(self->zoom_group, NULL, &width);
-  waytator_video_timeline_set_ruler_inset(self->timeline, width + 4);
+    //measured once without having been shown: the button and the group's padding around it
+    waytator_video_controls_width(self->zoom_menu_button, NULL, &button);
+    self->zoom_menu_width = button + 8;
+  }
 
   //the widths with everything showing
   waytator_video_controls_width(self->transport_group, NULL, &transport);
@@ -1753,16 +1828,29 @@ waytator_video_editor_fold(gpointer user_data)
     tools += self->scope_width;
   if (!gtk_widget_get_visible(self->tools_separator))
     tools += self->tight_width;
+  zoom = self->zoom_width;
 
-  stacked = transport - self->skips_width + gap + tools > available;
-  show_skips = stacked ? transport <= available : transport + gap + tools <= available;
-  show_scope = tools <= available;
-
-  waytator_video_controls_set_stacked(self->controls, stacked);
+  apart = tools + transport - self->skips_width + zoom + 2 * gap > strip;
+  show_skips = apart ? transport <= available : tools + transport + zoom + 2 * gap <= strip;
+  waytator_video_panel_set_apart(self->panel, self->transport_group, apart);
   gtk_widget_set_visible(self->start_button, show_skips);
   gtk_widget_set_visible(self->end_button, show_skips);
-  gtk_widget_set_visible(GTK_WIDGET(self->scope_label), show_scope);
-  gtk_widget_set_visible(self->tools_separator, show_scope || tools - self->scope_width <= available);
+
+  //the strip on its own, its tools then its zoom giving way a step at a time
+  {
+    const gboolean show_scope = !apart || tools + gap + zoom <= strip;
+    const int folded_tools = show_scope ? tools : tools - self->scope_width;
+    const gboolean full_zoom = !apart || folded_tools + gap + zoom <= strip;
+    const int zoom_now = full_zoom ? zoom : self->zoom_menu_width;
+    const gboolean show_separator = folded_tools + gap + zoom_now <= strip;
+    const int tight_tools = show_separator ? folded_tools : folded_tools - self->tight_width;
+
+    gtk_widget_set_visible(GTK_WIDGET(self->scope_label), show_scope);
+    gtk_widget_set_visible(self->tools_separator, show_separator);
+    gtk_widget_set_visible(self->zoom_buttons, full_zoom);
+    gtk_widget_set_visible(self->zoom_menu_button, !full_zoom);
+    gtk_widget_set_visible(self->zoom_group, tight_tools + gap + zoom_now <= strip);
+  }
   return G_SOURCE_REMOVE;
 }
 
@@ -1870,7 +1958,7 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
                                                                0, NULL, NULL, NULL,
                                                                G_TYPE_NONE, 0);
 
-  g_type_ensure(WAYTATOR_TYPE_VIDEO_CONTROLS);
+  g_type_ensure(WAYTATOR_TYPE_VIDEO_PANEL);
   g_type_ensure(WAYTATOR_TYPE_VIDEO_VIEW);
   g_type_ensure(WAYTATOR_TYPE_VIDEO_TIMELINE);
   gtk_widget_class_set_template_from_resource(widget_class, "/dev/faetalize/waytator/ui/video-editor.ui");
@@ -1884,7 +1972,7 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, optimize_label);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, export_label);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, export_progress);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, controls);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, panel);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, transport_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, start_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, end_button);
@@ -1914,6 +2002,8 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, transform_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, rotate_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, zoom_group);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, zoom_buttons);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, zoom_menu_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, timeline);
 
   for (guint i = 0; i < G_N_ELEMENTS(actions); i++) {

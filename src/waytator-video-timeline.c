@@ -153,8 +153,6 @@ struct _WaytatorVideoTimeline {
   double track_x;
   double track_width;
   graphene_rect_t ruler;
-  //what sits over the right end of the ruler, which it leaves bare
-  int ruler_inset;
   graphene_rect_t rails[WAYTATOR_TIMELINE_N_RAILS];
   graphene_rect_t scrollbar;
 
@@ -1226,14 +1224,7 @@ waytator_video_timeline_draw_label(WaytatorVideoTimeline *self,
                                    const char            *text,
                                    const GdkRGBA         *color)
 {
-  PangoRectangle extents;
-
   pango_layout_set_text(layout, text, -1);
-  //a label running under what covers the end of the ruler is left out rather than cut in half
-  pango_layout_get_pixel_extents(layout, NULL, &extents);
-  if (self->ruler_inset > 0 && floor(x) + 4 + extents.width > gtk_widget_get_width(GTK_WIDGET(self)) - self->ruler_inset)
-    return;
-
   gtk_snapshot_save(snapshot);
   gtk_snapshot_translate(snapshot, &GRAPHENE_POINT_INIT(floor(x) + 4, self->ruler.origin.y + 2));
   gtk_snapshot_append_layout(snapshot, layout, color);
@@ -1387,11 +1378,8 @@ waytator_video_timeline_draw_content(WaytatorVideoTimeline         *self,
     return;
 
   layout = waytator_video_timeline_text_layout(self, 0.72, TRUE);
-  gtk_snapshot_push_clip(snapshot, &GRAPHENE_RECT_INIT(left, 0, MAX(width - self->ruler_inset - left, 0),
-                                                       self->ruler.size.height));
-  waytator_video_timeline_draw_ruler(self, snapshot, palette);
-  gtk_snapshot_pop(snapshot);
   gtk_snapshot_push_clip(snapshot, &GRAPHENE_RECT_INIT(left, 0, width - left, height));
+  waytator_video_timeline_draw_ruler(self, snapshot, palette);
   for (int rail = WAYTATOR_VIDEO_RAIL_VIDEO; rail <= WAYTATOR_VIDEO_RAIL_AUDIO; rail++) {
     const WaytatorVideoRailBlock *moved;
     double moved_left;
@@ -2738,19 +2726,6 @@ waytator_video_timeline_set_sources(WaytatorVideoTimeline              *self,
   waytator_video_timeline_clear_peaks(self);
   waytator_video_timeline_invalidate(self);
   waytator_video_timeline_queue_thumbnails(self);
-}
-
-void
-waytator_video_timeline_set_ruler_inset(WaytatorVideoTimeline *self,
-                                        int                    inset)
-{
-  g_return_if_fail(WAYTATOR_IS_VIDEO_TIMELINE(self));
-
-  if (self->ruler_inset == inset)
-    return;
-
-  self->ruler_inset = inset;
-  waytator_video_timeline_invalidate(self);
 }
 
 void
