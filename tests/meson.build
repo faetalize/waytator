@@ -89,3 +89,17 @@ test_record_mixer = executable(
   dependencies: [gobject_dep, m_dep],
 )
 test('record-mixer', test_record_mixer, timeout: 120)
+
+#the capture of a recording's sound against a pipewire and wireplumber of the test's own, skipping when they
+#aren't installed
+test_record_audio = executable(
+  'test-record-audio',
+  'test-record-audio.c',
+  files(
+    '../src/waytator-record-audio.c',
+    '../src/waytator-record-mixer.c',
+  ),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep, pipewire_dep, m_dep],
+)
+test('record-audio', test_record_audio, timeout: 180)

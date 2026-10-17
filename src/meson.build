@@ -31,6 +31,7 @@ waytator_sources = files(
   'waytator-passthrough.h',
   'waytator-pointer-brake.c',
   'waytator-pointer-brake.h',
+  'waytator-record-audio.c',
   'waytator-record-audio.h',
   'waytator-record-mixer.c',
   'waytator-record-mixer.h',

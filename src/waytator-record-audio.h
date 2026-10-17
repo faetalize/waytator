@@ -35,7 +35,8 @@ WaytatorRecordAudio *waytator_record_audio_new(WaytatorRecordAudioSources source
 //silences the microphone in the mix while muted, the rest carries on. any thread
 void waytator_record_audio_set_microphone_muted(WaytatorRecordAudio *audio,
                                                 gboolean             muted);
-//stops taking in sound, waiting for the capture thread so func is never called after this returns
+//stops taking in sound, waiting for the capture thread so func is never called after this returns. func
+//can't call it
 void waytator_record_audio_free(WaytatorRecordAudio *audio);
 
 //one microphone the system has
