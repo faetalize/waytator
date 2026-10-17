@@ -205,6 +205,18 @@ window-rule {
 }
 ```
 
+niri blurs only the wallpaper behind layer surfaces unless told otherwise. So that the recording bar and the countdown blur what's really behind them:
+
+```kdl
+// in your config.kdl
+layer-rule {
+    match namespace="^waytator-(recording|countdown)$"
+    background-effect {
+        xray false
+    }
+}
+```
+
 ### GNOME
 
 Taking a screenshot opens GNOME's own screenshot tool, and waytator edits the result. `--screen` doesn't work there.
