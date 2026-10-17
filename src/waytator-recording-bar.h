@@ -7,14 +7,18 @@ G_BEGIN_DECLS
 //counts down from seconds in big numbers in the middle of area on monitor, the part of the screen about to be
 //recorded in its logical pixels, or the whole monitor when area is NULL. a NULL monitor is whichever one the
 //desktop picks, and an area needs a monitor to be in. done is called with TRUE once it reaches 0 and is gone
-//from the screen, with FALSE when Esc cancelled it
+//from the screen, with FALSE when Esc cancelled it. the handle is good until done is called
+typedef struct _WaytatorRecordingCountdown WaytatorRecordingCountdown;
+
 typedef void (*WaytatorRecordingCountdownFunc)(gboolean finished,
                                                gpointer user_data);
-void waytator_recording_countdown_show(GdkMonitor                    *monitor,
-                                       const GdkRectangle            *area,
-                                       guint                          seconds,
-                                       WaytatorRecordingCountdownFunc done,
-                                       gpointer                       user_data);
+WaytatorRecordingCountdown *waytator_recording_countdown_show(GdkMonitor                    *monitor,
+                                                              const GdkRectangle            *area,
+                                                              guint                          seconds,
+                                                              WaytatorRecordingCountdownFunc done,
+                                                              gpointer                       user_data);
+//takes it off the screen without calling done, for a countdown called off from somewhere else
+void waytator_recording_countdown_cancel(WaytatorRecordingCountdown *countdown);
 
 typedef struct _WaytatorRecordingBar WaytatorRecordingBar;
 

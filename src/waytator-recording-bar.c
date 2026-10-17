@@ -44,16 +44,18 @@ struct _WaytatorRecordingBar {
   gpointer user_data;
 };
 
-typedef struct {
+struct _WaytatorRecordingCountdown {
   GtkWindow *window;
   GtkWidget *label;
   GtkCssProvider *pill_style;
   guint remaining;
   guint tick_id;
   guint settle_id;
+  //with nothing to count, the idle that reports it is done
+  guint start_id;
   WaytatorRecordingCountdownFunc done;
   gpointer user_data;
-} WaytatorRecordingCountdown;
+};
 
 //where the bar goes, see the header
 void
@@ -589,6 +591,7 @@ waytator_recording_countdown_free(WaytatorRecordingCountdown *countdown)
 {
   g_clear_handle_id(&countdown->tick_id, g_source_remove);
   g_clear_handle_id(&countdown->settle_id, g_source_remove);
+  g_clear_handle_id(&countdown->start_id, g_source_remove);
   waytator_recording_bar_unload_style(countdown->pill_style);
   g_free(countdown);
 }
@@ -673,13 +676,14 @@ waytator_recording_countdown_start_idle(gpointer user_data)
 {
   WaytatorRecordingCountdown *countdown = user_data;
 
+  countdown->start_id = 0;
   countdown->done(TRUE, countdown->user_data);
   waytator_recording_countdown_free(countdown);
   return G_SOURCE_REMOVE;
 }
 
 //the number sits on its own pill, so it can be read on any picture
-void
+WaytatorRecordingCountdown *
 waytator_recording_countdown_show(GdkMonitor                    *monitor,
                                   const GdkRectangle            *area,
                                   guint                          seconds,
@@ -696,8 +700,8 @@ waytator_recording_countdown_show(GdkMonitor                    *monitor,
 
   //nothing to wait for, and nothing to show
   if (seconds == 0) {
-    g_idle_add(waytator_recording_countdown_start_idle, countdown);
-    return;
+    countdown->start_id = g_idle_add(waytator_recording_countdown_start_idle, countdown);
+    return countdown;
   }
 
   countdown->window = GTK_WINDOW(gtk_window_new());
@@ -746,4 +750,14 @@ waytator_recording_countdown_show(GdkMonitor                    *monitor,
 
   countdown->tick_id = g_timeout_add(1000, waytator_recording_countdown_tick, countdown);
   gtk_window_present(countdown->window);
+  return countdown;
+}
+
+void
+waytator_recording_countdown_cancel(WaytatorRecordingCountdown *countdown)
+{
+  if (countdown->window != NULL)
+    waytator_window_destroy_settled(&countdown->window, 1);
+  countdown->window = NULL;
+  waytator_recording_countdown_free(countdown);
 }

@@ -19,7 +19,8 @@ typedef void (*WaytatorCaptureOverlayCallback)(GdkTexture         *texture,
 #define WAYTATOR_CAPTURE_SETTLE_MS 300
 
 //the hide box was flipped or a delay was picked, both need a new frame: the overlay is gone and the caller
-//takes one again, after waiting delay_seconds
+//takes one again, after waiting delay_seconds. a recording never waits for it, the countdown it has picked is
+//delay_seconds, to be given to the next overlay
 typedef void (*WaytatorCaptureOverlayRetakeCallback)(gboolean            hide_waytator,
                                                      WaytatorCaptureMode mode,
                                                      guint               delay_seconds,

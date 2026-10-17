@@ -350,8 +350,12 @@ static void
 waytator_capture_overlay_hide_toggled(GtkToggleButton        *button,
                                       WaytatorCaptureOverlay *overlay)
 {
+  //a recording keeps the countdown it has picked, it only runs after the pick
   if (waytator_capture_overlay_close(overlay))
-    overlay->retake(gtk_toggle_button_get_active(button), overlay->mode, 0, overlay->user_data);
+    overlay->retake(gtk_toggle_button_get_active(button),
+                    overlay->mode,
+                    overlay->record ? overlay->delay_seconds : 0,
+                    overlay->user_data);
 }
 
 //a recording counts down after the pick, so the overlay stays and the choice is only marked
