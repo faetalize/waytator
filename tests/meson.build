@@ -69,3 +69,13 @@ test_video_cache = executable(
   dependencies: [gobject_dep],
 )
 test('video-cache', test_video_cache)
+
+#talks to a stand-in for the screen cast portal on a bus of its own, so it needs neither a display nor the real portal
+test_record_portal = executable(
+  'test-record-portal',
+  'test-record-portal.c',
+  files('../src/waytator-record-portal.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep],
+)
+test('record-portal', test_record_portal)
