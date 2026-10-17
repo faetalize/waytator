@@ -1431,7 +1431,7 @@ waytator_video_export(WaytatorVideoSource        *source,
   ok = waytator_export_run(&exporter, partial, error);
   waytator_export_clear(&exporter);
   if (ok && g_rename(partial, path) != 0) {
-    g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Could not save %s: %s", path, g_strerror(errno));
+    g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Could not export %s: %s", path, g_strerror(errno));
     ok = FALSE;
   }
   if (!ok)

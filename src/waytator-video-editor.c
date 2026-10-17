@@ -1547,14 +1547,14 @@ waytator_video_editor_export_async(WaytatorVideoEditor        *self,
   task = g_task_new(self, NULL, callback, user_data);
   g_task_set_source_tag(task, waytator_video_editor_export_async);
   if (self->edit == NULL || self->export_cancellable != NULL) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_BUSY, "The video is already being saved");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_BUSY, "The video is already being exported");
     return;
   }
 
   state = waytator_video_edit_get_state(self->edit);
   g_task_set_task_data(task, state, (GDestroyNotify) waytator_video_state_unref);
   self->export_cancellable = g_cancellable_new();
-  label = g_strdup_printf("Saving as %s", profile->name);
+  label = g_strdup_printf("Exporting as %s", profile->name);
   gtk_label_set_text(self->export_label, label);
   gtk_progress_bar_set_fraction(self->export_progress, 0.0);
   gtk_widget_set_visible(self->export_bar, TRUE);

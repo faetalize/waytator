@@ -2447,6 +2447,7 @@ waytator_window_update_save_menu(WaytatorWindow *self)
     return;
   }
 
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_button), "Save");
   gtk_widget_set_visible(GTK_WIDGET(self->save_button), has_menu && self->folds.save);
   gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), !has_menu && self->folds.save);
 

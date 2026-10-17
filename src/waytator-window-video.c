@@ -195,7 +195,7 @@ waytator_window_video_close_request(WaytatorWindow *self)
     return FALSE;
 
   dialog = adw_alert_dialog_new("Discard the edit?",
-                                "The video's edits haven't been saved, closing throws them away.");
+                                "The video's edits haven't been exported, closing throws them away.");
   adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog),
                                  "cancel", "_Keep Editing",
                                  "discard", "_Discard",
@@ -449,7 +449,7 @@ waytator_window_video_save_as(WaytatorWindow *self)
   g_autoptr(GFile) folder = g_file_new_for_path(folder_path);
   g_autoptr(GFile) suggestion = waytator_window_video_new_file(self, profile, NULL);
 
-  gtk_file_dialog_set_title(dialog, "Save video");
+  gtk_file_dialog_set_title(dialog, "Export video");
   if (g_file_query_exists(folder, NULL))
     gtk_file_dialog_set_initial_folder(dialog, folder);
   if (suggestion != NULL) {
@@ -490,6 +490,8 @@ waytator_window_update_video_save_menu(WaytatorWindow *self)
     g_string_append_printf(key, ":%s=%s", profile->id, profile->name);
   }
 
+  //a video is exported: it always makes a new file, the one opened stays as it was
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_button), "Export");
   gtk_widget_set_visible(GTK_WIDGET(self->save_button), self->folds.save);
   gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), FALSE);
   //rebuilding it while nothing changed would close a menu that is open
@@ -502,13 +504,13 @@ waytator_window_update_video_save_menu(WaytatorWindow *self)
   for (guint i = 0; i < profiles->len; i++) {
     const WaytatorVideoProfile *profile = g_ptr_array_index(profiles, i);
     g_autofree char *description = waytator_video_profile_describe(profile);
-    g_autofree char *label = g_strdup_printf("Save as %s (%s)", profile->name, description);
+    g_autofree char *label = g_strdup_printf("Export as %s (%s)", profile->name, description);
     g_autoptr(GMenuItem) item = g_menu_item_new(label, NULL);
 
     g_menu_item_set_action_and_target_value(item, "win.video-export", g_variant_new_string(profile->id));
     g_menu_append_item(self->save_menu, item);
   }
-  g_menu_append(self->save_menu, "Save as…", "win.save-as");
+  g_menu_append(self->save_menu, "Export as…", "win.save-as");
 }
 
 static const int waytator_video_max_sizes[] = { 0, 2160, 1440, 1080, 720, 540, 480, 360 };
@@ -863,7 +865,7 @@ waytator_window_new_videos_page(WaytatorWindow *self)
   g_signal_connect(optimize_row, "notify::active", G_CALLBACK(waytator_window_optimize_media_changed), self);
   adw_preferences_group_add(editing, GTK_WIDGET(optimize_row));
 
-  adw_preferences_group_set_title(profiles, "Saving");
+  adw_preferences_group_set_title(profiles, "Exporting");
   gtk_widget_set_valign(add, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(reset, GTK_ALIGN_CENTER);
   gtk_widget_set_tooltip_text(add, "Add a profile");
