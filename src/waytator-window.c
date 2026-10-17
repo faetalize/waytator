@@ -1751,8 +1751,8 @@ waytator_window_new_recordings_group(WaytatorWindow *self)
   AdwComboRow *rate_row = ADW_COMBO_ROW(adw_combo_row_new());
   AdwSwitchRow *pointer_row = ADW_SWITCH_ROW(adw_switch_row_new());
   g_autoptr(GtkStringList) rate_model = gtk_string_list_new((const char *[]) {
-    "60 frames a second",
-    "30 frames a second, smaller files",
+    "60 fps",
+    "30 fps",
     NULL,
   });
   GtkWidget *choose_button = gtk_button_new_from_icon_name("folder-open-symbolic");
@@ -1800,7 +1800,7 @@ waytator_window_new_recordings_group(WaytatorWindow *self)
 }
 
 static AdwPreferencesPage *
-waytator_window_new_screenshots_page(WaytatorWindow *self)
+waytator_window_new_capture_page(WaytatorWindow *self)
 {
   AdwPreferencesPage *page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
   AdwPreferencesGroup *group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
@@ -1813,7 +1813,7 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
   GtkWidget *choose_button = gtk_button_new_from_icon_name("folder-open-symbolic");
   GtkWidget *clear_button = gtk_button_new_from_icon_name("window-close-symbolic");
 
-  adw_preferences_page_set_title(page, "Screenshots");
+  adw_preferences_page_set_title(page, "Capture");
   adw_preferences_page_set_icon_name(page, "camera-photo-symbolic");
   adw_preferences_group_set_title(group, "Screenshots");
   //GNOME's screenshot UI saves and copies on its own, so the folder and the copy are not waytator's to decide there
@@ -2092,7 +2092,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_preferences_page_add(shortcuts_page, color_shortcuts_group);
   waytator_window_update_shortcut_conflicts(self);
   adw_preferences_dialog_add(dialog, page);
-  adw_preferences_dialog_add(dialog, waytator_window_new_screenshots_page(self));
+  adw_preferences_dialog_add(dialog, waytator_window_new_capture_page(self));
   adw_preferences_dialog_add(dialog, waytator_window_new_videos_page(self));
   adw_preferences_dialog_add(dialog, shortcuts_page);
   adw_dialog_set_title(ADW_DIALOG(dialog), "Preferences");
