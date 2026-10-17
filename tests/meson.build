@@ -114,3 +114,17 @@ test_recording_bar_place = executable(
   dependencies: [layer_shell_dep, gtk_dep, adw_dep, m_dep],
 )
 test('recording-bar-place', test_recording_bar_place)
+
+#makes pictures and sound of its own, records them through the writer and decodes the files, with a gpu off screen when there is one
+test_record_writer = executable(
+  'test-record-writer',
+  'test-record-writer.c',
+  files(
+    '../src/waytator-record-writer.c',
+    '../src/waytator-video-cache.c',
+    '../src/waytator-video-encoder.c',
+  ),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep, m_dep, video_deps],
+)
+test('record-writer', test_record_writer, timeout: 300)
