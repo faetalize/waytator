@@ -669,7 +669,7 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
 
     gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), tooltip);
   } else {
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "Sound: volume, pitch and mute (M)");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "Sound (M)");
   }
 
   //the whole video's crop and turn
@@ -686,20 +686,6 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
                                     || crop.height != waytator_video_state_get_source_height(state));
   gtk_widget_set_tooltip_text(GTK_WIDGET(self->transform_button), "Crop the whole video (C)");
   waytator_video_editor_set_changed(self->rotate_button, waytator_video_state_get_rotation(state) != 0);
-  switch (waytator_video_state_get_rotation(state)) {
-  case 1:
-    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left, which puts it upright again");
-    break;
-  case 2:
-    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left, it is upside down now");
-    break;
-  case 3:
-    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left, it is turned left now");
-    break;
-  default:
-    gtk_widget_set_tooltip_text(self->rotate_button, "Rotate the whole video a quarter turn left");
-    break;
-  }
 
   self->updating = FALSE;
 }

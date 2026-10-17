@@ -55,7 +55,7 @@
                 <property name="margin-start">12</property>
                 <property name="margin-bottom">12</property>
                 <property name="visible">False</property>
-                <property name="tooltip-text">Making a copy of the video that scrubs instantly, see Optimize media in Preferences</property>
+                <property name="tooltip-text">See Optimize media in Preferences</property>
                 <style>
                   <class name="overlay-pill"/>
                   <class name="video-optimize-label"/>
@@ -268,17 +268,6 @@
                                 </child>
                               </object>
                             </child>
-
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label">L plays faster, J backwards, K stops</property>
-                                <property name="xalign">0</property>
-                                <style>
-                                  <class name="dim-label"/>
-                                  <class name="caption"/>
-                                </style>
-                              </object>
-                            </child>
                           </object>
                         </property>
                       </object>
@@ -400,7 +389,6 @@
                                 <child>
                                   <object class="GtkSwitch" id="pitch_follows_switch">
                                     <property name="valign">center</property>
-                                    <property name="tooltip-text">Faster sounds higher, like a tape. Off keeps the pitch</property>
                                   </object>
                                 </child>
                               </object>
@@ -629,6 +617,7 @@
                 <child>
                   <object class="GtkButton" id="rotate_button">
                     <property name="icon-name">waytator-rotate-counter-clockwise-symbolic</property>
+                    <property name="tooltip-text">Rotate the whole video a quarter turn left</property>
                     <property name="action-name">video.rotate</property>
                     <style>
                       <class name="flat"/>
@@ -762,7 +751,6 @@
 
                     <child>
                       <object class="GtkLabel" id="transform_size_label">
-                        <property name="tooltip-text">The size the crop makes the video</property>
                         <style>
                           <class name="video-dim-label"/>
                           <class name="numeric"/>

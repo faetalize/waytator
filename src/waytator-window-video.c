@@ -194,8 +194,7 @@ waytator_window_video_close_request(WaytatorWindow *self)
       || !waytator_video_editor_has_unsaved_changes(WAYTATOR_VIDEO_EDITOR(self->video_editor)))
     return FALSE;
 
-  dialog = adw_alert_dialog_new("Discard the edit?",
-                                "The video's edits haven't been exported, closing throws them away.");
+  dialog = adw_alert_dialog_new("Discard the edit?", NULL);
   adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog),
                                  "cancel", "_Keep Editing",
                                  "discard", "_Discard",
