@@ -21,6 +21,8 @@ waytator_sources = files(
   'waytator-capture.h',
   'waytator-capture-overlay.c',
   'waytator-capture-overlay.h',
+  'waytator-clipboard.c',
+  'waytator-clipboard.h',
   'waytator-document.c',
   'waytator-document.h',
   'waytator-export.c',
