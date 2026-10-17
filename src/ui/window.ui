@@ -120,7 +120,7 @@
 
                     <child>
                       <object class="GtkButton">
-                        <property name="sensitive">False</property>
+                        <property name="action-name">win.record-area</property>
                         <style>
                           <class name="home-action"/>
                         </style>
@@ -139,15 +139,6 @@
                                 <property name="label">Record</property>
                                 <property name="xalign">0</property>
                                 <property name="hexpand">True</property>
-                              </object>
-                            </child>
-
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label">Soon</property>
-                                <style>
-                                  <class name="home-hint"/>
-                                </style>
                               </object>
                             </child>
                           </object>
