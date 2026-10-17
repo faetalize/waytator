@@ -712,6 +712,21 @@ videotimeline > accent {
   padding: 0 8px;
 }
 
+.video-editor button.video-footer-button {
+  min-height: 0;
+  min-width: 0;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  color: white;
+  background: transparent;
+  box-shadow: none;
+}
+
+.video-editor button.video-footer-button:hover {
+  background: alpha(white, 0.1);
+}
+
 .video-dim-label {
   color: alpha(white, 0.7);
   font-size: 0.9em;

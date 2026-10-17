@@ -290,7 +290,7 @@ struct _WaytatorVideoEditor {
   WaytatorVideoView *view;
   GtkWidget *loading_box;
   GtkLabel *loading_label;
-  GtkWidget *transform_bar;
+  GtkWidget *crop_status;
   GtkLabel *transform_size_label;
   GtkWidget *export_bar;
   GtkLabel *optimize_label;
@@ -890,7 +890,7 @@ waytator_video_editor_set_cropping(WaytatorVideoEditor *self,
 
   self->cropping = cropping;
   waytator_video_view_set_cropping(self->view, cropping);
-  gtk_widget_set_visible(self->transform_bar, cropping);
+  gtk_widget_set_visible(self->crop_status, cropping);
   gtk_toggle_button_set_active(self->transform_button, cropping);
   g_object_notify_by_pspec(G_OBJECT(self), waytator_video_editor_props[PROP_CROPPING]);
 }
@@ -1958,7 +1958,7 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, view);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, loading_box);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, loading_label);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, transform_bar);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, crop_status);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, transform_size_label);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, export_bar);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, optimize_label);

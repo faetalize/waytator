@@ -101,60 +101,6 @@
                 </child>
               </object>
             </child>
-
-            <child type="overlay">
-              <object class="GtkBox" id="transform_bar">
-                <property name="halign">center</property>
-                <property name="valign">end</property>
-                <property name="margin-bottom">12</property>
-                <property name="spacing">4</property>
-                <property name="visible">False</property>
-                <style>
-                  <class name="overlay-pill"/>
-                  <class name="tool-group"/>
-                  <class name="video-transform-bar"/>
-                </style>
-
-                <child>
-                  <object class="GtkLabel">
-                    <property name="label">Drag to crop</property>
-                    <property name="margin-start">8</property>
-                    <property name="margin-end">4</property>
-                  </object>
-                </child>
-
-                <child>
-                  <object class="GtkLabel" id="transform_size_label">
-                    <property name="margin-end">4</property>
-                    <style>
-                      <class name="video-dim-label"/>
-                      <class name="numeric"/>
-                    </style>
-                  </object>
-                </child>
-
-                <child>
-                  <object class="GtkButton">
-                    <property name="label">Reset</property>
-                    <property name="tooltip-text">Keep the whole picture</property>
-                    <property name="action-name">video.reset-transform</property>
-                    <style>
-                      <class name="video-text-button"/>
-                    </style>
-                  </object>
-                </child>
-
-                <child>
-                  <object class="GtkButton">
-                    <property name="label">Done</property>
-                    <property name="action-name">video.transform</property>
-                    <style>
-                      <class name="video-text-button"/>
-                    </style>
-                  </object>
-                </child>
-              </object>
-            </child>
           </object>
         </child>
 
@@ -798,12 +744,43 @@
 
                 <child>
                   <object class="GtkLabel" id="scope_label">
+                    <property name="hexpand">True</property>
                     <property name="xalign">0</property>
                     <property name="ellipsize">end</property>
                     <style>
                       <class name="video-dim-label"/>
                       <class name="numeric"/>
                     </style>
+                  </object>
+                </child>
+
+                <!-- the mode on the right: while cropping, the size it makes and a way back to the whole picture -->
+                <child>
+                  <object class="GtkBox" id="crop_status">
+                    <property name="spacing">8</property>
+                    <property name="visible">False</property>
+
+                    <child>
+                      <object class="GtkLabel" id="transform_size_label">
+                        <property name="tooltip-text">The size the crop makes the video</property>
+                        <style>
+                          <class name="video-dim-label"/>
+                          <class name="numeric"/>
+                        </style>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkButton">
+                        <property name="label">Reset</property>
+                        <property name="tooltip-text">Keep the whole picture</property>
+                        <property name="action-name">video.reset-transform</property>
+                        <property name="valign">center</property>
+                        <style>
+                          <class name="video-footer-button"/>
+                        </style>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>
