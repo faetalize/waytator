@@ -27,8 +27,8 @@ waytator_countdown_init_layer(GtkWindow  *window,
   gtk_layer_set_layer(window, GTK_LAYER_SHELL_LAYER_OVERLAY);
   gtk_layer_set_monitor(window, monitor);
   gtk_layer_set_exclusive_zone(window, -1);
-  //Esc calls it off
-  gtk_layer_set_keyboard_mode(window, GTK_LAYER_SHELL_KEYBOARD_MODE_EXCLUSIVE);
+  //the wait is for getting the screen ready, typing included, so the keyboard stays with whatever has it
+  gtk_layer_set_keyboard_mode(window, GTK_LAYER_SHELL_KEYBOARD_MODE_NONE);
 }
 
 static void
@@ -104,6 +104,19 @@ waytator_countdown_tick(gpointer user_data)
   return G_SOURCE_CONTINUE;
 }
 
+//called off from the countdown itself, which goes at once
+static void
+waytator_countdown_call_off(WaytatorCountdown *countdown)
+{
+  g_clear_handle_id(&countdown->tick_id, g_source_remove);
+  waytator_window_destroy_settled(&countdown->window, 1);
+  countdown->window = NULL;
+  countdown->done(FALSE, countdown->user_data);
+  //this runs inside a handler of the window that just went
+  g_idle_add(waytator_countdown_free_idle, countdown);
+}
+
+//where the countdown has the keyboard anyway, as the window it is without layer shell
 static gboolean
 waytator_countdown_key_pressed(GtkEventControllerKey *controller,
                                guint                  keyval,
@@ -118,13 +131,24 @@ waytator_countdown_key_pressed(GtkEventControllerKey *controller,
   if (keyval != GDK_KEY_Escape || countdown->window == NULL)
     return GDK_EVENT_PROPAGATE;
 
-  g_clear_handle_id(&countdown->tick_id, g_source_remove);
-  waytator_window_destroy_settled(&countdown->window, 1);
-  countdown->window = NULL;
-  countdown->done(FALSE, countdown->user_data);
-  //this runs inside a handler of the window that just went
-  g_idle_add(waytator_countdown_free_idle, countdown);
+  waytator_countdown_call_off(countdown);
   return GDK_EVENT_STOP;
+}
+
+static void
+waytator_countdown_clicked(GtkGestureClick   *gesture,
+                           int                n_press,
+                           double             x,
+                           double             y,
+                           WaytatorCountdown *countdown)
+{
+  (void) gesture;
+  (void) n_press;
+  (void) x;
+  (void) y;
+
+  if (countdown->window != NULL)
+    waytator_countdown_call_off(countdown);
 }
 
 static gboolean
@@ -148,6 +172,7 @@ waytator_countdown_show(GdkMonitor           *monitor,
 {
   WaytatorCountdown *countdown = g_new0(WaytatorCountdown, 1);
   GtkEventController *keys;
+  GtkGesture *click;
 
   countdown->pill_style = waytator_capture_overlay_load_pill_style();
   countdown->remaining = seconds;
@@ -175,6 +200,10 @@ waytator_countdown_show(GdkMonitor           *monitor,
   gtk_event_controller_set_propagation_phase(keys, GTK_PHASE_CAPTURE);
   g_signal_connect(keys, "key-pressed", G_CALLBACK(waytator_countdown_key_pressed), countdown);
   gtk_widget_add_controller(GTK_WIDGET(countdown->window), keys);
+  click = gtk_gesture_click_new();
+  g_signal_connect(click, "released", G_CALLBACK(waytator_countdown_clicked), countdown);
+  gtk_widget_add_controller(countdown->label, GTK_EVENT_CONTROLLER(click));
+  gtk_widget_set_tooltip_text(countdown->label, "Click to cancel");
 
   //gnome has no layer shell, there the desktop places the window
   if (gtk_layer_is_supported()) {
