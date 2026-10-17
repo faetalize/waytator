@@ -396,7 +396,7 @@ waytator_window_video_saved(GObject      *source_object,
   waytator_window_video_save_free(save);
 }
 
-//the profile Copy and the export shortcuts use, the first one if the one picked has gone
+//the profile Copy uses, the first one if the one picked has gone
 static const char *
 waytator_window_video_default_profile(WaytatorWindow *self,
                                       GPtrArray      *profiles)
@@ -1045,8 +1045,6 @@ waytator_window_new_videos_page(WaytatorWindow *self)
   profiles_page->rows = g_ptr_array_new();
   profiles_page->copy_row = ADW_COMBO_ROW(adw_combo_row_new());
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(profiles_page->copy_row), "Profile used for Copy");
-  adw_action_row_set_subtitle(ADW_ACTION_ROW(profiles_page->copy_row),
-                              "Also used when exporting with a keyboard shortcut, like Ctrl+S");
   adw_preferences_group_add(profiles, GTK_WIDGET(profiles_page->copy_row));
   g_signal_connect(profiles_page->copy_row, "notify::selected",
                    G_CALLBACK(waytator_video_profiles_copy_changed), profiles_page);
