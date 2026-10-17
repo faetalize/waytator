@@ -282,6 +282,29 @@ waytator_video_timeline_block_continues(WaytatorVideoState *state,
       && waytator_video_state_edge_continues(state, waytator_video_timeline_block(blocks, index)->first);
 }
 
+//what grabbing an edge does and to which segment: where a setting changes it moves the edge, at a cut it trims
+//the block on the side the pointer is on, the end of the one before or the start of the one after
+static WaytatorTimelineDragMode
+waytator_video_timeline_edge_mode(WaytatorVideoTimeline     *self,
+                                  const WaytatorTimelineHit *hit,
+                                  guint                     *segment)
+{
+  GArray *blocks = self->blocks[hit->rail];
+  const guint edge = hit->block;
+
+  if (waytator_video_timeline_block_continues(self->state, blocks, edge)) {
+    *segment = waytator_video_timeline_block(blocks, edge)->first;
+    return WAYTATOR_TIMELINE_DRAG_EDGE;
+  }
+  if ((hit->before && edge > 0) || edge == blocks->len) {
+    *segment = waytator_video_timeline_block(blocks, edge - 1)->last;
+    return WAYTATOR_TIMELINE_DRAG_TRIM_END;
+  }
+
+  *segment = waytator_video_timeline_block(blocks, edge)->first;
+  return WAYTATOR_TIMELINE_DRAG_TRIM_START;
+}
+
 static double
 waytator_video_timeline_fit_scale(WaytatorVideoTimeline *self)
 {
@@ -1649,6 +1672,93 @@ waytator_video_timeline_draw_scrollbar(WaytatorVideoTimeline         *self,
                                          &thumb);
 }
 
+//the handle on an edge: a bracket hugging the block a trim changes, [ on its start and ] on its end, or a
+//plain line where only a setting changes
+static void
+waytator_video_timeline_draw_handle(GtkSnapshot              *snapshot,
+                                    const graphene_rect_t    *row,
+                                    double                    x,
+                                    WaytatorTimelineDragMode  mode,
+                                    const GdkRGBA            *color)
+{
+  const GdkRGBA rim = { 0, 0, 0, 0.55f };
+  const double bar = 3;
+  const double arm = 7;
+  const double top = row->origin.y;
+  const double height = row->size.height;
+  double left;
+  double arm_x;
+
+  if (mode == WAYTATOR_TIMELINE_DRAG_EDGE) {
+    waytator_video_timeline_append_rounded(snapshot,
+                                           &GRAPHENE_RECT_INIT(round(x) - 1, top + 2, 2, height - 4),
+                                           1,
+                                           color);
+    return;
+  }
+
+  left = mode == WAYTATOR_TIMELINE_DRAG_TRIM_START ? round(x) : round(x) - bar;
+  arm_x = mode == WAYTATOR_TIMELINE_DRAG_TRIM_START ? left : left + bar - arm;
+  //a dark rim first, so the bracket stands out on the brightest picture
+  for (int pass = 0; pass < 2; pass++) {
+    const double grow = pass == 0 ? 1 : 0;
+    const GdkRGBA *paint = pass == 0 ? &rim : color;
+
+    waytator_video_timeline_append_rounded(snapshot,
+                                           &GRAPHENE_RECT_INIT(left - grow, top - grow, bar + 2 * grow, height + 2 * grow),
+                                           1.5 + grow,
+                                           paint);
+    waytator_video_timeline_append_rounded(snapshot,
+                                           &GRAPHENE_RECT_INIT(arm_x - grow, top - grow, arm + 2 * grow, bar + 2 * grow),
+                                           1.5 + grow,
+                                           paint);
+    waytator_video_timeline_append_rounded(snapshot,
+                                           &GRAPHENE_RECT_INIT(arm_x - grow, top + height - bar - grow,
+                                                               arm + 2 * grow, bar + 2 * grow),
+                                           1.5 + grow,
+                                           paint);
+  }
+}
+
+//how much the block being trimmed has grown or shrunk, in the ruler above its edge
+static void
+waytator_video_timeline_draw_trim_change(WaytatorVideoTimeline *self,
+                                         GtkSnapshot           *snapshot,
+                                         double                 x)
+{
+  const guint index = self->drag.segment;
+  g_autoptr(PangoLayout) layout = NULL;
+  PangoRectangle extents;
+  gint64 change;
+  char number[32];
+  char text[48];
+  double width;
+
+  if (index >= waytator_video_state_get_n_segments(self->drag.state))
+    return;
+
+  change = waytator_video_state_get_segment_end(self->state, index)
+         - waytator_video_state_get_segment_start(self->state, index)
+         - (waytator_video_state_get_segment_end(self->drag.state, index)
+            - waytator_video_state_get_segment_start(self->drag.state, index));
+  waytator_video_timeline_format_number((double) llabs(change) / WAYTATOR_VIDEO_SECOND, number, sizeof number);
+  //a real minus, the hyphen reads as a dash beside the plus
+  g_snprintf(text, sizeof text, "%s%s s", change > 0 ? "+" : change < 0 ? "−" : "", number);
+
+  layout = waytator_video_timeline_text_layout(self, 0.72, TRUE);
+  pango_layout_set_text(layout, text, -1);
+  pango_layout_get_pixel_extents(layout, NULL, &extents);
+  width = extents.width + 10;
+  waytator_video_timeline_draw_badge(self,
+                                     snapshot,
+                                     layout,
+                                     text,
+                                     NULL,
+                                     CLAMP(x - width / 2, self->gutter, gtk_widget_get_width(GTK_WIDGET(self)) - width),
+                                     self->ruler.origin.y + (self->ruler.size.height - WAYTATOR_TIMELINE_BADGE_HEIGHT) / 2,
+                                     width);
+}
+
 static void
 waytator_video_timeline_draw_overlay(WaytatorVideoTimeline         *self,
                                      GtkSnapshot                   *snapshot,
@@ -1687,18 +1797,20 @@ waytator_video_timeline_draw_overlay(WaytatorVideoTimeline         *self,
                               &GRAPHENE_RECT_INIT(x0, self->ruler.origin.y + self->ruler.size.height - 4, x1 - x0, 4));
   }
 
-  if (self->drag.mode == WAYTATOR_TIMELINE_DRAG_NONE && self->hover.kind == WAYTATOR_TIMELINE_HIT_EDGE) {
+  if (self->drag.mode == WAYTATOR_TIMELINE_DRAG_NONE && self->hover.kind == WAYTATOR_TIMELINE_HIT_EDGE
+      && self->state != NULL) {
     const graphene_rect_t *row = &self->rails[self->hover.rail];
     const double x = waytator_video_timeline_x(self,
                                                waytator_video_timeline_edge_time(self->blocks[self->hover.rail],
                                                                                  self->hover.block));
-    const GdkRGBA color = waytator_video_timeline_alpha(&palette->foreground, 0.75f);
+    const GdkRGBA color = waytator_video_timeline_alpha(&palette->foreground, 0.95f);
+    guint segment;
 
-    waytator_video_timeline_append_rounded(snapshot,
-                                           &GRAPHENE_RECT_INIT(round(x) - 1, row->origin.y + 2,
-                                                               2, row->size.height - 4),
-                                           1,
-                                           &color);
+    waytator_video_timeline_draw_handle(snapshot,
+                                        row,
+                                        x,
+                                        waytator_video_timeline_edge_mode(self, &self->hover, &segment),
+                                        &color);
   } else if (waytator_video_timeline_drag_edits(self)
              && self->drag.segment < waytator_video_state_get_n_segments(self->state)) {
     const graphene_rect_t *row = &self->rails[self->drag.hit.rail];
@@ -1707,11 +1819,9 @@ waytator_video_timeline_draw_overlay(WaytatorVideoTimeline         *self,
                       : waytator_video_state_get_segment_start(self->state, self->drag.segment);
     const double x = waytator_video_timeline_x(self, time);
 
-    waytator_video_timeline_append_rounded(snapshot,
-                                           &GRAPHENE_RECT_INIT(round(x) - 1.5, row->origin.y - 2,
-                                                               3, row->size.height + 4),
-                                           1.5,
-                                           &palette->accent);
+    waytator_video_timeline_draw_handle(snapshot, row, x, self->drag.mode, &palette->accent);
+    if (self->drag.mode != WAYTATOR_TIMELINE_DRAG_EDGE && self->drag.moved)
+      waytator_video_timeline_draw_trim_change(self, snapshot, x);
   }
 
   if (self->drag.mode == WAYTATOR_TIMELINE_DRAG_MOVE)
@@ -1912,6 +2022,20 @@ waytator_video_timeline_hit(WaytatorVideoTimeline *self,
   }
 }
 
+//the end of a block moves right and its start left, so the pointer says which side is held
+static const char *
+waytator_video_timeline_edge_cursor(WaytatorTimelineDragMode mode)
+{
+  switch (mode) {
+  case WAYTATOR_TIMELINE_DRAG_TRIM_START:
+    return "w-resize";
+  case WAYTATOR_TIMELINE_DRAG_TRIM_END:
+    return "e-resize";
+  default:
+    return "col-resize";
+  }
+}
+
 static void
 waytator_video_timeline_set_cursor(WaytatorVideoTimeline *self)
 {
@@ -1925,11 +2049,14 @@ waytator_video_timeline_set_cursor(WaytatorVideoTimeline *self)
   case WAYTATOR_TIMELINE_DRAG_TRIM_START:
   case WAYTATOR_TIMELINE_DRAG_TRIM_END:
   case WAYTATOR_TIMELINE_DRAG_EDGE:
-    name = "col-resize";
+    name = waytator_video_timeline_edge_cursor(self->drag.mode);
     break;
   case WAYTATOR_TIMELINE_DRAG_NONE:
-    if (self->hover.kind == WAYTATOR_TIMELINE_HIT_EDGE)
-      name = "col-resize";
+    if (self->hover.kind == WAYTATOR_TIMELINE_HIT_EDGE && self->state != NULL) {
+      guint segment;
+
+      name = waytator_video_timeline_edge_cursor(waytator_video_timeline_edge_mode(self, &self->hover, &segment));
+    }
     break;
   default:
     break;
@@ -2004,21 +2131,10 @@ waytator_video_timeline_snap(WaytatorVideoTimeline *self,
 static void
 waytator_video_timeline_begin_edge(WaytatorVideoTimeline *self)
 {
-  const int rail = self->drag.hit.rail;
-  GArray *blocks = self->blocks[rail];
+  GArray *blocks = self->blocks[self->drag.hit.rail];
   const guint edge = self->drag.hit.block;
 
-  if (waytator_video_timeline_block_continues(self->state, blocks, edge)) {
-    self->drag.mode = WAYTATOR_TIMELINE_DRAG_EDGE;
-    self->drag.segment = waytator_video_timeline_block(blocks, edge)->first;
-  } else if ((self->drag.hit.before && edge > 0) || edge == blocks->len) {
-    //the left side of a cut is the end of the block before it
-    self->drag.mode = WAYTATOR_TIMELINE_DRAG_TRIM_END;
-    self->drag.segment = waytator_video_timeline_block(blocks, edge - 1)->last;
-  } else {
-    self->drag.mode = WAYTATOR_TIMELINE_DRAG_TRIM_START;
-    self->drag.segment = waytator_video_timeline_block(blocks, edge)->first;
-  }
+  self->drag.mode = waytator_video_timeline_edge_mode(self, &self->drag.hit, &self->drag.segment);
   self->drag.anchor = waytator_video_timeline_edge_time(blocks, edge);
 
   //edges catch on the playhead and on every other edge, of either rail

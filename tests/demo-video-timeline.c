@@ -44,7 +44,7 @@ static const GOptionEntry demo_options[] = {
   { "width", 0, 0, G_OPTION_ARG_INT, &option_width, "Window width", "PX" },
   { "height", 0, 0, G_OPTION_ARG_INT, &option_height, "Window height", "PX" },
   { "zoom", 0, 0, G_OPTION_ARG_STRING, &option_zoom, "fit, out, seconds or frames", "ZOOM" },
-  { "scenario", 0, 0, G_OPTION_ARG_STRING, &option_scenario, "select, range, move, trim or hover", "NAME" },
+  { "scenario", 0, 0, G_OPTION_ARG_STRING, &option_scenario, "select, range, move, trim, grow, hover, hover-end or hover-start", "NAME" },
   { "pill", 0, 0, G_OPTION_ARG_NONE, &option_pill, "Put the timeline on a dark floating pill", NULL },
   { "check", 0, 0, G_OPTION_ARG_NONE, &option_check, "Drive the handlers, check the results and quit", NULL },
   { "playhead", 0, 0, G_OPTION_ARG_DOUBLE, &option_playhead, "Where the playhead is, in seconds", "S" },
@@ -597,6 +597,13 @@ demo_set_scenario(Demo *demo)
     demo_drag(demo, demo_x(demo, 20) + 3, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO), demo_x(demo, 20) + 60, 0, FALSE);
   } else if (g_strcmp0(option_scenario, "hover") == 0) {
     waytator_video_timeline_pointer_motion(NULL, demo_x(demo, 45) + 2, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_AUDIO), timeline);
+  } else if (g_strcmp0(option_scenario, "hover-end") == 0) {
+    waytator_video_timeline_pointer_motion(NULL, demo_x(demo, 20) - 3, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO), timeline);
+  } else if (g_strcmp0(option_scenario, "hover-start") == 0) {
+    waytator_video_timeline_pointer_motion(NULL, demo_x(demo, 20) + 3, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO), timeline);
+  } else if (g_strcmp0(option_scenario, "grow") == 0) {
+    //the end of the first block pulled out across the plain split after it, which moves the cut
+    demo_drag(demo, demo_x(demo, 20) - 3, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO), demo_x(demo, 22.5) - 3, 0, FALSE);
   }
 }
 

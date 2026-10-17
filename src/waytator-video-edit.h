@@ -168,8 +168,9 @@ gboolean waytator_video_edit_move(WaytatorVideoEdit *self,
                                   guint              first,
                                   guint              n,
                                   guint              before);
-//moves an edge of a segment to the frame edge nearest the source time. it can reach as far as the
-//source goes, and leaves at least one frame
+//moves an edge of a segment to the frame edge nearest the source time, leaving at least one frame. growing,
+//it takes in footage nothing else shows. reaching footage the segment across the cut shows, it moves the cut,
+//that one giving it up down to its last frame, and reaching footage shown anywhere else it stops
 gboolean waytator_video_edit_trim_start(WaytatorVideoEdit *self,
                                         guint              index,
                                         gint64             source_time);

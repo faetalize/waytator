@@ -309,13 +309,72 @@ test_trim(void)
   g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(900));
   g_clear_pointer(&state, waytator_video_state_unref);
 
-  //an edge can be pulled back out over what was trimmed, as far as the source goes
+  //pulled back out, an edge takes in what was trimmed, then moves the cut into the piece after, which keeps
+  //its last frame: the footage never shows twice
   g_assert_true(waytator_video_edit_trim_end(edit, 0, MS(5000)));
+  state = waytator_video_edit_get_state(edit);
+  g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(900));
+  g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(900));
+  g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(1000));
+  g_clear_pointer(&state, waytator_video_state_unref);
+
+  //the other way the piece before gives up all but its first frame
   g_assert_true(waytator_video_edit_trim_start(edit, 1, MS(-5000)));
   state = waytator_video_edit_get_state(edit);
-  g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(1000));
-  g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, 0);
-  g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(2000));
+  g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(100));
+  g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(100));
+  g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(1000));
+}
+
+//split in three with the middle cut out: either side grows back over the middle, the end of the first or the
+//start of the last, and goes on into the other by moving the cut
+static void
+test_trim_into_gap(void)
+{
+  g_autoptr(WaytatorVideoEdit) edit = make_edit();
+
+  g_assert_true(waytator_video_edit_split(edit, MS(300)));
+  g_assert_true(waytator_video_edit_split(edit, MS(600)));
+  g_assert_true(waytator_video_edit_remove(edit, MS(300), MS(600)));
+
+  g_assert_true(waytator_video_edit_trim_end(edit, 0, MS(440)));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(400));
+    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(600));
+  }
+
+  g_assert_true(waytator_video_edit_trim_start(edit, 1, MS(200)));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(200));
+    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(200));
+    g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(1000));
+  }
+}
+
+//footage a piece further along shows stops an edge, there is no cut to move
+static void
+test_trim_stops_at_used(void)
+{
+  g_autoptr(WaytatorVideoEdit) edit = make_edit();
+
+  g_assert_true(waytator_video_edit_split(edit, MS(300)));
+  g_assert_true(waytator_video_edit_split(edit, MS(700)));
+  g_assert_true(waytator_video_edit_trim_end(edit, 0, MS(200)));
+  //the end goes between the two: 0-200, 700-1000, 300-700
+  g_assert_true(waytator_video_edit_move(edit, 2, 1, 1));
+  g_assert_true(waytator_video_edit_trim_end(edit, 0, MS(900)));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(300));
+    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(700));
+    g_assert_cmpint(waytator_video_state_get_segment(state, 2)->source_start, ==, MS(300));
+    g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(1000));
+  }
 }
 
 static void
@@ -476,6 +535,8 @@ main(int   argc,
   g_test_add_func("/video-edit/speed-rounding", test_speed_rounding);
   g_test_add_func("/video-edit/remove", test_remove);
   g_test_add_func("/video-edit/trim", test_trim);
+  g_test_add_func("/video-edit/trim-into-gap", test_trim_into_gap);
+  g_test_add_func("/video-edit/trim-stops-at-used", test_trim_stops_at_used);
   g_test_add_func("/video-edit/group", test_group);
   g_test_add_func("/video-edit/move-edge", test_move_edge);
   g_test_add_func("/video-edit/crop-rotation", test_crop_rotation);

@@ -754,6 +754,50 @@ waytator_video_state_nearest_edge(const WaytatorVideoState *state,
   return source_time - start <= end - source_time ? start : end;
 }
 
+//where the footage the other segments show starts or ends nearest a source time, before it or after it, and
+//which segment that is, G_MAXUINT for none. an edge growing over footage stops there rather than show it twice
+static gint64
+waytator_video_state_used_before(const WaytatorVideoState *state,
+                                 guint                     index,
+                                 gint64                    time,
+                                 guint                    *owner)
+{
+  gint64 limit = 0;
+
+  *owner = G_MAXUINT;
+  for (guint i = 0; i < state->segments->len; i++) {
+    const WaytatorVideoSegment *other = &g_array_index(state->segments, WaytatorVideoSegment, i);
+
+    if (i != index && other->source_end <= time && other->source_end >= limit) {
+      limit = other->source_end;
+      *owner = i;
+    }
+  }
+
+  return limit;
+}
+
+static gint64
+waytator_video_state_used_after(const WaytatorVideoState *state,
+                                guint                     index,
+                                gint64                    time,
+                                guint                    *owner)
+{
+  gint64 limit = state->frames->duration;
+
+  *owner = G_MAXUINT;
+  for (guint i = 0; i < state->segments->len; i++) {
+    const WaytatorVideoSegment *other = &g_array_index(state->segments, WaytatorVideoSegment, i);
+
+    if (i != index && other->source_start >= time && other->source_start <= limit) {
+      limit = other->source_start;
+      *owner = i;
+    }
+  }
+
+  return limit;
+}
+
 gboolean
 waytator_video_edit_trim_start(WaytatorVideoEdit *self,
                                guint              index,
@@ -762,6 +806,7 @@ waytator_video_edit_trim_start(WaytatorVideoEdit *self,
   WaytatorVideoState *state;
   WaytatorVideoSegment *segment;
   guint last_frame;
+  gint64 start;
 
   if (index >= self->state->segments->len)
     return FALSE;
@@ -769,8 +814,24 @@ waytator_video_edit_trim_start(WaytatorVideoEdit *self,
   state = waytator_video_state_copy(self->state);
   segment = waytator_video_state_segment(state, index);
   last_frame = waytator_video_frames_find(state->frames, segment->source_end - 1);
-  segment->source_start = MIN(waytator_video_state_nearest_edge(state, MAX(source_time, 0)),
-                              state->frames->pts[last_frame]);
+  start = waytator_video_state_nearest_edge(state, MAX(source_time, 0));
+  if (start < segment->source_start) {
+    guint owner;
+    const gint64 limit = waytator_video_state_used_before(state, index, segment->source_start, &owner);
+
+    //footage another segment shows: the one just before across the cut gives it up, the cut moving along,
+    //anywhere else it stops the edge
+    if (start < limit && index > 0 && owner == index - 1) {
+      WaytatorVideoSegment *before = waytator_video_state_segment(state, index - 1);
+
+      start = MAX(start, waytator_video_frames_end(state->frames,
+                                                   waytator_video_frames_find(state->frames, before->source_start)));
+      before->source_end = start;
+    } else {
+      start = MAX(start, limit);
+    }
+  }
+  segment->source_start = MIN(start, state->frames->pts[last_frame]);
   segment->continues = FALSE;
 
   return waytator_video_edit_commit(self, state);
@@ -784,6 +845,7 @@ waytator_video_edit_trim_end(WaytatorVideoEdit *self,
   WaytatorVideoState *state;
   WaytatorVideoSegment *segment;
   guint first_frame;
+  gint64 end;
 
   if (index >= self->state->segments->len)
     return FALSE;
@@ -791,8 +853,21 @@ waytator_video_edit_trim_end(WaytatorVideoEdit *self,
   state = waytator_video_state_copy(self->state);
   segment = waytator_video_state_segment(state, index);
   first_frame = waytator_video_frames_find(state->frames, segment->source_start);
-  segment->source_end = MAX(waytator_video_state_nearest_edge(state, MIN(source_time, state->frames->duration)),
-                            waytator_video_frames_end(state->frames, first_frame));
+  end = waytator_video_state_nearest_edge(state, MIN(source_time, state->frames->duration));
+  if (end > segment->source_end) {
+    guint owner;
+    const gint64 limit = waytator_video_state_used_after(state, index, segment->source_end, &owner);
+
+    if (end > limit && owner == index + 1) {
+      WaytatorVideoSegment *after = waytator_video_state_segment(state, index + 1);
+
+      end = MIN(end, state->frames->pts[waytator_video_frames_find(state->frames, after->source_end - 1)]);
+      after->source_start = end;
+    } else {
+      end = MIN(end, limit);
+    }
+  }
+  segment->source_end = MAX(end, waytator_video_frames_end(state->frames, first_frame));
   if (index + 1 < state->segments->len)
     waytator_video_state_segment(state, index + 1)->continues = FALSE;
 
