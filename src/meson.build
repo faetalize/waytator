@@ -48,6 +48,8 @@ waytator_sources = files(
   'waytator-video-edit.h',
   'waytator-video-editor.c',
   'waytator-video-editor.h',
+  'waytator-video-encoder.c',
+  'waytator-video-encoder.h',
   'waytator-video-export.c',
   'waytator-video-export.h',
   'waytator-video-frames.h',

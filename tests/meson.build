@@ -12,6 +12,7 @@ test_video_source = executable(
   'test-video-source',
   'test-video-source.c',
   files(
+    '../src/waytator-video-encoder.c',
     '../src/waytator-video-frames.c',
     '../src/waytator-video-source.c',
     '../src/waytator-video-thumbnails.c',
@@ -48,6 +49,7 @@ test_video_export = executable(
   'test-video-export.c',
   files(
     '../src/waytator-video-audio.c',
+    '../src/waytator-video-encoder.c',
     '../src/waytator-video-export.c',
     '../src/waytator-video-cache.c',
     '../src/waytator-video-profile.c',
