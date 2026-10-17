@@ -125,18 +125,16 @@ Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change 
 
 ### Editing videos
 
-Open a screen recording or any other video to cut it down, then copy or save it:
+Open a screen recording or any other video to edit it, then copy or save it:
 
 ```bash
 waytator path/to/recording.mp4      # open a video
 cat recording.mkv | waytator        # open a video piped in
 ```
 
-The timeline shows the picture and the sound under a ruler, and zooms in down to single frames, or out until the whole recording fits beside the edit so a trimmed end can be pulled back out in one drag. Split at the playhead with `S`, select part of the timeline and cut it out with `Delete`, drag pieces to reorder them and drag their edges to trim. Ctrl and a click picks several pieces at once, and two pieces side by side can be joined back together. Speed, flips and sound (volume, pitch and mute) change the selection, or the whole video when nothing is selected, and a tool glows while what it sets differs from the original. `C` crops the whole video, and the rotate button turns it a quarter at a time.
+Available functions: cropping, trimming, rotation, horizontal and vertical flipping, splitting, deletion of segments, muting, audio gain changes, pitch, speed changing, joins.
 
-`Space` plays and pauses, `J`, `K` and `L` play backwards and forwards at speed, and the arrow keys step a frame at a time.
-
-Save offers four export profiles, Share, Small, High quality and GIF, which can be changed in Preferences → Videos. Copy saves with the first one into your Videos folder and puts the file on the clipboard. Turn on Optimize media there for instant scrubbing through long recordings.
+There's a timeline track for 'objects', it isn't used yet, but it will be in the future for video annotations.
 
 ### Taking screenshots
 

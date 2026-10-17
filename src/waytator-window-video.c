@@ -858,18 +858,12 @@ waytator_window_new_videos_page(WaytatorWindow *self)
 
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(optimize_row), "Optimize media");
   adw_action_row_set_subtitle(ADW_ACTION_ROW(optimize_row),
-                              "Makes a copy of each video in the background where every frame can be shown "
-                              "at once, so scrubbing and stepping back are instant. It costs graphics card "
-                              "time and disk space while it is made");
+                              "Turn this on if you have scrubbing performance issues – recommended off");
   adw_switch_row_set_active(optimize_row, self->settings.video_optimize_media);
   g_signal_connect(optimize_row, "notify::active", G_CALLBACK(waytator_window_optimize_media_changed), self);
   adw_preferences_group_add(editing, GTK_WIDGET(optimize_row));
 
   adw_preferences_group_set_title(profiles, "Saving");
-  adw_preferences_group_set_description(profiles,
-                                        "Each profile is a way to save videos, offered in the Save menu. "
-                                        "Copy saves with the first one and puts the file on the clipboard. "
-                                        "Videos are saved in your Videos folder");
   gtk_widget_set_valign(add, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(reset, GTK_ALIGN_CENTER);
   gtk_widget_set_tooltip_text(add, "Add a profile");
