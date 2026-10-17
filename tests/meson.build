@@ -74,6 +74,7 @@ test('video-cache', test_video_cache)
 test_record_portal = executable(
   'test-record-portal',
   'test-record-portal.c',
+  'record-test-portal.c',
   files('../src/waytator-record-portal.c'),
   include_directories: waytator_include,
   dependencies: [gio_unix_dep],
@@ -133,6 +134,7 @@ test('record-writer', test_record_writer, timeout: 300)
 test_record_stream = executable(
   'test-record-stream',
   'test-record-stream.c',
+  'record-test-pipewire.c',
   files('../src/waytator-record-stream.c'),
   include_directories: waytator_include,
   dependencies: [gobject_dep, m_dep, video_deps],
