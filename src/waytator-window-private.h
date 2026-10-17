@@ -298,7 +298,6 @@ gboolean waytator_window_video_handle_key(WaytatorWindow *self,
 gboolean waytator_window_open_video(WaytatorWindow *self,
                                     GFile          *file);
 gboolean waytator_window_video_close_request(WaytatorWindow *self);
-void waytator_window_install_video_actions(GtkWidgetClass *widget_class);
 void waytator_window_update_video_save_menu(WaytatorWindow *self);
 void waytator_window_update_video_save_controls(WaytatorWindow *self);
 void waytator_window_video_save(WaytatorWindow *self,
@@ -306,7 +305,6 @@ void waytator_window_video_save(WaytatorWindow *self,
                                 GFile          *file,
                                 gboolean        copy,
                                 gboolean        close);
-void waytator_window_video_save_as(WaytatorWindow *self);
 AdwPreferencesPage *waytator_window_new_videos_page(WaytatorWindow *self);
 void waytator_window_update_ocr_overlay(WaytatorWindow *self);
 void waytator_window_maybe_start_ocr(WaytatorWindow *self);

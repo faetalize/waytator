@@ -2448,6 +2448,7 @@ waytator_window_update_save_menu(WaytatorWindow *self)
   }
 
   gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_button), "Save");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_as_button), "Save");
   gtk_widget_set_visible(GTK_WIDGET(self->save_button), has_menu && self->folds.save);
   gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), !has_menu && self->folds.save);
 
@@ -3266,8 +3267,9 @@ waytator_window_save_as_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
+  //a video asks the same questions however its export starts
   if (waytator_window_is_video(self)) {
-    waytator_window_video_save_as(self);
+    waytator_window_video_save(self, NULL, NULL, FALSE, FALSE);
     return;
   }
 
@@ -4720,7 +4722,6 @@ waytator_window_install_actions(GtkWidgetClass *widget_class)
   gtk_widget_class_install_action(widget_class, "win.flip-vertical", NULL, waytator_window_flip_vertical_action);
   gtk_widget_class_install_action(widget_class, "win.preferences", NULL, waytator_window_preferences_action);
   gtk_widget_class_install_action(widget_class, "win.about", NULL, waytator_window_about_action);
-  waytator_window_install_video_actions(widget_class);
   waytator_window_install_canvas_actions(widget_class);
 }
 

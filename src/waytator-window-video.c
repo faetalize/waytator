@@ -79,7 +79,7 @@ waytator_window_update_video_save_controls(WaytatorWindow *self)
   //the spinner and the tick put the plain icon back themselves once they are done
   if (!self->save_in_progress && self->save_spinner_timeout_id == 0 && self->save_feedback_timeout_id == 0)
     gtk_stack_set_visible_child(self->save_icon_stack, GTK_WIDGET(self->save_default_icon));
-  gtk_widget_set_sensitive(GTK_WIDGET(self->save_button), ready);
+  gtk_widget_set_sensitive(GTK_WIDGET(self->save_as_button), ready);
   gtk_widget_set_sensitive(GTK_WIDGET(self->copy_button), ready);
   gtk_widget_set_sensitive(GTK_WIDGET(self->copy_keep_open_button), ready);
   waytator_window_update_video_save_menu(self);
@@ -463,8 +463,11 @@ waytator_window_video_with_extension(GFile                      *file,
 
 typedef struct {
   WaytatorWindow *window;
-  char *profile_id;
+  //replacing the opened video rather than exporting a copy into the videos folder
+  gboolean replace;
   gboolean close;
+  //the profile picked from the list, NULL until one is
+  char *profile_id;
 } WaytatorWindowVideoChoice;
 
 static void
@@ -476,40 +479,108 @@ waytator_window_video_choice_free(WaytatorWindowVideoChoice *choice)
 }
 
 static void
+waytator_window_video_export_picked(WaytatorWindowVideoChoice *choice)
+{
+  WaytatorWindow *self = choice->window;
+  GFile *original = waytator_video_editor_get_file(WAYTATOR_VIDEO_EDITOR(self->video_editor));
+  g_autoptr(GPtrArray) profiles = NULL;
+  const WaytatorVideoProfile *profile;
+  g_autoptr(GFile) target = NULL;
+
+  if (!choice->replace || original == NULL) {
+    waytator_window_video_start(self, choice->profile_id, NULL, FALSE, choice->close, FALSE, NULL);
+    return;
+  }
+
+  //in another format the export gets its own extension, and the original goes once it is made
+  profiles = waytator_window_video_profiles();
+  profile = waytator_window_video_find_profile(profiles, choice->profile_id);
+  target = waytator_window_video_with_extension(original, profile);
+  waytator_window_video_start(self,
+                              choice->profile_id,
+                              target,
+                              FALSE,
+                              choice->close,
+                              TRUE,
+                              g_file_equal(target, original) ? NULL : original);
+}
+
+static void
+waytator_window_video_profile_activated(GtkListBox    *list,
+                                        GtkListBoxRow *row,
+                                        gpointer       user_data)
+{
+  WaytatorWindowVideoChoice *choice = user_data;
+
+  g_free(choice->profile_id);
+  choice->profile_id = g_strdup(g_object_get_data(G_OBJECT(row), "profile-id"));
+  adw_dialog_close(ADW_DIALOG(gtk_widget_get_ancestor(GTK_WIDGET(list), ADW_TYPE_DIALOG)));
+}
+
+static void
+waytator_window_video_profiles_closed(AdwDialog *dialog,
+                                      gpointer   user_data)
+{
+  WaytatorWindowVideoChoice *choice = user_data;
+
+  (void) dialog;
+
+  if (choice->profile_id != NULL && !choice->window->disposed)
+    waytator_window_video_export_picked(choice);
+  waytator_window_video_choice_free(choice);
+}
+
+//the second question: which profile, from a list of them
+static void
+waytator_window_video_ask_profile(WaytatorWindowVideoChoice *choice)
+{
+  WaytatorWindow *self = choice->window;
+  g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
+  AdwDialog *dialog = adw_alert_dialog_new("Export As", NULL);
+  GtkWidget *list = gtk_list_box_new();
+
+  gtk_list_box_set_selection_mode(GTK_LIST_BOX(list), GTK_SELECTION_NONE);
+  gtk_widget_add_css_class(list, "boxed-list");
+  for (guint i = 0; i < profiles->len; i++) {
+    const WaytatorVideoProfile *profile = g_ptr_array_index(profiles, i);
+    g_autofree char *description = waytator_video_profile_describe(profile);
+    GtkWidget *row = adw_action_row_new();
+
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), profile->name);
+    adw_action_row_set_subtitle(ADW_ACTION_ROW(row), description);
+    gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
+    g_object_set_data_full(G_OBJECT(row), "profile-id", g_strdup(profile->id), g_free);
+    gtk_list_box_append(GTK_LIST_BOX(list), row);
+  }
+  g_signal_connect(list, "row-activated", G_CALLBACK(waytator_window_video_profile_activated), choice);
+  adw_alert_dialog_set_extra_child(ADW_ALERT_DIALOG(dialog), list);
+  adw_alert_dialog_add_response(ADW_ALERT_DIALOG(dialog), "cancel", "_Cancel");
+  adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
+  g_signal_connect(dialog, "closed", G_CALLBACK(waytator_window_video_profiles_closed), choice);
+  adw_dialog_present(dialog, GTK_WIDGET(self));
+}
+
+static void
 waytator_window_video_replace_response(AdwAlertDialog *dialog,
                                        const char     *response,
                                        gpointer        user_data)
 {
   WaytatorWindowVideoChoice *choice = user_data;
-  WaytatorWindow *self = choice->window;
 
   (void) dialog;
 
-  if (!self->disposed && g_str_equal(response, "copy")) {
-    waytator_window_video_start(self, choice->profile_id, NULL, FALSE, choice->close, FALSE, NULL);
-  } else if (!self->disposed && g_str_equal(response, "replace")) {
-    GFile *original = waytator_video_editor_get_file(WAYTATOR_VIDEO_EDITOR(self->video_editor));
-    g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
-    const WaytatorVideoProfile *profile = waytator_window_video_find_profile(profiles, choice->profile_id);
-    g_autoptr(GFile) target = original != NULL ? waytator_window_video_with_extension(original, profile) : NULL;
-
-    //in another format the export gets its own extension, and the original goes once it is made
-    if (target != NULL)
-      waytator_window_video_start(self,
-                                  choice->profile_id,
-                                  target,
-                                  FALSE,
-                                  choice->close,
-                                  TRUE,
-                                  g_file_equal(target, original) ? NULL : original);
+  if (choice->window->disposed || g_str_equal(response, "cancel")) {
+    waytator_window_video_choice_free(choice);
+    return;
   }
 
-  waytator_window_video_choice_free(choice);
+  choice->replace = g_str_equal(response, "replace");
+  waytator_window_video_ask_profile(choice);
 }
 
-//exports through a profile, the default one when profile_id is NULL, to file or to a new one in the videos
-//folder. copy puts the exported file on the clipboard, close closes the window once all that is done. a video
-//opened from a file is asked about first: a copy beside it, or the original replaced
+//exports through a profile to file, or to a new one in the videos folder, copy putting it on the clipboard
+//and close closing the window once all that is done. given no file and no profile it asks: a copy or the
+//original replaced, when there is an original, then which profile
 void
 waytator_window_video_save(WaytatorWindow *self,
                            const char     *profile_id,
@@ -524,19 +595,25 @@ waytator_window_video_save(WaytatorWindow *self,
 
   if (waytator_video_editor_get_edit(editor) == NULL || waytator_video_editor_is_exporting(editor))
     return;
-  if (profile_id == NULL)
-    profile_id = waytator_window_video_default_profile(self, profiles);
 
-  //Copy needs a file of its own, and a piped video has no original to replace
-  if (file != NULL || copy || waytator_video_editor_get_file(editor) == NULL) {
-    waytator_window_video_start(self, profile_id, file, copy, close, FALSE, NULL);
+  //Copy goes straight through its own profile, it needs a file of its own
+  if (copy || file != NULL || profile_id != NULL) {
+    waytator_window_video_start(self,
+                                profile_id != NULL ? profile_id : waytator_window_video_default_profile(self, profiles),
+                                file, copy, close, FALSE, NULL);
     return;
   }
 
   choice = g_new0(WaytatorWindowVideoChoice, 1);
   choice->window = g_object_ref(self);
-  choice->profile_id = g_strdup(profile_id);
   choice->close = close;
+
+  //a piped video has no original to replace
+  if (waytator_video_editor_get_file(editor) == NULL) {
+    waytator_window_video_ask_profile(choice);
+    return;
+  }
+
   dialog = adw_alert_dialog_new("Export", NULL);
   adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog),
                                  "cancel", "_Cancel",
@@ -551,130 +628,19 @@ waytator_window_video_save(WaytatorWindow *self,
   adw_dialog_present(dialog, GTK_WIDGET(self));
 }
 
-static void
-waytator_window_video_save_as_ready(GObject      *source_object,
-                                    GAsyncResult *result,
-                                    gpointer      user_data)
-{
-  WaytatorWindowVideoChoice *choice = user_data;
-  g_autoptr(GFile) file = gtk_file_dialog_save_finish(GTK_FILE_DIALOG(source_object), result, NULL);
 
-  if (file != NULL && !choice->window->disposed) {
-    g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
-    const WaytatorVideoProfile *profile = waytator_window_video_find_profile(profiles, choice->profile_id);
-    //whatever name was typed, the file says what it is
-    g_autoptr(GFile) named = waytator_window_video_with_extension(file, profile);
-
-    waytator_window_video_start(choice->window, profile->id, named, FALSE, FALSE, FALSE, NULL);
-  }
-
-  waytator_window_video_choice_free(choice);
-}
-
-//asks where a video goes, then exports it there through the profile
-static void
-waytator_window_video_choose_location(WaytatorWindow *self,
-                                      const char     *profile_id)
-{
-  g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
-  const WaytatorVideoProfile *profile = waytator_window_video_find_profile(profiles, profile_id);
-  g_autoptr(GtkFileDialog) dialog = gtk_file_dialog_new();
-  g_autofree char *folder_path = waytator_window_video_folder();
-  g_autoptr(GFile) folder = g_file_new_for_path(folder_path);
-  g_autoptr(GFile) suggestion = waytator_window_video_new_file(self, profile, NULL);
-  WaytatorWindowVideoChoice *choice;
-
-  gtk_file_dialog_set_title(dialog, "Export video");
-  if (g_file_query_exists(folder, NULL))
-    gtk_file_dialog_set_initial_folder(dialog, folder);
-  if (suggestion != NULL) {
-    g_autofree char *name = g_file_get_basename(suggestion);
-
-    gtk_file_dialog_set_initial_name(dialog, name);
-  }
-
-  choice = g_new0(WaytatorWindowVideoChoice, 1);
-  choice->window = g_object_ref(self);
-  choice->profile_id = g_strdup(profile->id);
-  gtk_file_dialog_save(dialog, GTK_WINDOW(self), NULL, waytator_window_video_save_as_ready, choice);
-}
-
-//asks where to export through the profile Copy uses, the menu offering the others
-void
-waytator_window_video_save_as(WaytatorWindow *self)
-{
-  g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
-
-  waytator_window_video_choose_location(self, waytator_window_video_default_profile(self, profiles));
-}
-
-static void
-waytator_window_video_export_as_action(GtkWidget  *widget,
-                                       const char *action_name,
-                                       GVariant   *parameter)
-{
-  (void) action_name;
-
-  waytator_window_video_choose_location(WAYTATOR_WINDOW(widget), g_variant_get_string(parameter, NULL));
-}
-
-static void
-waytator_window_video_export_action(GtkWidget  *widget,
-                                    const char *action_name,
-                                    GVariant   *parameter)
-{
-  (void) action_name;
-
-  waytator_window_video_save(WAYTATOR_WINDOW(widget), g_variant_get_string(parameter, NULL), NULL, FALSE, FALSE);
-}
-
-void
-waytator_window_install_video_actions(GtkWidgetClass *widget_class)
-{
-  gtk_widget_class_install_action(widget_class, "win.video-export", "s", waytator_window_video_export_action);
-  gtk_widget_class_install_action(widget_class, "win.video-export-as", "s", waytator_window_video_export_as_action);
-}
-
-//one entry for each profile, into the videos folder, and a way to save anywhere
+//a video has one Export button, which asks what to do, rather than the image's menu
 void
 waytator_window_update_video_save_menu(WaytatorWindow *self)
 {
-  g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
-  g_autoptr(GString) key = g_string_new("video");
-
-  for (guint i = 0; i < profiles->len; i++) {
-    const WaytatorVideoProfile *profile = g_ptr_array_index(profiles, i);
-
-    g_string_append_printf(key, ":%s=%s", profile->id, profile->name);
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_as_button), "Export");
+  gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), self->folds.save);
+  gtk_widget_set_visible(GTK_WIDGET(self->save_button), FALSE);
+  if (self->save_menu_key == NULL || *self->save_menu_key != '\0') {
+    g_free(self->save_menu_key);
+    self->save_menu_key = g_strdup("");
+    g_menu_remove_all(self->save_menu);
   }
-
-  //a video is exported: it always makes a new file, the one opened stays as it was
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_button), "Export");
-  gtk_widget_set_visible(GTK_WIDGET(self->save_button), self->folds.save);
-  gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), FALSE);
-  //rebuilding it while nothing changed would close a menu that is open
-  if (g_strcmp0(key->str, self->save_menu_key) == 0)
-    return;
-
-  g_autoptr(GMenu) choose = g_menu_new();
-
-  g_free(self->save_menu_key);
-  self->save_menu_key = g_strdup(key->str);
-  g_menu_remove_all(self->save_menu);
-  for (guint i = 0; i < profiles->len; i++) {
-    const WaytatorVideoProfile *profile = g_ptr_array_index(profiles, i);
-    g_autofree char *description = waytator_video_profile_describe(profile);
-    g_autofree char *label = g_strdup_printf("Export as %s (%s)", profile->name, description);
-    g_autoptr(GMenuItem) item = g_menu_item_new(label, NULL);
-    g_autoptr(GMenuItem) elsewhere = g_menu_item_new(profile->name, NULL);
-
-    g_menu_item_set_action_and_target_value(item, "win.video-export", g_variant_new_string(profile->id));
-    g_menu_append_item(self->save_menu, item);
-    g_menu_item_set_action_and_target_value(elsewhere, "win.video-export-as", g_variant_new_string(profile->id));
-    g_menu_append_item(choose, elsewhere);
-  }
-  //the same profiles again, each asking where the video goes
-  g_menu_append_submenu(self->save_menu, "Export as…", G_MENU_MODEL(choose));
 }
 
 static const int waytator_video_max_sizes[] = { 0, 2160, 1440, 1080, 720, 540, 480, 360 };
