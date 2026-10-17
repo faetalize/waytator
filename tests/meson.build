@@ -128,3 +128,13 @@ test_record_writer = executable(
   dependencies: [gio_unix_dep, m_dep, video_deps],
 )
 test('record-writer', test_record_writer, timeout: 300)
+
+#a PipeWire daemon of its own stands in for the compositor, sending pictures in memory and on the gpu
+test_record_stream = executable(
+  'test-record-stream',
+  'test-record-stream.c',
+  files('../src/waytator-record-stream.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep, m_dep, video_deps],
+)
+test('record-stream', test_record_stream, timeout: 120)
