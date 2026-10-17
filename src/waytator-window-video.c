@@ -998,6 +998,7 @@ waytator_window_new_videos_page(WaytatorWindow *self)
   adw_preferences_page_set_title(page, "Videos");
   adw_preferences_page_set_icon_name(page, "media-record-symbolic");
 
+  adw_preferences_group_set_title(editing, "Timeline");
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(optimize_row), "Optimize media");
   adw_action_row_set_subtitle(ADW_ACTION_ROW(optimize_row),
                               "Turn this on if you have scrubbing performance issues – recommended off");
