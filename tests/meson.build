@@ -79,3 +79,13 @@ test_record_portal = executable(
   dependencies: [gio_unix_dep],
 )
 test('record-portal', test_record_portal)
+
+#the mix of a recording's sound with made up sources and clocks, so it needs no pipewire
+test_record_mixer = executable(
+  'test-record-mixer',
+  'test-record-mixer.c',
+  files('../src/waytator-record-mixer.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep, m_dep],
+)
+test('record-mixer', test_record_mixer, timeout: 120)
