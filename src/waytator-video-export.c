@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 #include "waytator-video-audio.h"
+#include "waytator-video-cache.h"
 
 //room left under a size limit for what the container adds
 #define WAYTATOR_EXPORT_SIZE_MARGIN 0.94
@@ -104,6 +105,8 @@ typedef struct {
   char *stats_path;
   //PNG frames waiting for gifski
   char *gif_folder;
+  //held while the folder is in use, so a sweep leaves it alone
+  int gif_fd;
   AVCodecContext *png_encoder;
 } WaytatorExporter;
 
@@ -1318,6 +1321,10 @@ waytator_export_clear(WaytatorExporter *exporter)
     waytator_export_remove_folder(exporter->gif_folder);
     g_clear_pointer(&exporter->gif_folder, g_free);
   }
+  if (exporter->gif_fd >= 0) {
+    close(exporter->gif_fd);
+    exporter->gif_fd = -1;
+  }
 }
 
 static gboolean
@@ -1335,9 +1342,13 @@ waytator_export_run(WaytatorExporter *exporter,
 
   //gifski makes far better GIFs than ffmpeg can, from PNG frames
   if (gifski != NULL) {
-    exporter->gif_folder = g_dir_make_tmp("waytator-gif-XXXXXX", error);
-    if (exporter->gif_folder == NULL)
+    //in the cache rather than /tmp, which is often memory, and swept from there if waytator is killed
+    exporter->gif_fd = waytator_video_cache_create_folder("gif-", &exporter->gif_folder);
+    if (exporter->gif_fd < 0) {
+      g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Could not make a folder for the GIF's frames: %s",
+                  g_strerror(errno));
       return FALSE;
+    }
 
     exporter->n_passes = 2;
     if (!waytator_export_video_pass(exporter, WAYTATOR_EXPORT_PASS_FINAL, error))
@@ -1395,12 +1406,15 @@ waytator_video_export(WaytatorVideoSource        *source,
     .progress_data = progress_data,
     .last_progress = -1,
     .n_passes = 1,
+    .gif_fd = -1,
   };
   g_autofree char *folder = g_path_get_dirname(path);
   g_autofree char *base = g_path_get_basename(path);
   g_autofree char *template = g_strdup_printf(".%s.partial-XXXXXX", base);
   g_autofree char *partial = g_build_filename(folder, template, NULL);
+  g_autofree char *note = NULL;
   gboolean ok;
+  int note_fd;
   int fd;
 
   //written next to where it goes and renamed there at the end, so a half made file never shows up
@@ -1412,6 +1426,8 @@ waytator_video_export(WaytatorVideoSource        *source,
   }
   close(fd);
 
+  //noted in the cache, so it is deleted at the next start if waytator is killed before it is done
+  note_fd = waytator_video_cache_note(partial, &note);
   ok = waytator_export_run(&exporter, partial, error);
   waytator_export_clear(&exporter);
   if (ok && g_rename(partial, path) != 0) {
@@ -1422,6 +1438,10 @@ waytator_video_export(WaytatorVideoSource        *source,
     g_unlink(partial);
   else if (progress != NULL)
     progress(1.0, progress_data);
+  if (note_fd >= 0) {
+    g_unlink(note);
+    close(note_fd);
+  }
 
   return ok;
 }

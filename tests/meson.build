@@ -49,6 +49,7 @@ test_video_export = executable(
   files(
     '../src/waytator-video-audio.c',
     '../src/waytator-video-export.c',
+    '../src/waytator-video-cache.c',
     '../src/waytator-video-profile.c',
     '../src/waytator-video-source.c',
   ),
@@ -57,3 +58,12 @@ test_video_export = executable(
   dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
 )
 test('video-export', test_video_export, timeout: 300)
+
+test_video_cache = executable(
+  'test-video-cache',
+  'test-video-cache.c',
+  files('../src/waytator-video-cache.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('video-cache', test_video_cache)
