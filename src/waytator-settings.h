@@ -13,6 +13,9 @@ typedef struct {
   gboolean capture_hide_waytator;
   //the capture overlay shows the pixels around the pointer up close
   gboolean capture_magnifier;
+  //what the recording overlay has picked to record besides the picture, kept for the next recording
+  gboolean record_system_sound;
+  gboolean record_microphone;
   //how fast the pointer goes in the capture overlay while shift is held, 1 being its usual speed
   double capture_brake_speed;
   gboolean floating_controls_blur;

@@ -26,6 +26,8 @@ waytator_settings_init(WaytatorSettings *settings)
   settings->screenshot_copy = TRUE;
   settings->capture_hide_waytator = TRUE;
   settings->capture_magnifier = FALSE;
+  settings->record_system_sound = TRUE;
+  settings->record_microphone = FALSE;
   settings->capture_brake_speed = 0.5;
   settings->floating_controls_blur = TRUE;
   settings->floating_controls_opacity = 0.7;
@@ -71,6 +73,18 @@ waytator_settings_read(WaytatorSettings *settings,
     settings->capture_magnifier = g_key_file_get_boolean(key_file,
                                                          WAYTATOR_SETTINGS_GROUP,
                                                          "capture_magnifier",
+                                                         NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "record_system_sound", NULL))
+    settings->record_system_sound = g_key_file_get_boolean(key_file,
+                                                           WAYTATOR_SETTINGS_GROUP,
+                                                           "record_system_sound",
+                                                           NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "record_microphone", NULL))
+    settings->record_microphone = g_key_file_get_boolean(key_file,
+                                                         WAYTATOR_SETTINGS_GROUP,
+                                                         "record_microphone",
                                                          NULL);
 
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "capture_brake_speed", NULL)) {
@@ -132,6 +146,14 @@ waytator_settings_write(const WaytatorSettings *settings,
                          WAYTATOR_SETTINGS_GROUP,
                          "capture_magnifier",
                          settings->capture_magnifier);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "record_system_sound",
+                         settings->record_system_sound);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "record_microphone",
+                         settings->record_microphone);
   g_key_file_set_double(key_file,
                         WAYTATOR_SETTINGS_GROUP,
                         "capture_brake_speed",

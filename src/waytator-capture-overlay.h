@@ -35,4 +35,45 @@ gboolean waytator_capture_overlay_show(GPtrArray                           *outp
                                        WaytatorCaptureOverlayCallback       callback,
                                        gpointer                             user_data);
 
+//what the overlay picked to record
+typedef struct {
+  WaytatorCaptureMode mode;
+  //the screen for an area or a screen, by connector name, and where it is on the desktop in logical pixels.
+  //for a window, the screen it was picked on, which is where its countdown goes
+  char *output_name;
+  int output_x;
+  int output_y;
+  int output_width;
+  int output_height;
+  //the area inside that screen in its logical pixels, the whole screen for a screen, 0 for a window
+  int x;
+  int y;
+  int width;
+  int height;
+  gboolean system_sound;
+  gboolean microphone;
+  //the countdown picked on the bar, 0 for none
+  guint delay_seconds;
+} WaytatorRecordChoice;
+
+void waytator_record_choice_free(WaytatorRecordChoice *choice);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(WaytatorRecordChoice, waytator_record_choice_free)
+
+//choice is NULL when the overlay was cancelled, it is the callee's to free otherwise
+typedef void (*WaytatorCaptureOverlayRecordCallback)(WaytatorRecordChoice *choice,
+                                                     gpointer              user_data);
+
+//the overlay set up for recording, starting in mode, with delay_seconds already picked (from --delay). takes
+//the outputs and returns FALSE without calling back when none of them is on a known monitor, like
+//waytator_capture_overlay_show. retake is called when the hide box is flipped, as for a screenshot. a window
+//needs no overlay to pick it, so starting in WAYTATOR_CAPTURE_WINDOW starts in an area instead
+gboolean waytator_capture_overlay_show_record(GPtrArray                           *outputs,
+                                              WaytatorCaptureMode                  mode,
+                                              guint                                delay_seconds,
+                                              gboolean                             offer_hide,
+                                              gboolean                             hide_waytator,
+                                              WaytatorCaptureOverlayRetakeCallback retake,
+                                              WaytatorCaptureOverlayRecordCallback callback,
+                                              gpointer                             user_data);
+
 G_END_DECLS
