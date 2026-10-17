@@ -3,8 +3,12 @@
 #include <gtk/gtk.h>
 
 #include "waytator-capture.h"
+#include "waytator-settings.h"
 
 G_BEGIN_DECLS
+
+//the floating controls' background and blur for the bar, loaded for the display. whoever asks removes it again
+GtkCssProvider *waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings);
 
 //texture is NULL when the selection was cancelled, mode is whichever one was active last
 typedef void (*WaytatorCaptureOverlayCallback)(GdkTexture         *texture,

@@ -184,7 +184,7 @@ waytator_record_choice_free(WaytatorRecordChoice *choice)
 }
 
 //the pill is one of the floating controls, read from the settings since there may be no window to ask
-static GtkCssProvider *
+GtkCssProvider *
 waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings)
 {
   g_autofree char *css = NULL;

@@ -103,3 +103,14 @@ test_record_audio = executable(
   dependencies: [gio_unix_dep, pipewire_dep, m_dep],
 )
 test('record-audio', test_record_audio, timeout: 180)
+
+#only the placing of the bar is run, which is plain arithmetic, so it needs no display. the rest of the bar is
+#stood in for where it would reach into the windows
+test_recording_bar_place = executable(
+  'test-recording-bar-place',
+  'test-recording-bar-place.c',
+  files('../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
+  include_directories: waytator_include,
+  dependencies: [layer_shell_dep, gtk_dep, adw_dep, m_dep],
+)
+test('recording-bar-place', test_recording_bar_place)

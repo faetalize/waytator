@@ -579,6 +579,60 @@
   font-weight: 600;
 }
 
+/* the windows the recording bar, its outline and the countdown are in show nothing but themselves */
+window.recording-surface {
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.capture-pill .recording-time {
+  margin: 0 10px 0 2px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.capture-pill button.recording-stop {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border-radius: 10px;
+  color: #e5484d;
+  background: transparent;
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.capture-pill button.recording-stop:hover {
+  background: alpha(#e5484d, 0.18);
+}
+
+.capture-pill togglebutton.flat.recording-mute:checked {
+  color: #ff8a8e;
+}
+
+.capture-pill button.recording-stop:disabled {
+  opacity: 0.4;
+}
+
+/* just outside what is recorded, drawn by the window's own border so it can be a surface that takes no input */
+.recording-outline {
+  border: 2px solid #e5484d;
+  background: transparent;
+}
+
+/* background and blur come from the same floating controls settings as the bar's */
+.capture-pill.recording-countdown {
+  min-width: 140px;
+  min-height: 140px;
+  padding: 0;
+  border-radius: 40px;
+  font-size: 72px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 /* cropping has no button of its own in the transform tool, a drag over the image does it */
 .crop-hint {
   margin: 0 6px 0 10px;
