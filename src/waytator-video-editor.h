@@ -60,6 +60,10 @@ gboolean waytator_video_editor_export_finish(WaytatorVideoEditor *self,
                                              GError             **error);
 gboolean waytator_video_editor_is_exporting(WaytatorVideoEditor *self);
 
+//keeps the picture clear of what floats over the top of the editor, this far down from its top edge
+void waytator_video_editor_set_top_inset(WaytatorVideoEditor *self,
+                                         int                  inset);
+
 void waytator_video_editor_undo(WaytatorVideoEditor *self);
 void waytator_video_editor_redo(WaytatorVideoEditor *self);
 //the editor's keys, before the window's own shortcuts. TRUE when the key was used

@@ -1247,6 +1247,16 @@ waytator_video_editor_has_unsaved_changes(WaytatorVideoEditor *self)
 }
 
 void
+waytator_video_editor_set_top_inset(WaytatorVideoEditor *self,
+                                    int                  inset)
+{
+  g_return_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self));
+
+  //only the picture moves down, what floats over it keeps the whole of the editor
+  gtk_widget_set_margin_top(GTK_WIDGET(self->view), MAX(inset, 0));
+}
+
+void
 waytator_video_editor_undo(WaytatorVideoEditor *self)
 {
   g_return_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self));

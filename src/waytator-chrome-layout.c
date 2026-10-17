@@ -1,4 +1,5 @@
 #include "waytator-window-private.h"
+#include "waytator-video-editor.h"
 
 #include <string.h>
 
@@ -136,6 +137,14 @@ waytator_chrome_apply(WaytatorWindow            *self,
   gtk_widget_set_margin_start(self->file_group, gap);
   gtk_widget_set_margin_end(self->file_group, gap);
   gtk_box_set_spacing(GTK_BOX(self->tool_group), folds->tight ? WAYTATOR_CHROME_TOOL_GAP_TIGHT : WAYTATOR_CHROME_TOOL_GAP);
+
+  //a video can't be zoomed or moved out from under the top bar, so it is kept below it
+  if (self->video_editor != NULL) {
+    int top_bar_height;
+
+    gtk_widget_measure(self->top_bar, GTK_ORIENTATION_VERTICAL, -1, NULL, &top_bar_height, NULL, NULL);
+    waytator_video_editor_set_top_inset(WAYTATOR_VIDEO_EDITOR(self->video_editor), margin + top_bar_height + gap);
+  }
 }
 
 static int
