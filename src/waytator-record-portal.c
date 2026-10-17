@@ -544,6 +544,10 @@ waytator_record_portal_attempt_is_screen(const WaytatorRecordPortalAttempt *atte
   gint32 x;
   gint32 y;
 
+  //a screen nobody named, as on GNOME where its dialog is the only way to pick one, is whichever it gives
+  if (attempt->output_name == NULL)
+    return TRUE;
+
   if (g_variant_lookup(properties, "position", "(ii)", &x, &y)
       && (abs(x - request->x) > WAYTATOR_RECORD_PORTAL_GEOMETRY_SLACK
           || abs(y - request->y) > WAYTATOR_RECORD_PORTAL_GEOMETRY_SLACK))

@@ -897,6 +897,25 @@ test_wrong_screen(void)
   waytator_record_portal_close(portal);
 }
 
+//on GNOME the portal's dialog is the only way to pick a screen, so whichever it gives is the one
+static void
+test_unnamed_screen(void)
+{
+  WaytatorRecordPortalRequest request = screen_request(NULL);
+  WaytatorRecordPortal *portal;
+
+  mock_reset();
+  mock.behaviour.x = 1920;
+  mock.behaviour.width = 2560;
+  mock.behaviour.height = 1440;
+  mock.behaviour.token = "unused";
+  portal = open_portal(&request, NULL);
+  g_assert_nonnull(portal);
+  g_assert_cmpuint(option_uint(mock.behaviour.select_options, "persist_mode"), ==, 0);
+  g_assert_false(option_has(mock.behaviour.select_options, "restore_token"));
+  waytator_record_portal_close(portal);
+}
+
 static void
 test_dismissed(void)
 {
@@ -1101,6 +1120,7 @@ main(int   argc,
   g_test_add_func("/record-portal/second-screen", test_second_screen);
   g_test_add_func("/record-portal/window", test_window);
   g_test_add_func("/record-portal/wrong-screen", test_wrong_screen);
+  g_test_add_func("/record-portal/unnamed-screen", test_unnamed_screen);
   g_test_add_func("/record-portal/dismissed", test_dismissed);
   g_test_add_func("/record-portal/no-stream", test_no_stream);
   g_test_add_func("/record-portal/cancel-mid-start", test_cancel_mid_start);

@@ -24,8 +24,9 @@ GQuark waytator_record_portal_error_quark(void);
 typedef struct {
   WaytatorRecordPortalSource source;
   //for a screen: its connector name, e.g. "DP-2", which names the pass the portal gave for it last time,
-  //and where it sits on the desktop in logical pixels, which the portal's stream has to match. unused for
-  //a window, which is picked in the portal's own list every time
+  //and where it sits on the desktop in logical pixels, which the portal's stream has to match. NULL leaves
+  //the screen to the portal's dialog, with nothing remembered or checked. unused for a window, which is
+  //picked in the portal's own list every time
   const char *output_name;
   int x;
   int y;
