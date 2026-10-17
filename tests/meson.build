@@ -150,3 +150,26 @@ test_recording_settings = executable(
   dependencies: [gtk_dep, adw_dep],
 )
 test('recording-settings', test_recording_settings)
+
+#records a screen of a stand-in portal and a PipeWire daemon of the test's own and decodes the files, skipping without
+#pipewire or VA-API. the wait for the first picture is shortened so the case where none comes is quick
+test_record_recorder = executable(
+  'test-record-recorder',
+  'test-record-recorder.c',
+  'record-test-pipewire.c',
+  'record-test-portal.c',
+  files(
+    '../src/waytator-record-audio.c',
+    '../src/waytator-record-mixer.c',
+    '../src/waytator-record-portal.c',
+    '../src/waytator-record-stream.c',
+    '../src/waytator-record-writer.c',
+    '../src/waytator-recorder.c',
+    '../src/waytator-video-cache.c',
+    '../src/waytator-video-encoder.c',
+  ),
+  include_directories: waytator_include,
+  c_args: ['-DWAYTATOR_RECORDER_FIRST_PICTURE_MS=3000'],
+  dependencies: [adw_dep, gio_unix_dep, m_dep, video_deps],
+)
+test('record-recorder', test_record_recorder, timeout: 180)

@@ -45,6 +45,8 @@ waytator_sources = files(
   'waytator-record-stream.h',
   'waytator-record-writer.c',
   'waytator-record-writer.h',
+  'waytator-recorder.c',
+  'waytator-recorder.h',
   'waytator-recording-bar.c',
   'waytator-recording-bar.h',
   'waytator-render.c',
