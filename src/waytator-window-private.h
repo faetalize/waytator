@@ -1,6 +1,7 @@
 #pragma once
 
 #include "waytator-canvas-view.h"
+#include "waytator-countdown.h"
 #include "waytator-document.h"
 #include "waytator-settings.h"
 #include "waytator-types.h"
@@ -208,6 +209,8 @@ struct _WaytatorWindow {
   GPtrArray *capture_hidden_windows;
   char *capture_output_name;
   guint capture_delay_id;
+  //a delay someone asked for, counting down on screen
+  WaytatorCountdown *capture_countdown;
   //taken before this window was built, the command line starts it while the window is still being put together
   WaytatorCaptureEarly *capture_early;
   WaytatorAfterSave after_save;

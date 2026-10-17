@@ -1,6 +1,7 @@
 #include "waytator-screenshot.h"
 
 #include "waytator-capture-overlay.h"
+#include "waytator-countdown.h"
 #include "waytator-export.h"
 #include "waytator-notification.h"
 #include "waytator-settings.h"
@@ -16,6 +17,8 @@ typedef struct {
   //set when the overlay asked for a new frame, which brings the overlay back rather than finish the capture
   gboolean retake;
   guint delay_id;
+  //a delay someone asked for, counting down on screen
+  WaytatorCountdown *countdown;
   //whether waytator's windows leave the screen for this capture, and the ones that did
   gboolean hide;
   GPtrArray *hidden;
@@ -62,6 +65,7 @@ waytator_screenshot_free(WaytatorScreenshot *shot)
   waytator_notification_free(shot->notification);
   if (shot->delay_id != 0)
     g_source_remove(shot->delay_id);
+  g_clear_pointer(&shot->countdown, waytator_countdown_cancel);
 
   //a capture that was cancelled or failed brings the windows back here
   waytator_window_restore_all(shot->hidden);
@@ -681,6 +685,20 @@ waytator_screenshot_take(gpointer user_data)
   return G_SOURCE_REMOVE;
 }
 
+//Esc called it off, which is the end of the capture
+static void
+waytator_screenshot_counted(gboolean finished,
+                            gpointer user_data)
+{
+  WaytatorScreenshot *shot = user_data;
+
+  shot->countdown = NULL;
+  if (finished)
+    waytator_screenshot_take(shot);
+  else
+    waytator_screenshot_free(shot);
+}
+
 //wait is for whatever else has to leave the screen first, like the overlay of a retake,
 //the delay is the one someone asked for and is long enough for that on its own
 static void
@@ -700,6 +718,12 @@ waytator_screenshot_take_after(WaytatorScreenshot *shot,
 
   if (delay_ms == 0) {
     waytator_screenshot_take(shot);
+    return;
+  }
+
+  //a delay someone asked for counts down on screen, and is gone from it before the frame is taken
+  if (delay_seconds > 0) {
+    shot->countdown = waytator_countdown_show(NULL, NULL, delay_seconds, waytator_screenshot_counted, shot);
     return;
   }
 

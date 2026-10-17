@@ -4532,6 +4532,19 @@ waytator_window_capture_after_wait(gpointer user_data)
   return G_SOURCE_REMOVE;
 }
 
+static void
+waytator_window_capture_counted(gboolean finished,
+                                gpointer user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+
+  self->capture_countdown = NULL;
+  if (finished)
+    waytator_window_capture_after_wait(self);
+  else
+    waytator_window_finish_capture(self, NULL, NULL, NULL);
+}
+
 //wait is for whatever else has to leave the screen first, like the overlay of a retake,
 //the delay is the one someone asked for and is long enough for that on its own
 static void
@@ -4555,6 +4568,12 @@ waytator_window_take_capture(WaytatorWindow *self,
 
   if (delay_ms == 0) {
     waytator_window_capture_after_wait(self);
+    return;
+  }
+
+  //a delay someone asked for counts down on screen, and is gone from it before the frame is taken
+  if (delay_seconds > 0) {
+    self->capture_countdown = waytator_countdown_show(NULL, NULL, delay_seconds, waytator_window_capture_counted, self);
     return;
   }
 
@@ -4817,6 +4836,7 @@ waytator_window_dispose(GObject *object)
   if (self->capture_delay_id != 0)
     g_source_remove(self->capture_delay_id);
   self->capture_delay_id = 0;
+  g_clear_pointer(&self->capture_countdown, waytator_countdown_cancel);
   g_clear_pointer(&self->capture_early, waytator_capture_early_unref);
   g_clear_pointer(&self->capture_output_name, g_free);
   g_clear_pointer(&self->capture_hidden_windows, g_ptr_array_unref);
