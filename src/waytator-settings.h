@@ -16,6 +16,16 @@ typedef struct {
   //what the recording overlay has picked to record besides the picture, kept for the next recording
   gboolean record_system_sound;
   gboolean record_microphone;
+  //never empty, a recording is always saved to a file. it can only be changed
+  char *recording_save_dir;
+  gboolean recording_copy;
+  //PipeWire's node.name of the microphone, empty for the system's default one
+  char *recording_microphone;
+  //the bar with the time and Stop while recording, someone who starts and stops with a key can do without it
+  gboolean recording_show_bar;
+  //the most pictures a second a recording has, 30 or 60
+  int recording_rate;
+  gboolean recording_show_pointer;
   //how fast the pointer goes in the capture overlay while shift is held, 1 being its usual speed
   double capture_brake_speed;
   gboolean floating_controls_blur;
