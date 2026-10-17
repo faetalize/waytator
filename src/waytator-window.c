@@ -7,6 +7,7 @@
 #include "waytator-ocr.h"
 #include "waytator-passthrough.h"
 #include "waytator-record-audio.h"
+#include "waytator-recording.h"
 #include "waytator-render.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
@@ -4632,6 +4633,48 @@ waytator_window_capture_action(GtkWidget  *widget,
                                 NULL);
 }
 
+//the finished recording opens in a window of its own, the one that asked for it may be busy with something else
+static void
+waytator_window_recording_edit(GFile   *file,
+                               gpointer user_data)
+{
+  WaytatorWindow *window = waytator_window_for_new_image(GTK_APPLICATION(user_data));
+  g_autoptr(GError) error = NULL;
+
+  if (!waytator_window_open_file(window, file, &error)) {
+    g_printerr("Error opening recording: %s\n", error->message);
+    //a window made just for this file has no reason to stay
+    if (!gtk_widget_get_visible(GTK_WIDGET(window)))
+      gtk_window_destroy(GTK_WINDOW(window));
+    return;
+  }
+
+  gtk_window_present(GTK_WINDOW(window));
+}
+
+//also what stops a recording, the menu offers the same actions then
+static void
+waytator_window_record_action(GtkWidget  *widget,
+                              const char *action_name,
+                              GVariant   *parameter)
+{
+  GApplication *app = G_APPLICATION(gtk_window_get_application(GTK_WINDOW(widget)));
+  g_autoptr(GVariant) delay = g_action_group_get_action_state(G_ACTION_GROUP(widget), "capture-delay");
+  WaytatorRecordingRequest request = {
+    .mode = WAYTATOR_CAPTURE_AREA,
+    .delay_seconds = delay != NULL ? g_variant_get_uint32(delay) : 0,
+  };
+
+  (void) parameter;
+
+  if (g_strcmp0(action_name, "win.record-screen") == 0)
+    request.mode = WAYTATOR_CAPTURE_SCREEN;
+  else if (g_strcmp0(action_name, "win.record-window") == 0)
+    request.mode = WAYTATOR_CAPTURE_WINDOW;
+
+  waytator_recording_toggle(app, &request, waytator_window_recording_edit, g_object_ref(app), g_object_unref);
+}
+
 static void
 waytator_window_open_current_file_ready(GObject      *source_object,
                                         GAsyncResult *result,
@@ -4779,6 +4822,7 @@ waytator_window_dispose(GObject *object)
   g_clear_pointer(&self->capture_hidden_windows, g_ptr_array_unref);
   g_clear_object(&self->adopt_file);
   g_clear_object(&self->save_menu);
+  g_clear_object(&self->record_menu);
   g_clear_pointer(&self->save_menu_key, g_free);
   g_clear_handle_id(&self->chrome_layout_id, g_source_remove);
   g_clear_handle_id(&self->zoom_osd_timeout_id, g_source_remove);
@@ -4923,6 +4967,9 @@ waytator_window_install_actions(GtkWidgetClass *widget_class)
   gtk_widget_class_install_action(widget_class, "win.open", NULL, waytator_window_open_action);
   gtk_widget_class_install_action(widget_class, "win.capture-area", NULL, waytator_window_capture_action);
   gtk_widget_class_install_action(widget_class, "win.capture-screen", NULL, waytator_window_capture_action);
+  gtk_widget_class_install_action(widget_class, "win.record-area", NULL, waytator_window_record_action);
+  gtk_widget_class_install_action(widget_class, "win.record-screen", NULL, waytator_window_record_action);
+  gtk_widget_class_install_action(widget_class, "win.record-window", NULL, waytator_window_record_action);
   gtk_widget_class_install_action(widget_class, "win.open-current-file", NULL, waytator_window_open_current_file_action);
   gtk_widget_class_install_action(widget_class, "win.open-containing-folder", NULL, waytator_window_open_containing_folder_action);
   gtk_widget_class_install_action(widget_class, "win.copy-buffer", NULL, waytator_window_copy_action);
@@ -5124,6 +5171,35 @@ waytator_window_capture_delay_changed(GSimpleAction  *action,
   gtk_label_set_text(self->home_delay_hint, hint);
 }
 
+//a menu item can't change its label in place, so while a recording is under way Stop recording takes the
+//place of the three. it is the same action, which stops a recording that is going
+static void
+waytator_window_update_record_menu(WaytatorWindow *self)
+{
+  g_menu_remove_all(self->record_menu);
+
+  if (waytator_recording_is_active()) {
+    g_menu_append(self->record_menu, "Stop recording", "win.record-area");
+    return;
+  }
+
+  g_menu_append(self->record_menu, "Record area", "win.record-area");
+  g_menu_append(self->record_menu, "Record screen", "win.record-screen");
+  g_menu_append(self->record_menu, "Record window", "win.record-window");
+}
+
+//the menu is brought up to date as it opens, it doesn't follow a recording that starts or ends while it is open
+static void
+waytator_window_record_menu_opened(GtkMenuButton  *button,
+                                   GParamSpec     *pspec,
+                                   WaytatorWindow *self)
+{
+  (void) pspec;
+
+  if (gtk_menu_button_get_active(button))
+    waytator_window_update_record_menu(self);
+}
+
 //how long a capture started from this window waits first, for whoever does not use --delay. it lasts as long as
 //the window, a delay that came back on its own days later would only be a surprise
 static void
@@ -5134,6 +5210,7 @@ waytator_window_setup_capture_delay(WaytatorWindow *self)
                                                                  G_VARIANT_TYPE_UINT32,
                                                                  g_variant_new_uint32(0));
   g_autoptr(GMenu) menu = g_menu_new();
+  g_autoptr(GMenu) delay_menu = g_menu_new();
   g_autoptr(GMenu) section = g_menu_new();
   g_autoptr(GMenu) open_menu = g_menu_new();
   g_autoptr(GMenu) open_section = g_menu_new();
@@ -5149,16 +5226,25 @@ waytator_window_setup_capture_delay(WaytatorWindow *self)
   }
   g_menu_append_section(menu, "Delay", G_MENU_MODEL(section));
 
+  //recording is offered in the bar's menus, the start page's delay menu stays as it was
+  self->record_menu = g_menu_new();
+  waytator_window_update_record_menu(self);
+  g_menu_append_section(delay_menu, "Delay", G_MENU_MODEL(section));
+  g_menu_append_section(delay_menu, NULL, G_MENU_MODEL(self->record_menu));
+
   g_signal_connect(action, "notify::state", G_CALLBACK(waytator_window_capture_delay_changed), self);
   g_action_map_add_action(G_ACTION_MAP(self), G_ACTION(action));
-  gtk_menu_button_set_menu_model(self->capture_delay_button, G_MENU_MODEL(menu));
+  gtk_menu_button_set_menu_model(self->capture_delay_button, G_MENU_MODEL(delay_menu));
   gtk_menu_button_set_menu_model(self->home_delay_button, G_MENU_MODEL(menu));
   //what the Open and capture buttons do, for when the bar is too short for them
   g_menu_append(open_section, "Open…", "win.open");
   g_menu_append(open_section, "Capture area", "win.capture-area");
   g_menu_append_section(open_menu, NULL, G_MENU_MODEL(open_section));
   g_menu_append_section(open_menu, "Delay", G_MENU_MODEL(section));
+  g_menu_append_section(open_menu, NULL, G_MENU_MODEL(self->record_menu));
   gtk_menu_button_set_menu_model(self->open_menu_button, G_MENU_MODEL(open_menu));
+  g_signal_connect(self->capture_delay_button, "notify::active", G_CALLBACK(waytator_window_record_menu_opened), self);
+  g_signal_connect(self->open_menu_button, "notify::active", G_CALLBACK(waytator_window_record_menu_opened), self);
   waytator_window_setup_menu_button_popover(self->open_menu_button, GTK_ARROW_DOWN, GTK_POS_BOTTOM);
   waytator_window_capture_delay_changed(action, NULL, self);
 }
