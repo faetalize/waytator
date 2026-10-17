@@ -17,6 +17,8 @@
   adwaita-icon-theme,
   ffmpeg,
   libdrm,
+  libgbm,
+  libGL,
   pipewire,
   rubberband,
   wl-clipboard,
@@ -52,6 +54,8 @@ stdenv.mkDerivation {
     adwaita-icon-theme
     ffmpeg
     libdrm
+    libgbm
+    libGL
     pipewire
     rubberband
   ];

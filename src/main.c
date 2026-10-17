@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "waytator-capture.h"
+#include "waytator-recording.h"
 #include "waytator-screenshot.h"
 #include "waytator-video-editor.h"
 #include "waytator-window.h"
@@ -160,13 +161,17 @@ app_open(GApplication  *app,
   "  --name NAME                             Name for an image or video read from stdin\n" \
   "  --screenshot [area|screen]              Capture the screen and open the result,\n" \
   "                                          an area unless told otherwise\n" \
-  "  --screen NAME                           With --screenshot: capture this screen,\n" \
-  "                                          e.g. DP-1. Doesn't support GNOME\n" \
-  "  --notify                                With --screenshot: save, copy and notify\n" \
-  "                                          instead of opening the editor\n" \
+  "  --record [area|screen|window]           Record the screen and open the result,\n" \
+  "                                          an area unless told otherwise. Run it\n" \
+  "                                          again while recording to stop\n" \
+  "  --screen NAME                           With --screenshot or --record: use this\n" \
+  "                                          screen, e.g. DP-1. Doesn't support GNOME\n" \
+  "  --notify                                With --screenshot or --record: save, copy\n" \
+  "                                          and notify instead of opening the editor\n" \
   "  --gapplication-service                  Run as a background application service\n" \
   "  --delay SECONDS                         With --screenshot: wait this many whole\n" \
-  "                                          seconds first, at most 300\n" \
+  "                                          seconds first, at most 300. With --record:\n" \
+  "                                          count down this long before recording\n" \
   "  --close-on-copy, --no-close-on-copy     Override the \"Close on copy\" preference\n" \
   "  --close-window-shortcut SHORTCUT        Override a shortcut for this launch\n" \
   "  --copy-shortcut SHORTCUT\n" \
@@ -202,6 +207,21 @@ typedef struct {
   int close_on_copy;
   char *shortcuts[G_N_ELEMENTS(app_shortcut_options)];
 } AppOverrides;
+
+static AppOverrides *
+app_overrides_new(GApplication      *app,
+                  int                close_on_copy,
+                  const char *const *shortcuts)
+{
+  AppOverrides *overrides = g_new0(AppOverrides, 1);
+
+  overrides->app = g_object_ref(app);
+  overrides->close_on_copy = close_on_copy;
+  for (guint i = 0; i < G_N_ELEMENTS(app_shortcut_options); i++)
+    overrides->shortcuts[i] = g_strdup(shortcuts[i]);
+
+  return overrides;
+}
 
 static void
 app_overrides_free(gpointer user_data)
@@ -247,6 +267,25 @@ app_edit_screenshot(GdkTexture *texture,
   //the folder is only offered again when it worked, one that just failed would only fail again
   if (file == NULL || !waytator_window_open_file(window, file, &error))
     waytator_window_open_capture(window, texture, name, !save_failed);
+
+  gtk_window_present(GTK_WINDOW(window));
+}
+
+//what the end of a recording leads to: Edit on its notification, or right away without --notify
+static void
+app_edit_recording(GFile   *file,
+                   gpointer user_data)
+{
+  AppOverrides *overrides = user_data;
+  WaytatorWindow *window = waytator_window_for_new_image(GTK_APPLICATION(overrides->app));
+  g_autoptr(GError) error = NULL;
+
+  app_apply_overrides(window, overrides->close_on_copy, (const char *const *) overrides->shortcuts);
+
+  if (!waytator_window_open_file(window, file, &error)) {
+    g_printerr("Error loading the recording: %s\n", error->message);
+    return;
+  }
 
   gtk_window_present(GTK_WINDOW(window));
 }
@@ -311,10 +350,12 @@ app_command_line(GApplication            *app,
   int status = 0;
   gboolean use_stdin = FALSE;
   gboolean screenshot = FALSE;
+  gboolean record = FALSE;
   gboolean notify = FALSE;
   WaytatorCaptureMode capture_mode = WAYTATOR_CAPTURE_AREA;
   const char *capture_screen = NULL;
-  gboolean capture_area_given = FALSE;
+  //the mode as it was written, when it was
+  const char *capture_mode_given = NULL;
   const char *delay_text = NULL;
   guint delay_seconds = 0;
   int close_on_copy = -1;
@@ -328,6 +369,18 @@ app_command_line(GApplication            *app,
   (void) user_data;
 
   arguments = g_application_command_line_get_arguments(command_line, &argc);
+
+  //one key starts and stops, so while a recording runs this is the stop, whatever else it says
+  if (waytator_recording_is_active()) {
+    for (int i = 1; i < argc; i++) {
+      if (g_strcmp0(arguments[i], "--record") == 0) {
+        const WaytatorRecordingRequest stop = { .mode = WAYTATOR_CAPTURE_AREA };
+
+        waytator_recording_toggle(app, &stop, NULL, NULL, NULL);
+        goto done;
+      }
+    }
+  }
 
   for (int i = 1; i < argc; i++) {
     const int shortcut_option = app_find_shortcut_option(arguments[i]);
@@ -370,7 +423,7 @@ app_command_line(GApplication            *app,
       //the mode is optional, anything else after the flag is left for the next round
       if (i + 1 < argc && g_strcmp0(arguments[i + 1], "area") == 0) {
         capture_mode = WAYTATOR_CAPTURE_AREA;
-        capture_area_given = TRUE;
+        capture_mode_given = "area";
         i++;
       } else if (i + 1 < argc && g_strcmp0(arguments[i + 1], "screen") == 0) {
         capture_mode = WAYTATOR_CAPTURE_SCREEN;
@@ -379,6 +432,32 @@ app_command_line(GApplication            *app,
         //an image cannot go with a capture anyway, so this is most likely a mistyped mode
         g_application_command_line_printerr(command_line,
                                             "Unknown capture mode \"%s\", use area or screen\n",
+                                            arguments[i + 1]);
+        status = 1;
+        goto done;
+      }
+
+      continue;
+    }
+
+    if (g_strcmp0(arguments[i], "--record") == 0) {
+      record = TRUE;
+
+      //the same as for --screenshot, with a window to pick as well
+      if (i + 1 < argc && g_strcmp0(arguments[i + 1], "area") == 0) {
+        capture_mode = WAYTATOR_CAPTURE_AREA;
+        capture_mode_given = "area";
+        i++;
+      } else if (i + 1 < argc && g_strcmp0(arguments[i + 1], "screen") == 0) {
+        capture_mode = WAYTATOR_CAPTURE_SCREEN;
+        i++;
+      } else if (i + 1 < argc && g_strcmp0(arguments[i + 1], "window") == 0) {
+        capture_mode = WAYTATOR_CAPTURE_WINDOW;
+        capture_mode_given = "window";
+        i++;
+      } else if (i + 1 < argc && arguments[i + 1][0] != '-') {
+        g_application_command_line_printerr(command_line,
+                                            "Unknown recording mode \"%s\", use area, screen or window\n",
                                             arguments[i + 1]);
         status = 1;
         goto done;
@@ -456,18 +535,26 @@ app_command_line(GApplication            *app,
     }
   }
 
-  if (screenshot && (use_stdin || file != NULL)) {
+  if (screenshot && record) {
     g_application_command_line_printerr(command_line,
-                                        "--screenshot cannot be combined with an image to open\n");
+                                        "--screenshot and --record cannot be used together\n");
+    status = 1;
+    goto done;
+  }
+
+  if ((screenshot || record) && (use_stdin || file != NULL)) {
+    g_application_command_line_printerr(command_line,
+                                        "%s cannot be combined with an image to open\n",
+                                        screenshot ? "--screenshot" : "--record");
     status = 1;
     goto done;
   }
 
   //naming a screen is asking for that screen, there is no need to say screen twice
   if (capture_screen != NULL) {
-    if (!screenshot) {
+    if (!screenshot && !record) {
       g_application_command_line_printerr(command_line,
-                                          "--screen only works with --screenshot\n");
+                                          "--screen only works with --screenshot or --record\n");
       status = 1;
       goto done;
     }
@@ -479,9 +566,10 @@ app_command_line(GApplication            *app,
       goto done;
     }
 
-    if (capture_area_given) {
+    if (capture_mode_given != NULL) {
       g_application_command_line_printerr(command_line,
-                                          "--screen captures a whole screen, remove \"area\" from your command\n");
+                                          "--screen captures a whole screen, remove \"%s\" from your command\n",
+                                          capture_mode_given);
       status = 1;
       goto done;
     }
@@ -489,35 +577,45 @@ app_command_line(GApplication            *app,
     capture_mode = WAYTATOR_CAPTURE_SCREEN;
   }
 
-  if (delay_text != NULL && !screenshot) {
+  if (delay_text != NULL && !screenshot && !record) {
     g_application_command_line_printerr(command_line,
-                                        "--delay only works with --screenshot\n");
+                                        "--delay only works with --screenshot or --record\n");
     status = 1;
     goto done;
   }
 
-  if (notify && !screenshot) {
+  if (notify && !screenshot && !record) {
     g_application_command_line_printerr(command_line,
-                                        "--notify only works with --screenshot\n");
+                                        "--notify only works with --screenshot or --record\n");
     status = 1;
+    goto done;
+  }
+
+  //no window until the recording is over, and with --notify not even then unless Edit is clicked
+  if (record) {
+    const WaytatorRecordingRequest request = {
+      .mode = capture_mode,
+      .output_name = capture_screen,
+      .delay_seconds = delay_seconds,
+      .notify = notify,
+    };
+
+    waytator_recording_toggle(app,
+                              &request,
+                              app_edit_recording,
+                              app_overrides_new(app, close_on_copy, shortcuts),
+                              app_overrides_free);
     goto done;
   }
 
   //no window at all here, one only appears if the notification is used to ask for it
   if (notify) {
-    AppOverrides *overrides = g_new0(AppOverrides, 1);
-
-    overrides->app = g_object_ref(app);
-    overrides->close_on_copy = close_on_copy;
-    for (guint i = 0; i < G_N_ELEMENTS(app_shortcut_options); i++)
-      overrides->shortcuts[i] = g_strdup(shortcuts[i]);
-
     waytator_screenshot_capture_background(app,
                                            capture_mode,
                                            capture_screen,
                                            delay_seconds,
                                            app_edit_screenshot,
-                                           overrides,
+                                           app_overrides_new(app, close_on_copy, shortcuts),
                                            app_overrides_free);
     goto done;
   }

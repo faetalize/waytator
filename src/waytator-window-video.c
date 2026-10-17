@@ -5,6 +5,7 @@
 #include <math.h>
 #include <string.h>
 
+#include "waytator-clipboard.h"
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
 
@@ -308,38 +309,16 @@ waytator_window_video_copied(GObject      *source_object,
   WaytatorWindowVideoSave *save = user_data;
   g_autoptr(GError) error = NULL;
 
-  if (!g_subprocess_communicate_finish(G_SUBPROCESS(source_object), result, NULL, NULL, &error)
-      || !g_subprocess_get_successful(G_SUBPROCESS(source_object))) {
+  (void) source_object;
+
+  if (!waytator_clipboard_copy_file_finish(result, &error)) {
     if (!save->window->disposed)
-      waytator_window_show_error(save->window, "wl-copy could not put the video on the clipboard");
+      waytator_window_show_error(save->window, error->message);
   } else if (save->close && !save->window->disposed) {
     gtk_window_close(GTK_WINDOW(save->window));
   }
 
   waytator_window_video_save_free(save);
-}
-
-//the file itself goes on the clipboard, which is how chat apps and file managers take a video
-static void
-waytator_window_video_copy_file(WaytatorWindowVideoSave *save)
-{
-  g_autoptr(GSubprocess) process = NULL;
-  g_autoptr(GError) error = NULL;
-  g_autofree char *uri = g_file_get_uri(save->file);
-  g_autofree char *list = g_strconcat(uri, "\r\n", NULL);
-  g_autoptr(GBytes) input = g_bytes_new(list, strlen(list));
-
-  process = g_subprocess_new(G_SUBPROCESS_FLAGS_STDIN_PIPE, &error,
-                             "wl-copy", "--type", "text/uri-list", NULL);
-  if (process == NULL) {
-    g_autofree char *message = g_strdup_printf("Could not run wl-copy: %s", error->message);
-
-    waytator_window_show_error(save->window, message);
-    waytator_window_video_save_free(save);
-    return;
-  }
-
-  g_subprocess_communicate_async(process, input, NULL, waytator_window_video_copied, save);
 }
 
 static void
@@ -386,7 +365,7 @@ waytator_window_video_saved(GObject      *source_object,
   if (save->reopen && !save->close)
     waytator_window_open_video(self, save->file);
   if (save->copy) {
-    waytator_window_video_copy_file(save);
+    waytator_clipboard_copy_file_async(save->file, waytator_window_video_copied, save);
     return;
   }
 
@@ -1019,6 +998,7 @@ waytator_window_new_videos_page(WaytatorWindow *self)
   adw_preferences_page_set_title(page, "Videos");
   adw_preferences_page_set_icon_name(page, "media-record-symbolic");
 
+  adw_preferences_group_set_title(editing, "Timeline");
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(optimize_row), "Optimize media");
   adw_action_row_set_subtitle(ADW_ACTION_ROW(optimize_row),
                               "Turn this on if you have scrubbing performance issues – recommended off");

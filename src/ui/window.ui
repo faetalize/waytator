@@ -84,6 +84,34 @@
                     </child>
 
                     <child>
+                      <object class="GtkButton">
+                        <property name="action-name">win.record-area</property>
+                        <style>
+                          <class name="home-action"/>
+                        </style>
+                        <property name="child">
+                          <object class="GtkBox">
+                            <property name="spacing">12</property>
+
+                            <child>
+                              <object class="GtkImage">
+                                <property name="icon-name">media-record-symbolic</property>
+                              </object>
+                            </child>
+
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label">Record</property>
+                                <property name="xalign">0</property>
+                                <property name="hexpand">True</property>
+                              </object>
+                            </child>
+                          </object>
+                        </property>
+                      </object>
+                    </child>
+
+                    <child>
                       <object class="GtkMenuButton" id="home_delay_button">
                         <style>
                           <class name="home-delay"/>
@@ -108,43 +136,6 @@
 
                             <child>
                               <object class="GtkLabel" id="home_delay_hint">
-                                <style>
-                                  <class name="home-hint"/>
-                                </style>
-                              </object>
-                            </child>
-                          </object>
-                        </property>
-                      </object>
-                    </child>
-
-                    <child>
-                      <object class="GtkButton">
-                        <property name="sensitive">False</property>
-                        <style>
-                          <class name="home-action"/>
-                        </style>
-                        <property name="child">
-                          <object class="GtkBox">
-                            <property name="spacing">12</property>
-
-                            <child>
-                              <object class="GtkImage">
-                                <property name="icon-name">media-record-symbolic</property>
-                              </object>
-                            </child>
-
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label">Record</property>
-                                <property name="xalign">0</property>
-                                <property name="hexpand">True</property>
-                              </object>
-                            </child>
-
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label">Soon</property>
                                 <style>
                                   <class name="home-hint"/>
                                 </style>

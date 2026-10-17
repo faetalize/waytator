@@ -285,3 +285,76 @@ waytator_pointer_brake_release(WaytatorPointerBrake *brake,
                                       waytator_pointer_brake_hint_timed_out,
                                       brake);
 }
+
+struct _WaytatorPointerMotion {
+  struct zwp_relative_pointer_v1 *relative_pointer;
+  WaytatorPointerBrakeMoved moved;
+  gpointer user_data;
+};
+
+static void
+waytator_pointer_motion_relative_motion(void                           *data,
+                                        struct zwp_relative_pointer_v1 *relative_pointer,
+                                        uint32_t                        utime_hi,
+                                        uint32_t                        utime_lo,
+                                        wl_fixed_t                      dx,
+                                        wl_fixed_t                      dy,
+                                        wl_fixed_t                      dx_unaccel,
+                                        wl_fixed_t                      dy_unaccel)
+{
+  WaytatorPointerMotion *motion = data;
+
+  (void) relative_pointer;
+  (void) utime_hi;
+  (void) utime_lo;
+  (void) dx_unaccel;
+  (void) dy_unaccel;
+
+  //the accelerated motion, which is how far the real pointer moved on screen
+  motion->moved(wl_fixed_to_double(dx), wl_fixed_to_double(dy), motion->user_data);
+}
+
+static const struct zwp_relative_pointer_v1_listener waytator_pointer_motion_relative_listener = {
+  .relative_motion = waytator_pointer_motion_relative_motion,
+};
+
+WaytatorPointerMotion *
+waytator_pointer_motion_new(GtkWidget                *widget,
+                            WaytatorPointerBrakeMoved moved,
+                            gpointer                  user_data)
+{
+  GdkDisplay *display = gtk_widget_get_display(widget);
+  const WaytatorPointerBrakeGlobals *globals;
+  WaytatorPointerMotion *motion;
+  GdkDevice *device;
+  struct wl_pointer *pointer;
+
+  if (!GDK_IS_WAYLAND_DISPLAY(display))
+    return NULL;
+
+  globals = waytator_pointer_brake_get_globals(display);
+  device = gdk_seat_get_pointer(gdk_display_get_default_seat(display));
+  pointer = device != NULL ? gdk_wayland_device_get_wl_pointer(device) : NULL;
+  if (globals->relative_pointers == NULL || pointer == NULL)
+    return NULL;
+
+  motion = g_new0(WaytatorPointerMotion, 1);
+  motion->moved = moved;
+  motion->user_data = user_data;
+  motion->relative_pointer = zwp_relative_pointer_manager_v1_get_relative_pointer(globals->relative_pointers,
+                                                                                  pointer);
+  zwp_relative_pointer_v1_add_listener(motion->relative_pointer,
+                                       &waytator_pointer_motion_relative_listener,
+                                       motion);
+  return motion;
+}
+
+void
+waytator_pointer_motion_free(WaytatorPointerMotion *motion)
+{
+  if (motion == NULL)
+    return;
+
+  zwp_relative_pointer_v1_destroy(motion->relative_pointer);
+  g_free(motion);
+}

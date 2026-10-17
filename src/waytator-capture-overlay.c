@@ -35,7 +35,12 @@ struct _WaytatorCaptureView {
   GtkWidget *pill;
   GtkToggleButton *area_button;
   GtkToggleButton *screen_button;
+  GtkToggleButton *window_button;
   GtkToggleButton *magnifier_button;
+  GtkToggleButton *delay_button;
+  GtkToggleButton *system_sound_button;
+  GtkToggleButton *microphone_button;
+  GtkLabel *delay_label;
   GtkRevealer *delay_choices;
   GtkRevealer *shift_hint;
   //where the bar was dragged to, in the view's logical pixels, and where in it the pointer took hold of it
@@ -70,12 +75,18 @@ struct _WaytatorCaptureOverlay {
   gboolean offer_hide;
   gboolean hide_waytator;
   gboolean magnifier;
+  //a recording: the bar has what to record and the countdown, and the callback gets the choice
+  gboolean record;
+  gboolean system_sound;
+  gboolean microphone;
+  guint delay_seconds;
   double brake_speed;
   //held while shift is, on the view the pointer was over when it went down
   WaytatorPointerBrake *brake;
   WaytatorCaptureView *brake_view;
   WaytatorCaptureOverlayRetakeCallback retake;
   WaytatorCaptureOverlayCallback callback;
+  WaytatorCaptureOverlayRecordCallback record_callback;
   gpointer user_data;
 };
 
@@ -162,8 +173,18 @@ waytator_capture_pick_output(GPtrArray          *outputs,
   return NULL;
 }
 
+void
+waytator_record_choice_free(WaytatorRecordChoice *choice)
+{
+  if (choice == NULL)
+    return;
+
+  g_free(choice->output_name);
+  g_free(choice);
+}
+
 //the pill is one of the floating controls, read from the settings since there may be no window to ask
-static GtkCssProvider *
+GtkCssProvider *
 waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings)
 {
   g_autofree char *css = NULL;
@@ -182,6 +203,26 @@ waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings)
                                              GTK_STYLE_PROVIDER(provider),
                                              GTK_STYLE_PROVIDER_PRIORITY_USER + 1);
   return provider;
+}
+
+GtkCssProvider *
+waytator_capture_overlay_load_pill_style(void)
+{
+  GtkCssProvider *provider;
+  WaytatorSettings settings;
+
+  waytator_window_ensure_css_loaded();
+  waytator_settings_load(&settings);
+  provider = waytator_capture_overlay_new_pill_style(&settings);
+  waytator_settings_clear(&settings);
+  return provider;
+}
+
+void
+waytator_capture_overlay_unload_pill_style(GtkCssProvider *provider)
+{
+  gtk_style_context_remove_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(provider));
+  g_object_unref(provider);
 }
 
 static gboolean
@@ -292,12 +333,34 @@ waytator_capture_overlay_close(WaytatorCaptureOverlay *overlay)
   return TRUE;
 }
 
+//NULL when it was cancelled
+static void
+waytator_capture_overlay_finish_record(WaytatorCaptureOverlay *overlay,
+                                       WaytatorRecordChoice   *choice)
+{
+  if (choice != NULL) {
+    choice->system_sound = overlay->system_sound;
+    choice->microphone = overlay->microphone;
+    choice->delay_seconds = overlay->delay_seconds;
+  }
+
+  if (waytator_capture_overlay_close(overlay))
+    overlay->record_callback(choice, overlay->user_data);
+  else
+    waytator_record_choice_free(choice);
+}
+
 static void
 waytator_capture_overlay_finish(WaytatorCaptureOverlay *overlay,
                                 GdkTexture             *texture)
 {
   //a screen pick hands over the view's own texture, which goes with the windows
   g_autoptr(GdkTexture) kept = texture != NULL ? g_object_ref(texture) : NULL;
+
+  if (overlay->record) {
+    waytator_capture_overlay_finish_record(overlay, NULL);
+    return;
+  }
 
   if (waytator_capture_overlay_close(overlay))
     overlay->callback(kept, overlay->mode, overlay->user_data);
@@ -307,8 +370,39 @@ static void
 waytator_capture_overlay_hide_toggled(GtkToggleButton        *button,
                                       WaytatorCaptureOverlay *overlay)
 {
+  //a recording keeps the countdown it has picked, it only runs after the pick
   if (waytator_capture_overlay_close(overlay))
-    overlay->retake(gtk_toggle_button_get_active(button), overlay->mode, 0, overlay->user_data);
+    overlay->retake(gtk_toggle_button_get_active(button),
+                    overlay->mode,
+                    overlay->record ? overlay->delay_seconds : 0,
+                    overlay->user_data);
+}
+
+//a recording counts down after the pick, so the overlay stays and the choice is only marked
+static void
+waytator_capture_overlay_set_delay(WaytatorCaptureOverlay *overlay,
+                                   guint                   seconds)
+{
+  overlay->delay_seconds = seconds;
+
+  for (guint i = 0; i < overlay->views->len; i++) {
+    WaytatorCaptureView *view = g_ptr_array_index(overlay->views, i);
+    GtkWidget *choices = gtk_revealer_get_child(view->delay_choices);
+    g_autofree char *text = g_strdup_printf("%us", seconds);
+
+    for (GtkWidget *choice = gtk_widget_get_first_child(choices);
+         choice != NULL;
+         choice = gtk_widget_get_next_sibling(choice)) {
+      if (GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(choice), "seconds")) == seconds)
+        gtk_widget_add_css_class(choice, "capture-delay-picked");
+      else
+        gtk_widget_remove_css_class(choice, "capture-delay-picked");
+    }
+
+    gtk_label_set_text(view->delay_label, text);
+    gtk_widget_set_visible(GTK_WIDGET(view->delay_label), seconds > 0);
+    gtk_toggle_button_set_active(view->delay_button, FALSE);
+  }
 }
 
 //the frozen frame is from before the wait, so the overlay goes and a new one is taken once it is over
@@ -318,6 +412,11 @@ waytator_capture_overlay_delay_clicked(GtkButton           *button,
 {
   WaytatorCaptureOverlay *overlay = view->overlay;
   const guint seconds = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(button), "seconds"));
+
+  if (overlay->record) {
+    waytator_capture_overlay_set_delay(overlay, seconds == overlay->delay_seconds ? 0 : seconds);
+    return;
+  }
 
   if (waytator_capture_overlay_close(overlay))
     overlay->retake(overlay->hide_waytator, overlay->mode, seconds, overlay->user_data);
@@ -853,6 +952,38 @@ waytator_capture_view_drag_update(GtkGestureDrag      *gesture,
   waytator_capture_view_set_selection_end(self, start_x + offset_x, start_y + offset_y);
 }
 
+//what a screenshot would have taken, in the screen's logical pixels, a screen being all of it. a window has no
+//area, only the screen it was picked on, which is where its countdown goes
+static WaytatorRecordChoice *
+waytator_capture_view_new_choice(WaytatorCaptureView *self,
+                                 WaytatorCaptureMode  mode)
+{
+  WaytatorRecordChoice *choice = g_new0(WaytatorRecordChoice, 1);
+  graphene_rect_t selection;
+
+  choice->mode = mode;
+  choice->output_name = g_strdup(self->output->name);
+  choice->output_x = self->output->x;
+  choice->output_y = self->output->y;
+  choice->output_width = self->output->width;
+  choice->output_height = self->output->height;
+
+  if (mode == WAYTATOR_CAPTURE_SCREEN) {
+    choice->width = self->output->width;
+    choice->height = self->output->height;
+  } else if (mode == WAYTATOR_CAPTURE_AREA && waytator_capture_view_get_selection(self, &selection)) {
+    const int right = MIN((int) ceil(selection.origin.x + selection.size.width), self->output->width);
+    const int bottom = MIN((int) ceil(selection.origin.y + selection.size.height), self->output->height);
+
+    choice->x = MAX((int) floor(selection.origin.x), 0);
+    choice->y = MAX((int) floor(selection.origin.y), 0);
+    choice->width = MAX(right - choice->x, 1);
+    choice->height = MAX(bottom - choice->y, 1);
+  }
+
+  return choice;
+}
+
 static void
 waytator_capture_view_drag_end(GtkGestureDrag      *gesture,
                                double               offset_x,
@@ -866,7 +997,11 @@ waytator_capture_view_drag_end(GtkGestureDrag      *gesture,
   int height;
 
   if (self->overlay->mode == WAYTATOR_CAPTURE_SCREEN) {
-    waytator_capture_overlay_finish(self->overlay, self->texture);
+    if (self->overlay->record)
+      waytator_capture_overlay_finish_record(self->overlay,
+                                             waytator_capture_view_new_choice(self, WAYTATOR_CAPTURE_SCREEN));
+    else
+      waytator_capture_overlay_finish(self->overlay, self->texture);
     return;
   }
 
@@ -881,6 +1016,12 @@ waytator_capture_view_drag_end(GtkGestureDrag      *gesture,
     self->selecting = FALSE;
     waytator_capture_overlay_set_pills_visible(self->overlay, TRUE);
     gtk_widget_queue_draw(GTK_WIDGET(self));
+    return;
+  }
+
+  if (self->overlay->record) {
+    waytator_capture_overlay_finish_record(self->overlay,
+                                           waytator_capture_view_new_choice(self, WAYTATOR_CAPTURE_AREA));
     return;
   }
 
@@ -1004,6 +1145,13 @@ waytator_capture_overlay_mode_toggled(GtkToggleButton     *button,
 {
   if (view->overlay->updating || !gtk_toggle_button_get_active(button))
     return;
+
+  //the desktop has the window picked in its own list, there is nothing left to pick here
+  if (button == view->window_button) {
+    waytator_capture_overlay_finish_record(view->overlay,
+                                           waytator_capture_view_new_choice(view, WAYTATOR_CAPTURE_WINDOW));
+    return;
+  }
 
   waytator_capture_overlay_set_mode(view->overlay,
                                     button == view->area_button
@@ -1177,6 +1325,35 @@ waytator_capture_overlay_magnifier_toggled(GtkToggleButton     *button,
     waytator_window_reload_preferences(GTK_APPLICATION(g_application_get_default()), NULL);
 }
 
+//both stay the way they were left for the next recording
+static void
+waytator_capture_overlay_sound_toggled(GtkToggleButton     *button,
+                                       WaytatorCaptureView *view)
+{
+  WaytatorCaptureOverlay *overlay = view->overlay;
+  const gboolean microphone = button == view->microphone_button;
+  const gboolean active = gtk_toggle_button_get_active(button);
+
+  if (overlay->updating)
+    return;
+
+  if (microphone)
+    overlay->microphone = active;
+  else
+    overlay->system_sound = active;
+
+  overlay->updating = TRUE;
+  for (guint i = 0; i < overlay->views->len; i++) {
+    WaytatorCaptureView *other = g_ptr_array_index(overlay->views, i);
+
+    gtk_toggle_button_set_active(microphone ? other->microphone_button : other->system_sound_button, active);
+  }
+  overlay->updating = FALSE;
+
+  if (waytator_settings_save_boolean(microphone ? "record_microphone" : "record_system_sound", active))
+    waytator_window_reload_preferences(GTK_APPLICATION(g_application_get_default()), NULL);
+}
+
 static GtkWidget *
 waytator_capture_overlay_append_toggle(WaytatorCaptureView *view,
                                        const char          *icon_name,
@@ -1211,7 +1388,19 @@ waytator_capture_overlay_append_delay(WaytatorCaptureView *view)
   GtkWidget *button = waytator_capture_overlay_append_toggle(view, "alarm-symbolic", "Delay", FALSE);
   GtkWidget *choices = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 
+  view->delay_button = GTK_TOGGLE_BUTTON(button);
   g_signal_connect(button, "toggled", G_CALLBACK(waytator_capture_overlay_delay_toggled), view);
+
+  //a recording keeps the delay it was given, so the button says which one it is
+  if (view->overlay->record) {
+    GtkWidget *content = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
+
+    view->delay_label = GTK_LABEL(gtk_label_new(NULL));
+    gtk_widget_add_css_class(GTK_WIDGET(view->delay_label), "capture-delay-value");
+    gtk_box_append(GTK_BOX(content), gtk_image_new_from_icon_name("alarm-symbolic"));
+    gtk_box_append(GTK_BOX(content), GTK_WIDGET(view->delay_label));
+    gtk_button_set_child(GTK_BUTTON(button), content);
+  }
 
   for (guint i = 0; i < G_N_ELEMENTS(delays); i++) {
     g_autofree char *label = g_strdup_printf("%us", delays[i]);
@@ -1330,6 +1519,16 @@ waytator_capture_overlay_handle_drag_end(GtkGestureDrag      *gesture,
   }
 }
 
+//so it is clear that this one records
+static void
+waytator_capture_overlay_append_record_mark(WaytatorCaptureView *view)
+{
+  GtkWidget *mark = gtk_image_new_from_icon_name("media-record-symbolic");
+
+  gtk_widget_add_css_class(mark, "capture-record-mark");
+  gtk_box_append(GTK_BOX(view->pill), mark);
+}
+
 static void
 waytator_capture_overlay_append_handle(WaytatorCaptureView *view)
 {
@@ -1389,10 +1588,16 @@ waytator_capture_overlay_build_pill(WaytatorCaptureView *view)
   gtk_widget_add_css_class(view->pill, "capture-pill");
 
   waytator_capture_overlay_append_handle(view);
+  if (view->overlay->record)
+    waytator_capture_overlay_append_record_mark(view);
 
   view->area_button = waytator_capture_overlay_new_mode_button(view, modes, "Area");
   view->screen_button = waytator_capture_overlay_new_mode_button(view, modes, "Screen");
   gtk_toggle_button_set_group(view->screen_button, view->area_button);
+  if (view->overlay->record) {
+    view->window_button = waytator_capture_overlay_new_mode_button(view, modes, "Window");
+    gtk_toggle_button_set_group(view->window_button, view->area_button);
+  }
   gtk_box_append(GTK_BOX(view->pill), GTK_WIDGET(modes));
   waytator_capture_overlay_append_separator(view);
 
@@ -1413,6 +1618,24 @@ waytator_capture_overlay_build_pill(WaytatorCaptureView *view)
 
   waytator_capture_overlay_append_delay(view);
   waytator_capture_overlay_append_separator(view);
+
+  if (view->overlay->record) {
+    button = waytator_capture_overlay_append_toggle(view,
+                                                    "audio-volume-high-symbolic",
+                                                    "System sound",
+                                                    view->overlay->system_sound);
+    g_signal_connect(button, "toggled", G_CALLBACK(waytator_capture_overlay_sound_toggled), view);
+    view->system_sound_button = GTK_TOGGLE_BUTTON(button);
+
+    button = waytator_capture_overlay_append_toggle(view,
+                                                    "audio-input-microphone-symbolic",
+                                                    "Microphone",
+                                                    view->overlay->microphone);
+    g_signal_connect(button, "toggled", G_CALLBACK(waytator_capture_overlay_sound_toggled), view);
+    view->microphone_button = GTK_TOGGLE_BUTTON(button);
+    waytator_capture_overlay_append_separator(view);
+  }
+
   waytator_capture_overlay_append_shift_hint(view);
 
   waytator_capture_overlay_init_pill_button(cancel, "Cancel (Esc)");
@@ -1545,15 +1768,12 @@ waytator_capture_overlay_add_window(WaytatorCaptureOverlay *overlay,
   g_ptr_array_add(overlay->views, view);
 }
 
-//takes the outputs, and returns FALSE without calling back when none of them is on a known monitor
-gboolean
-waytator_capture_overlay_show(GPtrArray                           *outputs,
-                              WaytatorCaptureMode                  mode,
-                              gboolean                             offer_hide,
-                              gboolean                             hide_waytator,
-                              WaytatorCaptureOverlayRetakeCallback retake,
-                              WaytatorCaptureOverlayCallback       callback,
-                              gpointer                             user_data)
+static WaytatorCaptureOverlay *
+waytator_capture_overlay_new(GPtrArray                           *outputs,
+                             gboolean                             offer_hide,
+                             gboolean                             hide_waytator,
+                             WaytatorCaptureOverlayRetakeCallback retake,
+                             gpointer                             user_data)
 {
   WaytatorCaptureOverlay *overlay = g_new0(WaytatorCaptureOverlay, 1);
   WaytatorSettings settings;
@@ -1566,16 +1786,24 @@ waytator_capture_overlay_show(GPtrArray                           *outputs,
   overlay->views = g_ptr_array_new();
   overlay->pill_style = waytator_capture_overlay_new_pill_style(&settings);
   overlay->magnifier = settings.capture_magnifier;
+  overlay->system_sound = settings.record_system_sound;
+  overlay->microphone = settings.record_microphone;
   overlay->brake_speed = settings.capture_brake_speed;
   overlay->offer_hide = offer_hide;
   overlay->hide_waytator = hide_waytator;
   overlay->retake = retake;
-  overlay->callback = callback;
   overlay->user_data = user_data;
   waytator_settings_clear(&settings);
+  return overlay;
+}
 
-  for (guint i = 0; i < outputs->len; i++) {
-    WaytatorCaptureOutput *output = g_ptr_array_index(outputs, i);
+//FALSE when none of the outputs is on a known monitor, the overlay is gone then
+static gboolean
+waytator_capture_overlay_present(WaytatorCaptureOverlay *overlay,
+                                 WaytatorCaptureMode     mode)
+{
+  for (guint i = 0; i < overlay->outputs->len; i++) {
+    WaytatorCaptureOutput *output = g_ptr_array_index(overlay->outputs, i);
     GdkMonitor *monitor = waytator_capture_overlay_find_monitor(output);
 
     if (monitor != NULL)
@@ -1588,8 +1816,46 @@ waytator_capture_overlay_show(GPtrArray                           *outputs,
   }
 
   waytator_capture_overlay_set_mode(overlay, mode);
+  if (overlay->record)
+    waytator_capture_overlay_set_delay(overlay, overlay->delay_seconds);
   for (guint i = 0; i < overlay->windows->len; i++)
     gtk_window_present(g_ptr_array_index(overlay->windows, i));
 
   return TRUE;
+}
+
+//takes the outputs, and returns FALSE without calling back when none of them is on a known monitor
+gboolean
+waytator_capture_overlay_show(GPtrArray                           *outputs,
+                              WaytatorCaptureMode                  mode,
+                              gboolean                             offer_hide,
+                              gboolean                             hide_waytator,
+                              WaytatorCaptureOverlayRetakeCallback retake,
+                              WaytatorCaptureOverlayCallback       callback,
+                              gpointer                             user_data)
+{
+  WaytatorCaptureOverlay *overlay = waytator_capture_overlay_new(outputs, offer_hide, hide_waytator, retake, user_data);
+
+  overlay->callback = callback;
+  return waytator_capture_overlay_present(overlay, mode);
+}
+
+//a window is picked in the desktop's own list, so it is never what the overlay starts in
+gboolean
+waytator_capture_overlay_show_record(GPtrArray                           *outputs,
+                                     WaytatorCaptureMode                  mode,
+                                     guint                                delay_seconds,
+                                     gboolean                             offer_hide,
+                                     gboolean                             hide_waytator,
+                                     WaytatorCaptureOverlayRetakeCallback retake,
+                                     WaytatorCaptureOverlayRecordCallback callback,
+                                     gpointer                             user_data)
+{
+  WaytatorCaptureOverlay *overlay = waytator_capture_overlay_new(outputs, offer_hide, hide_waytator, retake, user_data);
+
+  overlay->record = TRUE;
+  overlay->delay_seconds = delay_seconds;
+  overlay->record_callback = callback;
+  return waytator_capture_overlay_present(overlay,
+                                          mode == WAYTATOR_CAPTURE_WINDOW ? WAYTATOR_CAPTURE_AREA : mode);
 }

@@ -56,6 +56,7 @@
     <file alias="waytator-join-symbolic.svg">ui/icons/join-symbolic.svg</file>
     <!-- from adwaita-icon-theme (CC-BY-SA-3.0 OR LGPL-3.0-only), the ones gtk and libadwaita don't bring along -->
     <file alias="alarm-symbolic.svg">ui/icons/adwaita/alarm-symbolic.svg</file>
+    <file alias="audio-input-microphone-symbolic.svg">ui/icons/adwaita/audio-input-microphone-symbolic.svg</file>
     <file alias="audio-volume-overamplified-symbolic.svg">ui/icons/adwaita/audio-volume-overamplified-symbolic.svg</file>
     <file alias="camera-photo-symbolic.svg">ui/icons/adwaita/camera-photo-symbolic.svg</file>
     <file alias="edit-redo-symbolic.svg">ui/icons/adwaita/edit-redo-symbolic.svg</file>
@@ -64,6 +65,7 @@
     <file alias="list-drag-handle-symbolic.svg">ui/icons/adwaita/list-drag-handle-symbolic.svg</file>
     <file alias="media-skip-backward-symbolic.svg">ui/icons/adwaita/media-skip-backward-symbolic.svg</file>
     <file alias="media-skip-forward-symbolic.svg">ui/icons/adwaita/media-skip-forward-symbolic.svg</file>
+    <file alias="microphone-disabled-symbolic.svg">ui/icons/adwaita/microphone-disabled-symbolic.svg</file>
     <file alias="object-flip-horizontal-symbolic.svg">ui/icons/adwaita/object-flip-horizontal-symbolic.svg</file>
     <file alias="object-flip-vertical-symbolic.svg">ui/icons/adwaita/object-flip-vertical-symbolic.svg</file>
     <file alias="power-profile-performance-symbolic.svg">ui/icons/adwaita/power-profile-performance-symbolic.svg</file>

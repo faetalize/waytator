@@ -13,6 +13,8 @@
 #include <libswscale/swscale.h>
 #include <math.h>
 
+#include "waytator-video-encoder.h"
+
 //decoded frames kept around the last one asked for. whatever wants frames in memory reads through the
 //video rather than stepping around in it, so it keeps far fewer
 #define WAYTATOR_VIDEO_CACHE_BUDGET ((gsize) 512 * 1024 * 1024)
@@ -1272,7 +1274,6 @@ static gboolean
 waytator_video_decoder_open_device(WaytatorVideoDecoder *decoder,
                                    const AVCodec        *codec)
 {
-  AVDictionary *options = NULL;
   gboolean supported = FALSE;
 
   for (int i = 0; !supported; i++) {
@@ -1289,17 +1290,7 @@ waytator_video_decoder_open_device(WaytatorVideoDecoder *decoder,
   if (decoder->device != NULL)
     return TRUE;
 
-  //straight to the render nodes, never through an x server
-  av_dict_set(&options, "connection_type", "drm", 0);
-  for (int node = 128; node < 136 && decoder->device == NULL; node++) {
-    char path[32];
-
-    g_snprintf(path, sizeof path, "/dev/dri/renderD%d", node);
-    if (g_file_test(path, G_FILE_TEST_EXISTS))
-      av_hwdevice_ctx_create(&decoder->device, AV_HWDEVICE_TYPE_VAAPI, path, options, 0);
-  }
-  av_dict_free(&options);
-
+  decoder->device = waytator_video_encoder_open_device();
   return decoder->device != NULL;
 }
 

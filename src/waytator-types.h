@@ -63,6 +63,8 @@ typedef enum {
 typedef enum {
   WAYTATOR_CAPTURE_AREA,
   WAYTATOR_CAPTURE_SCREEN,
+  //only recordings offer it for now, the desktop has the window picked in its own list
+  WAYTATOR_CAPTURE_WINDOW,
 } WaytatorCaptureMode;
 
 typedef enum {

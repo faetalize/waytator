@@ -26,4 +26,15 @@ void waytator_pointer_brake_release(WaytatorPointerBrake *brake,
                                     double                x,
                                     double                y);
 
+//how far the real pointer moves while it is over one of waytator's surfaces, however the surface under it moves,
+//which the pointer's position on a surface that is itself moving can't tell. it says so whatever the pointer is
+//held by and doesn't hold it
+typedef struct _WaytatorPointerMotion WaytatorPointerMotion;
+
+//NULL when the compositor can't say
+WaytatorPointerMotion *waytator_pointer_motion_new(GtkWidget                *widget,
+                                                   WaytatorPointerBrakeMoved moved,
+                                                   gpointer                  user_data);
+void waytator_pointer_motion_free(WaytatorPointerMotion *motion);
+
 G_END_DECLS

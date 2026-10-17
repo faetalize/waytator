@@ -1,6 +1,7 @@
 #pragma once
 
 #include "waytator-canvas-view.h"
+#include "waytator-countdown.h"
 #include "waytator-document.h"
 #include "waytator-settings.h"
 #include "waytator-types.h"
@@ -123,6 +124,8 @@ struct _WaytatorWindow {
   GtkMenuButton *save_button;
   GtkButton *save_as_button;
   GMenu *save_menu;
+  //what recording offers in the delay menu and the folded one, which changes while a recording is under way
+  GMenu *record_menu;
   char *save_menu_key;
   GtkStack *save_icon_stack;
   GtkImage *save_default_icon;
@@ -206,6 +209,8 @@ struct _WaytatorWindow {
   GPtrArray *capture_hidden_windows;
   char *capture_output_name;
   guint capture_delay_id;
+  //a delay someone asked for, counting down on screen
+  WaytatorCountdown *capture_countdown;
   //taken before this window was built, the command line starts it while the window is still being put together
   WaytatorCaptureEarly *capture_early;
   WaytatorAfterSave after_save;

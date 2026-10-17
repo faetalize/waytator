@@ -13,6 +13,18 @@ waytator_settings_default_save_dir(void)
   return g_build_filename(g_get_home_dir(), "Pictures", "Screenshots", NULL);
 }
 
+//where GNOME keeps the screencasts it records, so both end up in one place
+static char *
+waytator_settings_default_recording_dir(void)
+{
+  const char *videos = g_get_user_special_dir(G_USER_DIRECTORY_VIDEOS);
+
+  if (videos != NULL)
+    return g_build_filename(videos, "Screencasts", NULL);
+
+  return g_build_filename(g_get_home_dir(), "Videos", "Screencasts", NULL);
+}
+
 char *
 waytator_settings_path(void)
 {
@@ -26,6 +38,14 @@ waytator_settings_init(WaytatorSettings *settings)
   settings->screenshot_copy = TRUE;
   settings->capture_hide_waytator = TRUE;
   settings->capture_magnifier = FALSE;
+  settings->record_system_sound = TRUE;
+  settings->record_microphone = FALSE;
+  settings->recording_save_dir = waytator_settings_default_recording_dir();
+  settings->recording_copy = TRUE;
+  settings->recording_microphone = g_strdup("");
+  settings->recording_show_bar = TRUE;
+  settings->recording_rate = 60;
+  settings->recording_show_pointer = TRUE;
   settings->capture_brake_speed = 0.5;
   settings->floating_controls_blur = TRUE;
   settings->floating_controls_opacity = 0.7;
@@ -37,6 +57,8 @@ void
 waytator_settings_clear(WaytatorSettings *settings)
 {
   g_clear_pointer(&settings->screenshot_save_dir, g_free);
+  g_clear_pointer(&settings->recording_save_dir, g_free);
+  g_clear_pointer(&settings->recording_microphone, g_free);
   g_clear_pointer(&settings->video_copy_profile, g_free);
 }
 
@@ -72,6 +94,71 @@ waytator_settings_read(WaytatorSettings *settings,
                                                          WAYTATOR_SETTINGS_GROUP,
                                                          "capture_magnifier",
                                                          NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "record_system_sound", NULL))
+    settings->record_system_sound = g_key_file_get_boolean(key_file,
+                                                           WAYTATOR_SETTINGS_GROUP,
+                                                           "record_system_sound",
+                                                           NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "record_microphone", NULL))
+    settings->record_microphone = g_key_file_get_boolean(key_file,
+                                                         WAYTATOR_SETTINGS_GROUP,
+                                                         "record_microphone",
+                                                         NULL);
+
+  //a folder that is empty or missing keeps the default, recordings have to go somewhere
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_save_dir", NULL)) {
+    g_autofree char *folder = g_key_file_get_string(key_file,
+                                                    WAYTATOR_SETTINGS_GROUP,
+                                                    "recording_save_dir",
+                                                    NULL);
+
+    if (folder != NULL && *folder != '\0') {
+      g_free(settings->recording_save_dir);
+      settings->recording_save_dir = g_steal_pointer(&folder);
+    }
+  }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_copy", NULL))
+    settings->recording_copy = g_key_file_get_boolean(key_file,
+                                                      WAYTATOR_SETTINGS_GROUP,
+                                                      "recording_copy",
+                                                      NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_microphone", NULL)) {
+    g_autofree char *microphone = g_key_file_get_string(key_file,
+                                                        WAYTATOR_SETTINGS_GROUP,
+                                                        "recording_microphone",
+                                                        NULL);
+
+    if (microphone != NULL) {
+      g_free(settings->recording_microphone);
+      settings->recording_microphone = g_steal_pointer(&microphone);
+    }
+  }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_show_bar", NULL))
+    settings->recording_show_bar = g_key_file_get_boolean(key_file,
+                                                          WAYTATOR_SETTINGS_GROUP,
+                                                          "recording_show_bar",
+                                                          NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_rate", NULL)) {
+    const int rate = g_key_file_get_integer(key_file,
+                                            WAYTATOR_SETTINGS_GROUP,
+                                            "recording_rate",
+                                            NULL);
+
+    if (rate == 30 || rate == 60)
+      settings->recording_rate = rate;
+  }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_show_pointer", NULL))
+    settings->recording_show_pointer = g_key_file_get_boolean(key_file,
+                                                              WAYTATOR_SETTINGS_GROUP,
+                                                              "recording_show_pointer",
+                                                              NULL);
 
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "capture_brake_speed", NULL)) {
     const double speed = g_key_file_get_double(key_file,
@@ -132,6 +219,38 @@ waytator_settings_write(const WaytatorSettings *settings,
                          WAYTATOR_SETTINGS_GROUP,
                          "capture_magnifier",
                          settings->capture_magnifier);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "record_system_sound",
+                         settings->record_system_sound);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "record_microphone",
+                         settings->record_microphone);
+  g_key_file_set_string(key_file,
+                        WAYTATOR_SETTINGS_GROUP,
+                        "recording_save_dir",
+                        settings->recording_save_dir);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "recording_copy",
+                         settings->recording_copy);
+  g_key_file_set_string(key_file,
+                        WAYTATOR_SETTINGS_GROUP,
+                        "recording_microphone",
+                        settings->recording_microphone);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "recording_show_bar",
+                         settings->recording_show_bar);
+  g_key_file_set_integer(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "recording_rate",
+                         settings->recording_rate);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "recording_show_pointer",
+                         settings->recording_show_pointer);
   g_key_file_set_double(key_file,
                         WAYTATOR_SETTINGS_GROUP,
                         "capture_brake_speed",

@@ -8,7 +8,6 @@
 #include <libavfilter/buffersrc.h>
 #include <libavformat/avformat.h>
 #include <libavutil/channel_layout.h>
-#include <libavutil/hwcontext.h>
 #include <libavutil/opt.h>
 #include <libswresample/swresample.h>
 #include <math.h>
@@ -16,6 +15,7 @@
 
 #include "waytator-video-audio.h"
 #include "waytator-video-cache.h"
+#include "waytator-video-encoder.h"
 
 //room left under a size limit for what the container adds
 #define WAYTATOR_EXPORT_SIZE_MARGIN 0.94
@@ -79,8 +79,7 @@ typedef struct {
   int pass_index;
 
   WaytatorExportPlan plan;
-  const AVCodec *video_codec;
-  AVBufferRef *device;
+  WaytatorVideoEncoderChoice choice;
   WaytatorVideoDecoder *decoder;
   WaytatorExportGraph graphs[WAYTATOR_EXPORT_MAX_GRAPHS];
   guint n_graphs;
@@ -109,18 +108,6 @@ typedef struct {
   int gif_fd;
   AVCodecContext *png_encoder;
 } WaytatorExporter;
-
-static gboolean
-waytator_export_fail(GError    **error,
-                     int         code,
-                     const char *what)
-{
-  char message[AV_ERROR_MAX_STRING_SIZE] = "";
-
-  av_strerror(code, message, sizeof message);
-  g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "%s: %s", what, message);
-  return FALSE;
-}
 
 static void
 waytator_export_report(WaytatorExporter *exporter,
@@ -351,131 +338,29 @@ waytator_export_plan(WaytatorExporter *exporter,
   return TRUE;
 }
 
-static int
-waytator_export_quality(const char *encoder,
-                        int         quality)
-{
-  if (g_str_has_prefix(encoder, "libsvtav1") || g_str_has_prefix(encoder, "libaom"))
-    return (int) round(55 - quality * 0.35);
-  if (g_str_has_prefix(encoder, "libvpx"))
-    return (int) round(50 - quality * 0.3);
-  if (g_str_equal(encoder, "av1_vaapi"))
-    return (int) round((55 - quality * 0.35) * 4);
-  return (int) round(40 - quality * 0.25);
-}
-
-static const char *const *
-waytator_export_encoder_names(WaytatorVideoCodec codec,
-                              gboolean           hardware)
-{
-  static const char *const h264_hardware[] = { "h264_vaapi", NULL };
-  static const char *const h264_software[] = { "libx264", "libopenh264", NULL };
-  static const char *const hevc_hardware[] = { "hevc_vaapi", NULL };
-  static const char *const hevc_software[] = { "libx265", NULL };
-  static const char *const av1_hardware[] = { "av1_vaapi", NULL };
-  static const char *const av1_software[] = { "libsvtav1", "libaom-av1", "librav1e", NULL };
-  static const char *const vp9_hardware[] = { "vp9_vaapi", NULL };
-  static const char *const vp9_software[] = { "libvpx-vp9", NULL };
-
-  switch (codec) {
-  case WAYTATOR_VIDEO_CODEC_H264:
-    return hardware ? h264_hardware : h264_software;
-  case WAYTATOR_VIDEO_CODEC_HEVC:
-    return hardware ? hevc_hardware : hevc_software;
-  case WAYTATOR_VIDEO_CODEC_AV1:
-    return hardware ? av1_hardware : av1_software;
-  case WAYTATOR_VIDEO_CODEC_VP9:
-    return hardware ? vp9_hardware : vp9_software;
-  default:
-    return NULL;
-  }
-}
-
-//whether the gpu really encodes this, which the encoder existing in ffmpeg doesn't say
-static gboolean
-waytator_export_hardware_encodes(const AVCodec *codec,
-                                 AVBufferRef   *device,
-                                 int            width,
-                                 int            height)
-{
-  AVBufferRef *frames = av_hwframe_ctx_alloc(device);
-  AVHWFramesContext *frames_context;
-  AVCodecContext *context = NULL;
-  gboolean works = FALSE;
-
-  if (frames == NULL)
-    return FALSE;
-
-  frames_context = (AVHWFramesContext *) frames->data;
-  frames_context->format = AV_PIX_FMT_VAAPI;
-  frames_context->sw_format = AV_PIX_FMT_NV12;
-  frames_context->width = width;
-  frames_context->height = height;
-  frames_context->initial_pool_size = 4;
-  if (av_hwframe_ctx_init(frames) >= 0 && (context = avcodec_alloc_context3(codec)) != NULL) {
-    context->width = width;
-    context->height = height;
-    context->pix_fmt = AV_PIX_FMT_VAAPI;
-    context->time_base = (AVRational) { 1, 30 };
-    context->global_quality = 25;
-    context->hw_frames_ctx = av_buffer_ref(frames);
-    works = avcodec_open2(context, codec, NULL) >= 0;
-  }
-
-  avcodec_free_context(&context);
-  av_buffer_unref(&frames);
-  return works;
-}
-
 static gboolean
 waytator_export_pick_encoder(WaytatorExporter *exporter,
                              GError          **error)
 {
   const WaytatorVideoProfile *profile = exporter->profile;
-  const char *const *names;
+  WaytatorVideoEncoder preference = profile->encoder;
 
   if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
     return TRUE;
 
   //two passes to land just under a size limit only work on the cpu
-  if (profile->encoder != WAYTATOR_VIDEO_ENCODER_SOFTWARE
-      && !(exporter->plan.video_bitrate > 0 && profile->encoder == WAYTATOR_VIDEO_ENCODER_AUTO)
-      && av_hwdevice_ctx_create(&exporter->device, AV_HWDEVICE_TYPE_VAAPI, NULL, NULL, 0) >= 0) {
-    names = waytator_export_encoder_names(profile->codec, TRUE);
-    for (guint i = 0; names[i] != NULL; i++) {
-      const AVCodec *codec = avcodec_find_encoder_by_name(names[i]);
+  if (exporter->plan.video_bitrate > 0 && preference == WAYTATOR_VIDEO_ENCODER_AUTO)
+    preference = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
 
-      if (codec != NULL
-          && waytator_export_hardware_encodes(codec, exporter->device,
-                                              exporter->plan.scaled_width, exporter->plan.scaled_height)) {
-        exporter->video_codec = codec;
-        exporter->plan.hardware_encode = TRUE;
-        return TRUE;
-      }
-    }
-  }
-
-  if (profile->encoder == WAYTATOR_VIDEO_ENCODER_HARDWARE)
-    g_debug("No hardware encoder for this profile here, encoding on the cpu");
-
-  names = waytator_export_encoder_names(profile->codec, FALSE);
-  for (guint i = 0; names[i] != NULL; i++) {
-    exporter->video_codec = avcodec_find_encoder_by_name(names[i]);
-    if (exporter->video_codec != NULL)
-      break;
-  }
-
-  if (exporter->video_codec == NULL) {
-    g_autofree char *wanted = g_strjoinv(", ", (char **) names);
-
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-                "This system's FFmpeg can't encode this profile's video, it needs one of: %s",
-                wanted);
+  if (!waytator_video_encoder_choose(profile->codec, preference,
+                                     exporter->plan.scaled_width, exporter->plan.scaled_height,
+                                     &exporter->choice, error))
     return FALSE;
-  }
 
-  exporter->plan.two_pass = exporter->plan.video_bitrate > 0
-                         && g_str_equal(exporter->video_codec->name, "libx264");
+  exporter->plan.hardware_encode = exporter->choice.device != NULL;
+  exporter->plan.two_pass = !exporter->plan.hardware_encode
+                         && exporter->plan.video_bitrate > 0
+                         && g_str_equal(exporter->choice.codec->name, "libx264");
   return TRUE;
 }
 
@@ -627,9 +512,9 @@ waytator_export_get_graph(WaytatorExporter  *exporter,
     goto failed;
 
   //hwupload takes the encoder's device
-  if (exporter->device != NULL) {
+  if (exporter->choice.device != NULL) {
     for (unsigned i = 0; i < graph->graph->nb_filters; i++)
-      graph->graph->filters[i]->hw_device_ctx = av_buffer_ref(exporter->device);
+      graph->graph->filters[i]->hw_device_ctx = av_buffer_ref(exporter->choice.device);
   }
 
   code = avfilter_graph_config(graph->graph, NULL);
@@ -654,7 +539,7 @@ failed:
   avfilter_inout_free(&outputs);
   exporter->n_graphs--;
   waytator_export_graph_clear(graph);
-  waytator_export_fail(error, code, "Could not set up the picture filters");
+  waytator_video_encoder_fail(error, code, "Could not set up the picture filters");
   return NULL;
 }
 
@@ -667,15 +552,13 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
 {
   const WaytatorExportPlan *plan = &exporter->plan;
   const WaytatorVideoProfile *profile = exporter->profile;
-  const AVCodec *codec = exporter->video_codec;
+  const AVCodec *codec = exporter->choice.codec;
   AVCodecContext *encoder;
   AVBufferRef *frames;
-  const char *name;
   int code;
 
   if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
     codec = avcodec_find_encoder(AV_CODEC_ID_GIF);
-  name = codec->name;
 
   encoder = exporter->video_encoder = avcodec_alloc_context3(codec);
   encoder->width = av_buffersink_get_w(sink);
@@ -691,9 +574,6 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
   encoder->color_primaries = source_frame->color_primaries;
   encoder->color_trc = source_frame->color_trc;
   encoder->colorspace = source_frame->colorspace;
-  encoder->thread_count = 0;
-  if (profile->codec != WAYTATOR_VIDEO_CODEC_GIF)
-    encoder->gop_size = (int) ceil(av_q2d(plan->rate) * WAYTATOR_EXPORT_KEYFRAME_SECONDS);
   if (exporter->muxer != NULL && (exporter->muxer->oformat->flags & AVFMT_GLOBALHEADER) != 0)
     encoder->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
@@ -709,33 +589,16 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
       if (plan->hardware_encode)
         av_opt_set(encoder->priv_data, "rc_mode", "VBR", 0);
     }
-  } else if (plan->hardware_encode) {
-    av_opt_set(encoder->priv_data, "rc_mode", "CQP", 0);
-    encoder->global_quality = waytator_export_quality(name, profile->quality);
-    av_opt_set_int(encoder->priv_data, "qp", waytator_export_quality(name, profile->quality), 0);
-  } else if (g_str_equal(name, "libopenh264")) {
-    //no constant quality there, so a rate that suits the picture's size instead
-    encoder->bit_rate = (gint64) (encoder->width * encoder->height * av_q2d(plan->rate) * 0.12);
-  } else if (profile->codec != WAYTATOR_VIDEO_CODEC_GIF) {
-    av_opt_set_int(encoder->priv_data, "crf", waytator_export_quality(name, profile->quality), 0);
-    if (g_str_has_prefix(name, "libvpx"))
-      encoder->bit_rate = 0;
   }
 
-  if (g_str_equal(name, "libx264") || g_str_equal(name, "libx265"))
-    av_opt_set(encoder->priv_data, "preset", "medium", 0);
-  else if (g_str_equal(name, "libsvtav1"))
-    av_opt_set(encoder->priv_data, "preset", "8", 0);
-  else if (g_str_equal(name, "libaom-av1"))
-    av_opt_set_int(encoder->priv_data, "cpu-used", 6, 0);
-  else if (g_str_has_prefix(name, "libvpx")) {
-    av_opt_set_int(encoder->priv_data, "cpu-used", 4, 0);
-    av_opt_set_int(encoder->priv_data, "row-mt", 1, 0);
-  }
+  //a size limit decides through the bit rate, so the quality stays out of it
+  if (profile->codec != WAYTATOR_VIDEO_CODEC_GIF)
+    waytator_video_encoder_configure(encoder, plan->video_bitrate > 0 ? -1 : profile->quality,
+                                     WAYTATOR_EXPORT_KEYFRAME_SECONDS, WAYTATOR_VIDEO_ENCODE_SAVE);
 
   code = avcodec_open2(encoder, codec, NULL);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not start the video encoder");
+    return waytator_video_encoder_fail(error, code, "Could not start the video encoder");
 
   if (exporter->muxer != NULL) {
     exporter->video_stream = avformat_new_stream(exporter->muxer, NULL);
@@ -743,7 +606,7 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
     exporter->video_stream->avg_frame_rate = plan->rate;
     code = avcodec_parameters_from_context(exporter->video_stream->codecpar, encoder);
     if (code < 0)
-      return waytator_export_fail(error, code, "Could not set up the video stream");
+      return waytator_video_encoder_fail(error, code, "Could not set up the video stream");
   }
 
   return TRUE;
@@ -769,13 +632,13 @@ waytator_export_write_packets(WaytatorExporter *exporter,
     code = av_interleaved_write_frame(exporter->muxer, packet);
     if (code < 0) {
       av_packet_free(&packet);
-      return waytator_export_fail(error, code, "Could not write the video");
+      return waytator_video_encoder_fail(error, code, "Could not write the video");
     }
   }
 
   av_packet_free(&packet);
   if (code != AVERROR(EAGAIN) && code != AVERROR_EOF)
-    return waytator_export_fail(error, code, "Could not encode the video");
+    return waytator_video_encoder_fail(error, code, "Could not encode the video");
   return TRUE;
 }
 
@@ -819,20 +682,20 @@ waytator_export_open_audio(WaytatorExporter *exporter,
 
   code = avcodec_open2(encoder, codec, NULL);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not start the sound encoder");
+    return waytator_video_encoder_fail(error, code, "Could not start the sound encoder");
 
   exporter->audio_stream = avformat_new_stream(exporter->muxer, NULL);
   exporter->audio_stream->time_base = encoder->time_base;
   code = avcodec_parameters_from_context(exporter->audio_stream->codecpar, encoder);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not set up the sound stream");
+    return waytator_video_encoder_fail(error, code, "Could not set up the sound stream");
 
   code = swr_alloc_set_opts2(&exporter->resampler,
                              &encoder->ch_layout, encoder->sample_fmt, encoder->sample_rate,
                              &layout, AV_SAMPLE_FMT_FLT, WAYTATOR_VIDEO_AUDIO_RATE,
                              0, NULL);
   if (code < 0 || (code = swr_init(exporter->resampler)) < 0)
-    return waytator_export_fail(error, code, "Could not set up the sound");
+    return waytator_video_encoder_fail(error, code, "Could not set up the sound");
 
   exporter->audio = waytator_video_audio_new(exporter->source, exporter->state, error);
   if (exporter->audio == NULL)
@@ -871,7 +734,7 @@ waytator_export_audio_until(WaytatorExporter *exporter,
       exporter->audio_done = TRUE;
       code = avcodec_send_frame(encoder, NULL);
       if (code < 0)
-        return waytator_export_fail(error, code, "Could not encode the sound");
+        return waytator_video_encoder_fail(error, code, "Could not encode the sound");
       return waytator_export_write_packets(exporter, encoder, exporter->audio_stream, error);
     }
 
@@ -887,13 +750,13 @@ waytator_export_audio_until(WaytatorExporter *exporter,
       code = swr_convert(exporter->resampler, exporter->audio_frame->data, (int) n, in, (int) n);
     }
     if (code < 0)
-      return waytator_export_fail(error, code, "Could not convert the sound");
+      return waytator_video_encoder_fail(error, code, "Could not convert the sound");
 
     exporter->audio_frame->pts = exporter->audio_pts;
     exporter->audio_pts += n;
     code = avcodec_send_frame(encoder, exporter->audio_frame);
     if (code < 0)
-      return waytator_export_fail(error, code, "Could not encode the sound");
+      return waytator_video_encoder_fail(error, code, "Could not encode the sound");
     if (!waytator_export_write_packets(exporter, encoder, exporter->audio_stream, error))
       return FALSE;
   }
@@ -925,19 +788,19 @@ waytator_export_write_png(WaytatorExporter *exporter,
     exporter->png_encoder->compression_level = 1;
     code = avcodec_open2(exporter->png_encoder, codec, NULL);
     if (code < 0)
-      return waytator_export_fail(error, code, "Could not start the GIF frames");
+      return waytator_video_encoder_fail(error, code, "Could not start the GIF frames");
   }
 
   code = avcodec_send_frame(exporter->png_encoder, frame);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not make a GIF frame");
+    return waytator_video_encoder_fail(error, code, "Could not make a GIF frame");
 
   packet = av_packet_alloc();
   code = avcodec_receive_packet(exporter->png_encoder, packet);
   written = code >= 0 && g_file_set_contents(path, (const char *) packet->data, packet->size, error);
   av_packet_free(&packet);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not make a GIF frame");
+    return waytator_video_encoder_fail(error, code, "Could not make a GIF frame");
   return written;
 }
 
@@ -961,7 +824,7 @@ waytator_export_take_filtered(WaytatorExporter  *exporter,
   frame->pict_type = AV_PICTURE_TYPE_NONE;
   code = avcodec_send_frame(exporter->video_encoder, frame);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not encode the video");
+    return waytator_video_encoder_fail(error, code, "Could not encode the video");
   return waytator_export_write_packets(exporter, exporter->video_encoder, exporter->video_stream, error);
 }
 
@@ -1044,7 +907,7 @@ waytator_export_video_pass(WaytatorExporter  *exporter,
     code = av_buffersrc_add_frame(graph->source, prepared);
     av_frame_free(&prepared);
     if (code < 0) {
-      waytator_export_fail(error, code, "Could not filter the video");
+      waytator_video_encoder_fail(error, code, "Could not filter the video");
       goto done;
     }
 
@@ -1065,7 +928,7 @@ waytator_export_video_pass(WaytatorExporter  *exporter,
       av_frame_unref(filtered);
     }
     if (code != AVERROR(EAGAIN) && code != AVERROR_EOF) {
-      waytator_export_fail(error, code, "Could not filter the video");
+      waytator_video_encoder_fail(error, code, "Could not filter the video");
       goto done;
     }
 
@@ -1098,7 +961,7 @@ waytator_export_video_pass(WaytatorExporter  *exporter,
   if (exporter->video_encoder != NULL) {
     code = avcodec_send_frame(exporter->video_encoder, NULL);
     if (code < 0 && code != AVERROR_EOF) {
-      waytator_export_fail(error, code, "Could not finish the video");
+      waytator_video_encoder_fail(error, code, "Could not finish the video");
       goto done;
     }
     if (!waytator_export_write_packets(exporter, exporter->video_encoder, exporter->video_stream, error))
@@ -1154,11 +1017,11 @@ waytator_export_open_muxer(WaytatorExporter *exporter,
 
   code = avformat_alloc_output_context2(&exporter->muxer, NULL, format, path);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not start the file");
+    return waytator_video_encoder_fail(error, code, "Could not start the file");
 
   code = avio_open(&exporter->muxer->pb, path, AVIO_FLAG_WRITE);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not write the file");
+    return waytator_video_encoder_fail(error, code, "Could not write the file");
 
   return TRUE;
 }
@@ -1180,7 +1043,7 @@ waytator_export_start_muxer(WaytatorExporter *exporter,
   code = avformat_write_header(exporter->muxer, &options);
   av_dict_free(&options);
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not write the file");
+    return waytator_video_encoder_fail(error, code, "Could not write the file");
   return TRUE;
 }
 
@@ -1223,7 +1086,7 @@ waytator_export_finish_muxer(WaytatorExporter *exporter,
   int code = av_write_trailer(exporter->muxer);
 
   if (code < 0)
-    return waytator_export_fail(error, code, "Could not finish the file");
+    return waytator_video_encoder_fail(error, code, "Could not finish the file");
   return TRUE;
 }
 
@@ -1309,7 +1172,7 @@ waytator_export_clear(WaytatorExporter *exporter)
   av_frame_free(&exporter->palette);
   g_clear_pointer(&exporter->audio_samples, g_free);
   g_clear_pointer(&exporter->decoder, waytator_video_decoder_free);
-  av_buffer_unref(&exporter->device);
+  waytator_video_encoder_choice_clear(&exporter->choice);
   if (exporter->stats_path != NULL) {
     g_autofree char *tree = g_strconcat(exporter->stats_path, ".mbtree", NULL);
 

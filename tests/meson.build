@@ -12,6 +12,7 @@ test_video_source = executable(
   'test-video-source',
   'test-video-source.c',
   files(
+    '../src/waytator-video-encoder.c',
     '../src/waytator-video-frames.c',
     '../src/waytator-video-source.c',
     '../src/waytator-video-thumbnails.c',
@@ -48,6 +49,7 @@ test_video_export = executable(
   'test-video-export.c',
   files(
     '../src/waytator-video-audio.c',
+    '../src/waytator-video-encoder.c',
     '../src/waytator-video-export.c',
     '../src/waytator-video-cache.c',
     '../src/waytator-video-profile.c',
@@ -67,3 +69,107 @@ test_video_cache = executable(
   dependencies: [gobject_dep],
 )
 test('video-cache', test_video_cache)
+
+#talks to a stand-in for the screen cast portal on a bus of its own, so it needs neither a display nor the real portal
+test_record_portal = executable(
+  'test-record-portal',
+  'test-record-portal.c',
+  'record-test-portal.c',
+  files('../src/waytator-record-portal.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep],
+)
+test('record-portal', test_record_portal)
+
+#the mix of a recording's sound with made up sources and clocks, so it needs no pipewire
+test_record_mixer = executable(
+  'test-record-mixer',
+  'test-record-mixer.c',
+  files('../src/waytator-record-mixer.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep, m_dep],
+)
+test('record-mixer', test_record_mixer, timeout: 120)
+
+#the capture of a recording's sound against a pipewire and wireplumber of the test's own, skipping when they
+#aren't installed
+test_record_audio = executable(
+  'test-record-audio',
+  'test-record-audio.c',
+  files(
+    '../src/waytator-record-audio.c',
+    '../src/waytator-record-mixer.c',
+  ),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep, pipewire_dep, m_dep],
+)
+test('record-audio', test_record_audio, timeout: 180)
+
+#only the placing of the bar is run, which is plain arithmetic, so it needs no display. the rest of the bar is
+#stood in for where it would reach into the windows
+test_recording_bar_place = executable(
+  'test-recording-bar-place',
+  'test-recording-bar-place.c',
+  files('../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
+  include_directories: waytator_include,
+  dependencies: [layer_shell_dep, gtk_dep, adw_dep, m_dep],
+)
+test('recording-bar-place', test_recording_bar_place)
+
+#makes pictures and sound of its own, records them through the writer and decodes the files, with a gpu off screen when there is one
+test_record_writer = executable(
+  'test-record-writer',
+  'test-record-writer.c',
+  files(
+    '../src/waytator-record-writer.c',
+    '../src/waytator-video-cache.c',
+    '../src/waytator-video-encoder.c',
+  ),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep, m_dep, video_deps],
+)
+test('record-writer', test_record_writer, timeout: 300)
+
+#a PipeWire daemon of its own stands in for the compositor, sending pictures in memory and on the gpu
+test_record_stream = executable(
+  'test-record-stream',
+  'test-record-stream.c',
+  'record-test-pipewire.c',
+  files('../src/waytator-record-stream.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep, m_dep, video_deps],
+)
+test('record-stream', test_record_stream, timeout: 120)
+
+#what a window saves of the recording preferences is what a recording without one reads back
+test_recording_settings = executable(
+  'test-recording-settings',
+  'test-recording-settings.c',
+  files('../src/waytator-settings.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep],
+)
+test('recording-settings', test_recording_settings)
+
+#records a screen of a stand-in portal and a PipeWire daemon of the test's own and decodes the files, skipping without
+#pipewire or VA-API. the wait for the first picture is shortened so the case where none comes is quick
+test_record_recorder = executable(
+  'test-record-recorder',
+  'test-record-recorder.c',
+  'record-test-pipewire.c',
+  'record-test-portal.c',
+  files(
+    '../src/waytator-record-audio.c',
+    '../src/waytator-record-mixer.c',
+    '../src/waytator-record-portal.c',
+    '../src/waytator-record-stream.c',
+    '../src/waytator-record-writer.c',
+    '../src/waytator-recorder.c',
+    '../src/waytator-video-cache.c',
+    '../src/waytator-video-encoder.c',
+  ),
+  include_directories: waytator_include,
+  c_args: ['-DWAYTATOR_RECORDER_FIRST_PICTURE_MS=3000'],
+  dependencies: [adw_dep, gio_unix_dep, m_dep, video_deps],
+)
+test('record-recorder', test_record_recorder, timeout: 180)
