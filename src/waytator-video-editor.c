@@ -35,8 +35,8 @@ static const double waytator_video_speed_steps[] = {
 //the panel's margins either side, which the controls fit inside
 #define WAYTATOR_VIDEO_PANEL_MARGINS 32
 
-//playback on the left, the tools in the middle and the zoom on the right, or the tools on a row of their own
-//under the other two. the editor decides which, so this never holds the window wider than it is
+//playback on the left, the tools on the right beside the zoom, or the tools on a row of their own under the
+//other two, still to the right. the editor decides which, so this never holds the window wider than it is
 #define WAYTATOR_TYPE_VIDEO_CONTROLS (waytator_video_controls_get_type())
 G_DECLARE_FINAL_TYPE(WaytatorVideoControls, waytator_video_controls, WAYTATOR, VIDEO_CONTROLS, GtkWidget)
 
@@ -164,11 +164,9 @@ waytator_video_controls_size_allocate(GtkWidget *widget,
     waytator_video_controls_width(zoom, NULL, &zoom_width);
 
   if (!self->stacked) {
-    //the tools sit in the middle of the row, or as near it as the groups either side let them
-    const int x = CLAMP((width - tools_width) / 2,
-                        transport_width + WAYTATOR_VIDEO_CONTROLS_GAP,
-                        MAX(width - zoom_width - WAYTATOR_VIDEO_CONTROLS_GAP - tools_width,
-                            transport_width + WAYTATOR_VIDEO_CONTROLS_GAP));
+    //the tools sit against the zoom, so a label in them changing length moves nothing but their left end
+    const int x = MAX(width - (zoom_width > 0 ? zoom_width + WAYTATOR_VIDEO_CONTROLS_GAP : 0) - tools_width,
+                      transport_width + WAYTATOR_VIDEO_CONTROLS_GAP);
 
     waytator_video_controls_place(transport, 0, 0, transport_width, height);
     waytator_video_controls_place(tools, x, 0, tools_width, height);
@@ -181,7 +179,7 @@ waytator_video_controls_size_allocate(GtkWidget *widget,
   waytator_video_controls_place(zoom, width - zoom_width, 0, zoom_width, top);
   tools_width = MIN(tools_width, width);
   waytator_video_controls_place(tools,
-                                (width - tools_width) / 2,
+                                width - tools_width,
                                 top + WAYTATOR_VIDEO_CONTROLS_GAP - 2,
                                 tools_width,
                                 height - top - WAYTATOR_VIDEO_CONTROLS_GAP + 2);
