@@ -3572,7 +3572,8 @@ waytator_window_close_window_action(GtkWidget  *widget,
   (void) action_name;
   (void) parameter;
 
-  gtk_window_destroy(GTK_WINDOW(widget));
+  //the way the close button goes, so an unsaved video edit is asked about first
+  gtk_window_close(GTK_WINDOW(widget));
 }
 
 static void
