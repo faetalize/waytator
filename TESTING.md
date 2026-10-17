@@ -1,10 +1,7 @@
 # Testing waytator
 
-waytator talks to a lot it doesn't control: the compositor, the screen-cast portal, PipeWire, the GPU, the
-clipboard and the notification service. Testing against the real ones would make results depend on whoever runs
-them and on what their desktop is doing, and would put windows, dialogs and recordings on their screen. So tests
-are split into layers by how much of the real world they need, and every layer gives the same answer on every
-machine.
+Sigh, I miss webdev.
+Anyway, these guidelines are mostly what I follow for testing - however if you decide to contribute and want to write tests, have a gander at it.
 
 ## Running the tests
 
@@ -21,12 +18,11 @@ meson test -C build recording-bar-place --verbose
 A test binary can also be run straight from `build/tests/`. Pass `-k` to keep going past a failed case.
 
 Tests that need something the machine doesn't have, such as `pipewire`, a GPU with VA-API, or a render node, skip
-themselves rather than fail.
+themselves rather than fail (we should maybe fix this).
 
 ## Layer 1: logic, with small stand-ins
 
-Most tests are here, and new ones should start here. They run in `meson test`, need no display and no session,
-and take milliseconds to seconds.
+Most tests are here, and new ones should start here. They run in `meson test`, need no display and no session.
 
 **Test the real code, never a copy.** When the logic worth testing is tangled up with GTK or a callback, move
 it into a plain function in its own source file and have the real code call that function. The test then links
@@ -35,8 +31,6 @@ that same source file. Examples:
 - the recording bar's placement and drag (`waytator_recording_bar_place`, `waytator_recording_bar_drag_step`)
 - the sound mixer, which never touches PipeWire itself (`waytator-record-mixer.c`)
 - the video edit model (`waytator-video-edit.c`)
-
-A copy in the test would go on passing while the code it was copied from changes.
 
 **Stand in for the outside world inside the test.** Write a small model of the outside world in the test, or
 run a private copy of the real service. Either way, it belongs to the test alone:
@@ -49,20 +43,13 @@ run a private copy of the real service. Either way, it belongs to the test alone
 | Sound devices | A private PipeWire and WirePlumber with every hardware device switched off, plus null sinks and sources | `tests/test-record-audio.c` |
 | Videos to open | Made by the test with FFmpeg, then decoded and checked | `tests/test-video-export.c` |
 
-**A model holds assumptions; write them down.** A stand-in is only as right as what it assumes about the real
-thing. Say in a comment what the model assumes, such as "the compositor puts the bar where it was asked at the
-start of every frame".
+A stand-in is only as right as what it assumes about the real thing. Say in a comment what the model assumes, such as "the compositor puts the bar where it was asked at the start of every frame". We need to keep track of this.
 
-**Use realistic numbers.** For anything about timing, try the hardware people actually have: a 165 Hz screen with
-a 1000 Hz mouse, a 60 Hz screen with a 125 Hz mouse. The recording bar's drag only went wrong once there were
-several mouse reports per frame.
+For anything about timing, try the hardware people commonly have. a 60 Hz screen with a 125 Hz mouse, a 1k Hz Mouse, 120 Hz, 144 Hz, 165 Hz, 180 Hz, 200 Hz, 360 Hz, or any prior combination. For instance, the recording bar's drag only went wrong once there were several mouse reports per frame.
 
-**Check results, not calls.** Decode the file and compare pixels, colours, durations and timestamps. Measure where
-the bar ended up. "The function was called" isn't a check.
+Check results, not calls. "The function was called" isn't a check. For example, decode the file and compare pixels, colours, durations and timestamps. Measure where the bar ended up. 
 
-**A test must show it would fail.** When a test is written for a bug, run it against the broken code first and
-make sure it fails for the right reason. The drag test ended 945 px off the pointer on the old code before it
-passed on the fixed one.
+A test must show it would fail. Test driven regression testing starts by proving the test itself is good. Write the test first on a regression, see if the test fails, only then should we bother fixing a bug. Please do this before opening a testing related PR or a bugfix.
 
 ## Layer 2: a real compositor, headless
 
@@ -90,7 +77,7 @@ Before a release, try what only a real desktop has:
 - GPU buffers from the real compositor
 - the recording bar and overlay on niri, and on GNOME where layer-shell is missing
 
-No pinned baseline stands in for every desktop. This layer catches what the others can't.
+No pinned baseline stands in for every desktop. (TO BE DONE: make a checklist.)
 
 ## Looking at the interface without a desktop
 
