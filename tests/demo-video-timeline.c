@@ -602,7 +602,7 @@ demo_set_scenario(Demo *demo)
   } else if (g_strcmp0(option_scenario, "hover-start") == 0) {
     waytator_video_timeline_pointer_motion(NULL, demo_x(demo, 20) + 3, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO), timeline);
   } else if (g_strcmp0(option_scenario, "grow") == 0) {
-    //the end of the first block pulled out across the plain split after it, which moves the cut
+    //the end of the first block pulled out against the plain split after it, which holds it where it is
     demo_drag(demo, demo_x(demo, 20) - 3, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO), demo_x(demo, 22.5) - 3, 0, FALSE);
   }
 }

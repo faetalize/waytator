@@ -309,8 +309,8 @@ test_trim(void)
   g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(900));
   g_clear_pointer(&state, waytator_video_state_unref);
 
-  //pulled back out, an edge takes in what was trimmed, then moves the cut into the piece after, which keeps
-  //its last frame: the footage never shows twice
+  //pulled back out, an edge takes in what was trimmed and stops where the piece after starts, which it leaves
+  //as it was: the footage never shows twice
   g_assert_true(waytator_video_edit_trim_end(edit, 0, MS(5000)));
   state = waytator_video_edit_get_state(edit);
   g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(900));
@@ -318,16 +318,12 @@ test_trim(void)
   g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(1000));
   g_clear_pointer(&state, waytator_video_state_unref);
 
-  //the other way the piece before gives up all but its first frame
-  g_assert_true(waytator_video_edit_trim_start(edit, 1, MS(-5000)));
-  state = waytator_video_edit_get_state(edit);
-  g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(100));
-  g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(100));
-  g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(1000));
+  //so the start of the piece after has nothing to take in
+  g_assert_false(waytator_video_edit_trim_start(edit, 1, MS(-5000)));
 }
 
-//split in three with the middle cut out: either side grows back over the middle, the end of the first or the
-//start of the last, and goes on into the other by moving the cut
+//split in three with the middle cut out: either side takes the middle back, the end of the first or the start
+//of the last, and stops where the other begins without touching it
 static void
 test_trim_into_gap(void)
 {
@@ -349,9 +345,20 @@ test_trim_into_gap(void)
   {
     g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
 
-    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(200));
-    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(200));
+    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(400));
+    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(400));
     g_assert_cmpint(waytator_video_state_get_duration(state), ==, MS(1000));
+  }
+
+  //from the other side alone, the whole middle comes back and no more
+  g_assert_true(waytator_video_edit_undo(edit));
+  g_assert_true(waytator_video_edit_undo(edit));
+  g_assert_true(waytator_video_edit_trim_start(edit, 1, MS(-5000)));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, MS(300));
+    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, MS(300));
   }
 }
 
