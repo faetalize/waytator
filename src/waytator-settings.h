@@ -19,6 +19,8 @@ typedef struct {
   double floating_controls_opacity;
   //makes a copy of each video that opens with every frame a keyframe, so scrubbing is instant
   gboolean video_optimize_media;
+  //the id of the export profile Copy and the export shortcuts use, empty for the first one
+  char *video_copy_profile;
 } WaytatorSettings;
 
 char *waytator_settings_path(void);

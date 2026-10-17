@@ -52,7 +52,7 @@ const char *waytator_video_profile_get_extension(const WaytatorVideoProfile *pro
 //a line saying what comes out, e.g. "MP4, H.264, up to 1080p"
 char *waytator_video_profile_describe(const WaytatorVideoProfile *profile);
 
-//the profiles in the order they are offered, the first being the one Copy uses. the defaults when the
+//the profiles in the order they are offered, Copy using the one the preferences pick. the defaults when the
 //settings have none, see waytator-settings.h for the file
 GPtrArray *waytator_video_profiles_load(GKeyFile *key_file);
 void waytator_video_profiles_save(GPtrArray *profiles,
