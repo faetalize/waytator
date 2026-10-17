@@ -51,4 +51,28 @@ void waytator_recording_bar_place(const GdkRectangle *monitor,
                                   int                 height,
                                   GdkRectangle       *result);
 
+//a drag of the bar, in the logical pixels of the screen it is on
+typedef struct {
+  //where the real pointer is, which can be on another screen nearby
+  double pointer_x;
+  double pointer_y;
+  //where in the bar it took hold of it
+  double grab_x;
+  double grab_y;
+} WaytatorRecordingBarDrag;
+
+//the real pointer moved dx, dy, which the compositor reports however the bar under it moves. bounds is as far as
+//the pointer can go, the screens around this one together. gives where the bar goes, width by height and whole on
+//a screen_width by screen_height screen
+void waytator_recording_bar_drag_step(WaytatorRecordingBarDrag *drag,
+                                      double                    dx,
+                                      double                    dy,
+                                      const GdkRectangle       *bounds,
+                                      int                       width,
+                                      int                       height,
+                                      int                       screen_width,
+                                      int                       screen_height,
+                                      int                      *x,
+                                      int                      *y);
+
 G_END_DECLS

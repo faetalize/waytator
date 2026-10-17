@@ -1,5 +1,6 @@
 #include "waytator-recording-bar.h"
 #include "waytator-capture-overlay.h"
+#include "waytator-pointer-brake.h"
 #include "waytator-settings.h"
 #include "waytator-window.h"
 
@@ -31,11 +32,10 @@ struct _WaytatorRecordingBar {
   int x;
   int y;
   gboolean dragging;
-  //where in the bar the handle took hold of it, and where the pointer is on the screen
-  double grab_x;
-  double grab_y;
-  double pointer_x;
-  double pointer_y;
+  WaytatorRecordingBarDrag drag;
+  //how far the real pointer moves during a drag, NULL when the compositor can't say and the bar only moves
+  //once it is let go
+  WaytatorPointerMotion *motion;
   guint tick_id;
   gint64 start_time;
   gboolean saving;
@@ -177,6 +177,40 @@ waytator_recording_bar_get_size(WaytatorRecordingBar *bar,
   gtk_widget_measure(bar->pill, GTK_ORIENTATION_VERTICAL, *width, NULL, height, NULL, NULL);
 }
 
+static void
+waytator_recording_bar_keep_inside(int *x,
+                                   int *y,
+                                   int  width,
+                                   int  height,
+                                   int  screen_width,
+                                   int  screen_height)
+{
+  *x = CLAMP(*x, 0, MAX(screen_width - width, 0));
+  *y = CLAMP(*y, 0, MAX(screen_height - height, 0));
+}
+
+//the pointer is followed by how far it moves rather than by where it is on the bar, since the bar moves under
+//it: the compositor puts the bar in its new place a frame or so later, and in the meantime the pointer's place on
+//the bar still counts from the old one. the real pointer stops at the edge of the screens however far it is pushed
+void
+waytator_recording_bar_drag_step(WaytatorRecordingBarDrag *drag,
+                                 double                    dx,
+                                 double                    dy,
+                                 const GdkRectangle       *bounds,
+                                 int                       width,
+                                 int                       height,
+                                 int                       screen_width,
+                                 int                       screen_height,
+                                 int                      *x,
+                                 int                      *y)
+{
+  drag->pointer_x = CLAMP(drag->pointer_x + dx, bounds->x, bounds->x + bounds->width - 1);
+  drag->pointer_y = CLAMP(drag->pointer_y + dy, bounds->y, bounds->y + bounds->height - 1);
+  *x = (int) round(drag->pointer_x - drag->grab_x);
+  *y = (int) round(drag->pointer_y - drag->grab_y);
+  waytator_recording_bar_keep_inside(x, y, width, height, screen_width, screen_height);
+}
+
 //always whole on its screen, wherever it is moved to
 static void
 waytator_recording_bar_move(WaytatorRecordingBar *bar,
@@ -191,8 +225,7 @@ waytator_recording_bar_move(WaytatorRecordingBar *bar,
     return;
 
   waytator_recording_bar_get_size(bar, &width, &height);
-  x = CLAMP(x, 0, MAX(monitor.width - width, 0));
-  y = CLAMP(y, 0, MAX(monitor.height - height, 0));
+  waytator_recording_bar_keep_inside(&x, &y, width, height, monitor.width, monitor.height);
   if (x == bar->x && y == bar->y)
     return;
 
@@ -260,6 +293,48 @@ waytator_recording_bar_find_monitor_at(double x,
   return NULL;
 }
 
+//as far as the pointer can go, every screen together, in the logical pixels of the one the bar is on
+static void
+waytator_recording_bar_get_pointer_bounds(const GdkRectangle *monitor,
+                                          GdkRectangle       *bounds)
+{
+  GListModel *monitors = gdk_display_get_monitors(gdk_display_get_default());
+
+  *bounds = *monitor;
+  for (guint i = 0; i < g_list_model_get_n_items(monitors); i++) {
+    g_autoptr(GdkMonitor) other = g_list_model_get_item(monitors, i);
+    GdkRectangle geometry;
+
+    gdk_monitor_get_geometry(other, &geometry);
+    gdk_rectangle_union(bounds, &geometry, bounds);
+  }
+
+  bounds->x -= monitor->x;
+  bounds->y -= monitor->y;
+}
+
+static void
+waytator_recording_bar_pointer_moved(double   dx,
+                                     double   dy,
+                                     gpointer user_data)
+{
+  WaytatorRecordingBar *bar = user_data;
+  GdkRectangle monitor;
+  GdkRectangle bounds;
+  int width;
+  int height;
+  int x;
+  int y;
+
+  if (!bar->dragging || !waytator_recording_bar_get_monitor_geometry(bar, &monitor))
+    return;
+
+  waytator_recording_bar_get_pointer_bounds(&monitor, &bounds);
+  waytator_recording_bar_get_size(bar, &width, &height);
+  waytator_recording_bar_drag_step(&bar->drag, dx, dy, &bounds, width, height, monitor.width, monitor.height, &x, &y);
+  waytator_recording_bar_move(bar, x, y);
+}
+
 static void
 waytator_recording_bar_handle_drag_begin(GtkGestureDrag      *gesture,
                                          double               x,
@@ -291,13 +366,16 @@ waytator_recording_bar_handle_drag_begin(GtkGestureDrag      *gesture,
     return;
 
   bar->dragging = TRUE;
-  bar->grab_x = in_bar.origin.x + x;
-  bar->grab_y = in_bar.origin.y + y;
+  bar->drag.grab_x = in_bar.origin.x + x;
+  bar->drag.grab_y = in_bar.origin.y + y;
+  bar->drag.pointer_x = bar->x + bar->drag.grab_x;
+  bar->drag.pointer_y = bar->y + bar->drag.grab_y;
+  bar->motion = waytator_pointer_motion_new(handle, waytator_recording_bar_pointer_moved, bar);
   gtk_widget_set_cursor_from_name(handle, "grabbing");
 }
 
-//the bar moves under the pointer as it is dragged, so the offset is how far the pointer has got from where it took
-//hold of the bar, and the bar follows that far
+//without the pointer's motion to go by the bar stays still while it is dragged, so where the pointer is on it
+//counts from where it started, and it goes there once it is let go
 static void
 waytator_recording_bar_handle_drag_update(GtkGestureDrag      *gesture,
                                           double               offset_x,
@@ -306,12 +384,11 @@ waytator_recording_bar_handle_drag_update(GtkGestureDrag      *gesture,
 {
   (void) gesture;
 
-  if (!bar->dragging)
+  if (!bar->dragging || bar->motion != NULL)
     return;
 
-  bar->pointer_x = bar->x + bar->grab_x + offset_x;
-  bar->pointer_y = bar->y + bar->grab_y + offset_y;
-  waytator_recording_bar_move(bar, bar->x + (int) round(offset_x), bar->y + (int) round(offset_y));
+  bar->drag.pointer_x = bar->x + bar->drag.grab_x + offset_x;
+  bar->drag.pointer_y = bar->y + bar->drag.grab_y + offset_y;
 }
 
 //gtk4-layer-shell remaps a surface to put it on another screen, which ends the drag the pointer is holding. so
@@ -331,23 +408,26 @@ waytator_recording_bar_handle_drag_end(GtkGestureDrag      *gesture,
     return;
 
   waytator_recording_bar_handle_drag_update(gesture, offset_x, offset_y, bar);
+  g_clear_pointer(&bar->motion, waytator_pointer_motion_free);
   bar->dragging = FALSE;
   gtk_widget_set_cursor_from_name(handle, "grab");
 
   if (!waytator_recording_bar_get_monitor_geometry(bar, &monitor))
     return;
 
-  //in the gap between two screens it stays where it is
-  over = waytator_recording_bar_find_monitor_at(monitor.x + bar->pointer_x, monitor.y + bar->pointer_y);
-  if (over == NULL || over == bar->monitor)
-    return;
+  //in the gap between two screens it stays on the one it was on
+  over = waytator_recording_bar_find_monitor_at(monitor.x + bar->drag.pointer_x, monitor.y + bar->drag.pointer_y);
+  if (over == NULL)
+    over = bar->monitor;
 
+  if (over != bar->monitor) {
+    gtk_layer_set_monitor(bar->window, over);
+    g_set_weak_pointer(&bar->monitor, over);
+  }
   gdk_monitor_get_geometry(over, &target);
-  gtk_layer_set_monitor(bar->window, over);
-  g_set_weak_pointer(&bar->monitor, over);
   waytator_recording_bar_move(bar,
-                              (int) round(monitor.x + bar->pointer_x - target.x - bar->grab_x),
-                              (int) round(monitor.y + bar->pointer_y - target.y - bar->grab_y));
+                              (int) round(monitor.x + bar->drag.pointer_x - target.x - bar->drag.grab_x),
+                              (int) round(monitor.y + bar->drag.pointer_y - target.y - bar->drag.grab_y));
 }
 
 static void
@@ -576,6 +656,7 @@ waytator_recording_bar_free(WaytatorRecordingBar *bar)
   guint n_windows = 0;
 
   g_clear_handle_id(&bar->tick_id, g_source_remove);
+  g_clear_pointer(&bar->motion, waytator_pointer_motion_free);
   if (bar->outline != NULL)
     windows[n_windows++] = bar->outline;
   windows[n_windows++] = bar->window;
