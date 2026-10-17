@@ -6,6 +6,7 @@
 #include "waytator-export.h"
 #include "waytator-ocr.h"
 #include "waytator-passthrough.h"
+#include "waytator-record-audio.h"
 #include "waytator-render.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
@@ -1582,6 +1583,221 @@ waytator_window_capture_brake_speed_changed(AdwComboRow    *row,
   waytator_window_save_preferences(self);
 }
 
+static void
+waytator_window_update_recording_folder_row(WaytatorWindow *self,
+                                            AdwActionRow   *row)
+{
+  g_autofree char *folder = waytator_screenshot_display_path(self->settings.recording_save_dir);
+
+  adw_action_row_set_subtitle(row, folder);
+}
+
+static void
+waytator_window_recording_folder_chosen(GObject      *source_object,
+                                        GAsyncResult *result,
+                                        gpointer      user_data)
+{
+  g_autoptr(AdwActionRow) row = ADW_ACTION_ROW(user_data);
+  WaytatorWindow *self = WAYTATOR_WINDOW(g_object_get_data(G_OBJECT(row), "window"));
+  g_autoptr(GFile) folder = gtk_file_dialog_select_folder_finish(GTK_FILE_DIALOG(source_object), result, NULL);
+  g_autofree char *path = folder != NULL ? g_file_get_path(folder) : NULL;
+
+  if (path == NULL)
+    return;
+
+  g_free(self->settings.recording_save_dir);
+  self->settings.recording_save_dir = g_steal_pointer(&path);
+  waytator_window_save_preferences(self);
+  waytator_window_update_recording_folder_row(self, row);
+}
+
+static void
+waytator_window_recording_folder_choose_clicked(GtkButton    *button,
+                                                AdwActionRow *row)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(g_object_get_data(G_OBJECT(row), "window"));
+  g_autoptr(GtkFileDialog) dialog = gtk_file_dialog_new();
+  g_autoptr(GFile) folder = g_file_new_for_path(self->settings.recording_save_dir);
+
+  (void) button;
+
+  gtk_file_dialog_set_title(dialog, "Recording folder");
+  gtk_file_dialog_set_initial_folder(dialog, folder);
+  gtk_file_dialog_select_folder(dialog,
+                                GTK_WINDOW(self),
+                                NULL,
+                                waytator_window_recording_folder_chosen,
+                                g_object_ref(row));
+}
+
+static void
+waytator_window_recording_copy_changed(AdwSwitchRow   *row,
+                                       GParamSpec     *pspec,
+                                       WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->settings.recording_copy = adw_switch_row_get_active(row);
+  waytator_window_save_preferences(self);
+}
+
+static void
+waytator_window_recording_microphone_changed(AdwComboRow    *row,
+                                             GParamSpec     *pspec,
+                                             WaytatorWindow *self)
+{
+  char **names = g_object_get_data(G_OBJECT(row), "microphones");
+  const guint selected = adw_combo_row_get_selected(row);
+
+  (void) pspec;
+
+  if (selected >= g_strv_length(names))
+    return;
+
+  g_free(self->settings.recording_microphone);
+  self->settings.recording_microphone = g_strdup(names[selected]);
+  waytator_window_save_preferences(self);
+}
+
+//the microphones are asked for when the preferences open, they come and go. the row remembers the node name
+//behind each entry, the first being the default one
+static void
+waytator_window_fill_microphone_row(WaytatorWindow *self,
+                                    AdwComboRow    *row)
+{
+  g_autoptr(GtkStringList) model = gtk_string_list_new(NULL);
+  g_autoptr(GStrvBuilder) names = g_strv_builder_new();
+  g_autoptr(GPtrArray) microphones = waytator_record_audio_list_microphones(NULL);
+  const char *saved = self->settings.recording_microphone;
+  guint selected = 0;
+
+  gtk_string_list_append(model, "Default");
+  g_strv_builder_add(names, "");
+
+  //without PipeWire there is nothing to choose from, and what was chosen stays until something else is
+  for (guint i = 0; microphones != NULL && i < microphones->len; i++) {
+    const WaytatorRecordMicrophone *microphone = g_ptr_array_index(microphones, i);
+
+    if (g_strcmp0(microphone->name, saved) == 0)
+      selected = i + 1;
+    gtk_string_list_append(model, microphone->description);
+    g_strv_builder_add(names, microphone->name);
+  }
+
+  //one that was unplugged stays in the list, so choosing something else is a choice and not a loss
+  if (microphones != NULL && *saved != '\0' && selected == 0) {
+    g_autofree char *label = g_strdup_printf("%s (not connected)", saved);
+
+    selected = g_list_model_get_n_items(G_LIST_MODEL(model));
+    gtk_string_list_append(model, label);
+    g_strv_builder_add(names, saved);
+  }
+
+  g_object_set_data_full(G_OBJECT(row), "microphones", g_strv_builder_end(names), (GDestroyNotify) g_strfreev);
+  adw_combo_row_set_model(row, G_LIST_MODEL(model));
+  adw_combo_row_set_selected(row, selected);
+}
+
+static void
+waytator_window_recording_show_bar_changed(AdwSwitchRow   *row,
+                                           GParamSpec     *pspec,
+                                           WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->settings.recording_show_bar = adw_switch_row_get_active(row);
+  waytator_window_save_preferences(self);
+}
+
+//the rates a recording can have, as offered in the preferences
+static const int waytator_window_recording_rates[] = { 60, 30 };
+
+static void
+waytator_window_recording_rate_changed(AdwComboRow    *row,
+                                       GParamSpec     *pspec,
+                                       WaytatorWindow *self)
+{
+  const guint selected = adw_combo_row_get_selected(row);
+
+  (void) pspec;
+
+  if (selected >= G_N_ELEMENTS(waytator_window_recording_rates))
+    return;
+
+  self->settings.recording_rate = waytator_window_recording_rates[selected];
+  waytator_window_save_preferences(self);
+}
+
+static void
+waytator_window_recording_show_pointer_changed(AdwSwitchRow   *row,
+                                               GParamSpec     *pspec,
+                                               WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->settings.recording_show_pointer = adw_switch_row_get_active(row);
+  waytator_window_save_preferences(self);
+}
+
+static AdwPreferencesGroup *
+waytator_window_new_recordings_group(WaytatorWindow *self)
+{
+  AdwPreferencesGroup *group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
+  AdwActionRow *folder_row = ADW_ACTION_ROW(adw_action_row_new());
+  AdwSwitchRow *copy_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  AdwComboRow *microphone_row = ADW_COMBO_ROW(adw_combo_row_new());
+  AdwSwitchRow *bar_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  AdwComboRow *rate_row = ADW_COMBO_ROW(adw_combo_row_new());
+  AdwSwitchRow *pointer_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  g_autoptr(GtkStringList) rate_model = gtk_string_list_new((const char *[]) {
+    "60 frames a second",
+    "30 frames a second, smaller files",
+    NULL,
+  });
+  GtkWidget *choose_button = gtk_button_new_from_icon_name("folder-open-symbolic");
+
+  adw_preferences_group_set_title(group, "Recordings");
+  adw_preferences_group_set_description(group, "These settings apply to recordings made by waytator");
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(folder_row), "Folder");
+  gtk_widget_set_valign(choose_button, GTK_ALIGN_CENTER);
+  gtk_widget_set_tooltip_text(choose_button, "Choose a folder");
+  adw_action_row_add_suffix(folder_row, choose_button);
+  g_object_set_data(G_OBJECT(folder_row), "window", self);
+  waytator_window_update_recording_folder_row(self, folder_row);
+  g_signal_connect(choose_button, "clicked", G_CALLBACK(waytator_window_recording_folder_choose_clicked), folder_row);
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(copy_row), "Copy to clipboard");
+  adw_switch_row_set_active(copy_row, self->settings.recording_copy);
+  g_signal_connect(copy_row, "notify::active", G_CALLBACK(waytator_window_recording_copy_changed), self);
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(microphone_row), "Microphone");
+  waytator_window_fill_microphone_row(self, microphone_row);
+  g_signal_connect(microphone_row, "notify::selected", G_CALLBACK(waytator_window_recording_microphone_changed), self);
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(bar_row), "Show the recording bar");
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(bar_row), "Start and stop with waytator --record when it's off");
+  adw_switch_row_set_active(bar_row, self->settings.recording_show_bar);
+  g_signal_connect(bar_row, "notify::active", G_CALLBACK(waytator_window_recording_show_bar_changed), self);
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(rate_row), "Frame rate");
+  adw_combo_row_set_model(rate_row, G_LIST_MODEL(rate_model));
+  adw_combo_row_set_selected(rate_row, self->settings.recording_rate == 30 ? 1 : 0);
+  g_signal_connect(rate_row, "notify::selected", G_CALLBACK(waytator_window_recording_rate_changed), self);
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(pointer_row), "Show the pointer");
+  adw_switch_row_set_active(pointer_row, self->settings.recording_show_pointer);
+  g_signal_connect(pointer_row, "notify::active", G_CALLBACK(waytator_window_recording_show_pointer_changed), self);
+
+  adw_preferences_group_add(group, GTK_WIDGET(folder_row));
+  adw_preferences_group_add(group, GTK_WIDGET(copy_row));
+  adw_preferences_group_add(group, GTK_WIDGET(microphone_row));
+  adw_preferences_group_add(group, GTK_WIDGET(bar_row));
+  adw_preferences_group_add(group, GTK_WIDGET(rate_row));
+  adw_preferences_group_add(group, GTK_WIDGET(pointer_row));
+  return group;
+}
+
 static AdwPreferencesPage *
 waytator_window_new_screenshots_page(WaytatorWindow *self)
 {
@@ -1598,6 +1814,7 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
 
   adw_preferences_page_set_title(page, "Screenshots");
   adw_preferences_page_set_icon_name(page, "camera-photo-symbolic");
+  adw_preferences_group_set_title(group, "Screenshots");
   //GNOME's screenshot UI saves and copies on its own, so the folder and the copy are not waytator's to decide there
   if (waytator_capture_uses_gnome_ui()) {
     adw_preferences_group_set_description(group,
@@ -1649,6 +1866,7 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
   adw_preferences_group_add(group, GTK_WIDGET(hide_row));
   adw_preferences_group_add(group, GTK_WIDGET(brake_row));
   adw_preferences_page_add(page, group);
+  adw_preferences_page_add(page, waytator_window_new_recordings_group(self));
   return page;
 }
 

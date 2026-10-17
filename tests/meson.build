@@ -138,3 +138,13 @@ test_record_stream = executable(
   dependencies: [gobject_dep, m_dep, video_deps],
 )
 test('record-stream', test_record_stream, timeout: 120)
+
+#what a window saves of the recording preferences is what a recording without one reads back
+test_recording_settings = executable(
+  'test-recording-settings',
+  'test-recording-settings.c',
+  files('../src/waytator-settings.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep],
+)
+test('recording-settings', test_recording_settings)
