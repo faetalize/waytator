@@ -1,4 +1,5 @@
 #include "waytator-window-private.h"
+#include "waytator-video-editor.h"
 
 #include <string.h>
 
@@ -95,6 +96,8 @@ waytator_chrome_apply(WaytatorWindow            *self,
                       const WaytatorChromeFolds *folds)
 {
   const gboolean has_image = self->texture != NULL;
+  //a video has the same top bar, its own controls stand in for the bottom dock
+  const gboolean has_content = has_image || waytator_window_is_video(self);
   const int margin = folds->tight ? WAYTATOR_CHROME_MARGIN_TIGHT : WAYTATOR_CHROME_MARGIN;
   const int gap = folds->tight ? WAYTATOR_CHROME_GAP_TIGHT : WAYTATOR_CHROME_GAP;
   const gboolean full_zoom = folds->zoom == WAYTATOR_ZOOM_FULL;
@@ -102,13 +105,13 @@ waytator_chrome_apply(WaytatorWindow            *self,
   self->folds = *folds;
 
   //Open and capture are either all there or all in one menu, nothing in between
-  gtk_widget_set_visible(self->open_actions, has_image);
+  gtk_widget_set_visible(self->open_actions, has_content);
   gtk_widget_set_visible(self->open_label_button, !folds->open_menu);
   gtk_widget_set_visible(self->open_separator, !folds->open_menu);
   gtk_widget_set_visible(GTK_WIDGET(self->capture_button), !folds->open_menu);
   gtk_widget_set_visible(GTK_WIDGET(self->capture_delay_button), !folds->open_menu);
   gtk_widget_set_visible(GTK_WIDGET(self->open_menu_button), folds->open_menu);
-  gtk_widget_set_visible(self->file_group, has_image && folds->title);
+  gtk_widget_set_visible(self->file_group, has_content && folds->title);
   gtk_widget_set_visible(self->zoom_group, has_image && folds->zoom != WAYTATOR_ZOOM_MENU);
   gtk_widget_set_visible(self->zoom_out_button, full_zoom);
   gtk_widget_set_visible(self->zoom_in_button, full_zoom);
@@ -134,6 +137,14 @@ waytator_chrome_apply(WaytatorWindow            *self,
   gtk_widget_set_margin_start(self->file_group, gap);
   gtk_widget_set_margin_end(self->file_group, gap);
   gtk_box_set_spacing(GTK_BOX(self->tool_group), folds->tight ? WAYTATOR_CHROME_TOOL_GAP_TIGHT : WAYTATOR_CHROME_TOOL_GAP);
+
+  //a video can't be zoomed or moved out from under the top bar, so it is kept below it
+  if (self->video_editor != NULL) {
+    int top_bar_height;
+
+    gtk_widget_measure(self->top_bar, GTK_ORIENTATION_VERTICAL, -1, NULL, &top_bar_height, NULL, NULL);
+    waytator_video_editor_set_top_inset(WAYTATOR_VIDEO_EDITOR(self->video_editor), margin + top_bar_height + gap);
+  }
 }
 
 static int
@@ -171,7 +182,8 @@ waytator_chrome_fold(WaytatorWindow      *self,
                      int                  width,
                      WaytatorChromeFolds *folds)
 {
-  const int dock = waytator_chrome_dock_width(self);
+  //a video's controls fit themselves, only the top bar folds for it
+  const int dock = waytator_window_is_video(self) ? 0 : waytator_chrome_dock_width(self);
 
   //zoom keeps its full controls while they fit beside the dock
   if (dock + 2 * (waytator_chrome_zoom_width(self, WAYTATOR_ZOOM_FULL) + WAYTATOR_CHROME_GAP) + 2 * WAYTATOR_CHROME_MARGIN <= width)
@@ -228,7 +240,7 @@ waytator_chrome_relayout(WaytatorWindow *self)
     self->chrome_widths_stale = FALSE;
   }
 
-  if (self->chrome_width > 0 && self->texture != NULL)
+  if (self->chrome_width > 0 && (self->texture != NULL || waytator_window_is_video(self)))
     waytator_chrome_fold(self, self->chrome_width, &folds);
 
   waytator_chrome_apply(self, &folds);

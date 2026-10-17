@@ -4,17 +4,53 @@
 
 #include "waytator-capture.h"
 #include "waytator-screenshot.h"
+#include "waytator-video-editor.h"
 #include "waytator-window.h"
 
 #define WAYTATOR_APP_ID "dev.faetalize.waytator"
 //five minutes, longer than anyone needs to get the screen ready
 #define WAYTATOR_MAX_CAPTURE_DELAY 300
 
+//enough of a stream to tell what it holds, every format waytator opens says so in its first few bytes
+#define APP_STREAM_HEAD_SIZE 4096
+
+//the start of a stream, which can come in smaller pieces than asked for through a pipe
+static GBytes *
+app_read_stream_head(GInputStream *stream,
+                     GError      **error)
+{
+  g_autoptr(GByteArray) buffer = g_byte_array_new();
+
+  while (buffer->len < APP_STREAM_HEAD_SIZE) {
+    g_autoptr(GBytes) chunk = NULL;
+    gsize chunk_size;
+    const guint8 *chunk_data;
+
+    chunk = g_input_stream_read_bytes(stream, APP_STREAM_HEAD_SIZE - buffer->len, NULL, error);
+    if (chunk == NULL)
+      return NULL;
+
+    chunk_data = g_bytes_get_data(chunk, &chunk_size);
+    if (chunk_size == 0)
+      break;
+
+    g_byte_array_append(buffer, chunk_data, chunk_size);
+  }
+
+  return g_byte_array_free_to_bytes(g_steal_pointer(&buffer));
+}
+
+//the rest of the stream after head
 static GBytes *
 app_read_stream_bytes(GInputStream *stream,
+                      GBytes       *head,
                       GError      **error)
 {
   g_autoptr(GByteArray) buffer = g_byte_array_new();
+  gsize head_size;
+  const guint8 *head_data = g_bytes_get_data(head, &head_size);
+
+  g_byte_array_append(buffer, head_data, head_size);
 
   while (TRUE) {
     g_autoptr(GBytes) chunk = NULL;
@@ -119,9 +155,9 @@ app_open(GApplication  *app,
 }
 
 #define APP_USAGE \
-  "Usage: %s [OPTIONS] [IMAGE|-|--stdin]\n" \
+  "Usage: %s [OPTIONS] [IMAGE|VIDEO|-|--stdin]\n" \
   "\n" \
-  "  --name NAME                             Name for an image read from stdin\n" \
+  "  --name NAME                             Name for an image or video read from stdin\n" \
   "  --screenshot [area|screen]              Capture the screen and open the result,\n" \
   "                                          an area unless told otherwise\n" \
   "  --screen NAME                           With --screenshot: capture this screen,\n" \
@@ -283,7 +319,7 @@ app_command_line(GApplication            *app,
   guint delay_seconds = 0;
   int close_on_copy = -1;
   const char *shortcuts[G_N_ELEMENTS(app_shortcut_options)] = { NULL };
-  const char *stdin_name = "stdin.png";
+  const char *stdin_name = NULL;
   g_autoptr(GError) error = NULL;
   g_autoptr(GFile) file = NULL;
   WaytatorCaptureEarly *early = NULL;
@@ -510,10 +546,21 @@ app_command_line(GApplication            *app,
   }
 
   if (use_stdin) {
+    g_autoptr(GInputStream) stream = g_application_command_line_get_stdin(command_line);
+    g_autoptr(GBytes) head = NULL;
     g_autoptr(GBytes) bytes = NULL;
 
-    bytes = app_read_stream_bytes(g_application_command_line_get_stdin(command_line), &error);
-    if (bytes == NULL || !waytator_window_open_bytes(window, bytes, stdin_name, &error)) {
+    head = stream != NULL ? app_read_stream_head(stream, &error) : NULL;
+    //a video is read as it arrives, it can be far too big to hold, and it opens once the pipe closes
+    if (head != NULL && waytator_video_editor_handles_data(head)) {
+      waytator_window_open_video_stream(window, stream, head, stdin_name != NULL ? stdin_name : "Video");
+      gtk_window_present(GTK_WINDOW(window));
+      goto done;
+    }
+
+    bytes = head != NULL ? app_read_stream_bytes(stream, head, &error) : NULL;
+    if (bytes == NULL
+        || !waytator_window_open_bytes(window, bytes, stdin_name != NULL ? stdin_name : "stdin.png", &error)) {
       g_application_command_line_printerr(command_line,
                                           "Error loading image from stdin: %s\n",
                                           error->message);

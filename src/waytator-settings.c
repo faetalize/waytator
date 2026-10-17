@@ -29,12 +29,15 @@ waytator_settings_init(WaytatorSettings *settings)
   settings->capture_brake_speed = 0.5;
   settings->floating_controls_blur = TRUE;
   settings->floating_controls_opacity = 0.7;
+  settings->video_optimize_media = FALSE;
+  settings->video_copy_profile = g_strdup("");
 }
 
 void
 waytator_settings_clear(WaytatorSettings *settings)
 {
   g_clear_pointer(&settings->screenshot_save_dir, g_free);
+  g_clear_pointer(&settings->video_copy_profile, g_free);
 }
 
 //a key that is missing or out of range leaves the value it replaces alone
@@ -95,6 +98,18 @@ waytator_settings_read(WaytatorSettings *settings,
     if (opacity >= 0.0 && opacity <= 1.0)
       settings->floating_controls_opacity = opacity;
   }
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "video_optimize_media", NULL))
+    settings->video_optimize_media = g_key_file_get_boolean(key_file,
+                                                            WAYTATOR_SETTINGS_GROUP,
+                                                            "video_optimize_media",
+                                                            NULL);
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "video_copy_profile", NULL)) {
+    g_free(settings->video_copy_profile);
+    settings->video_copy_profile = g_key_file_get_string(key_file, WAYTATOR_SETTINGS_GROUP, "video_copy_profile", NULL);
+    if (settings->video_copy_profile == NULL)
+      settings->video_copy_profile = g_strdup("");
+  }
 }
 
 void
@@ -129,6 +144,14 @@ waytator_settings_write(const WaytatorSettings *settings,
                         WAYTATOR_SETTINGS_GROUP,
                         "floating_controls_opacity",
                         settings->floating_controls_opacity);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "video_optimize_media",
+                         settings->video_optimize_media);
+  g_key_file_set_string(key_file,
+                        WAYTATOR_SETTINGS_GROUP,
+                        "video_copy_profile",
+                        settings->video_copy_profile);
 }
 
 //for the code that runs without a window, which has no copy of the preferences to ask

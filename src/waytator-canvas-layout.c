@@ -296,6 +296,12 @@ waytator_window_sync_state(WaytatorWindow *self)
   const gboolean has_current_file = self->current_file != NULL;
   g_autoptr(GFile) parent = has_current_file ? g_file_get_parent(self->current_file) : NULL;
 
+  if (waytator_window_is_video(self)) {
+    waytator_window_sync_video_state(self);
+    return;
+  }
+
+  gtk_widget_set_visible(self->bottom_bar, TRUE);
   gtk_stack_set_visible_child(self->canvas_stack,
                               has_image ? GTK_WIDGET(self->canvas_view) : self->empty_page);
   gtk_widget_set_visible(self->tool_group, has_image);

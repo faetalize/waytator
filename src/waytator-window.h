@@ -19,6 +19,11 @@ gboolean waytator_window_open_bytes(WaytatorWindow *self,
                                     GBytes         *bytes,
                                     const char     *display_name,
                                     GError        **error);
+//a video coming through a pipe, head being what was already read of it to tell it apart from an image
+void waytator_window_open_video_stream(WaytatorWindow *self,
+                                       GInputStream   *stream,
+                                       GBytes         *head,
+                                       const char     *display_name);
 void waytator_window_open_capture(WaytatorWindow *self,
                                   GdkTexture     *texture,
                                   const char     *display_name,

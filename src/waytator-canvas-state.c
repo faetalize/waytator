@@ -289,6 +289,11 @@ waytator_window_undo_clicked(GtkButton *button,
 
   (void) button;
 
+  if (waytator_window_is_video(self)) {
+    waytator_window_video_undo(self, FALSE);
+    return;
+  }
+
   if (!waytator_document_can_undo(self->document))
     return;
 
@@ -304,6 +309,11 @@ waytator_window_redo_clicked(GtkButton *button,
   GPtrArray *snapshot;
 
   (void) button;
+
+  if (waytator_window_is_video(self)) {
+    waytator_window_video_undo(self, TRUE);
+    return;
+  }
 
   if (!waytator_document_can_redo(self->document))
     return;

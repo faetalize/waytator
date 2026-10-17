@@ -632,3 +632,116 @@ popover .zoom-row button.selected-tool {
   font-weight: 700;
   font-feature-settings: "tnum";
 }
+
+/* the video editor's timeline draws itself. this only hands it the accent colour, so it follows the theme
+   and anything that overrides it */
+videotimeline > accent {
+  color: @accent_bg_color;
+}
+
+/* the video editor's controls, in the same pills as the image tools. kept to the video editor, the image
+   tools have their own look for the one that is picked */
+.video-editor button.flat {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  box-shadow: none;
+}
+
+.video-editor button.flat:hover {
+  background: alpha(white, 0.08);
+}
+
+.video-editor button.flat:checked,
+.video-editor button.flat:checked:hover {
+  background: alpha(white, 0.16);
+}
+
+.video-editor button.flat:disabled,
+.video-editor menubutton:disabled > button {
+  color: alpha(white, 0.35);
+}
+
+.video-editor button.video-text-button {
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: white;
+  background: transparent;
+  box-shadow: none;
+}
+
+.video-editor button.video-text-button:hover {
+  background: alpha(white, 0.08);
+}
+
+.video-editor menubutton.video-value-button > button {
+  min-width: 0;
+  padding: 0 10px;
+}
+
+/* a tool set to something other than the usual glows in the accent colour, which a toggle that is on
+   doesn't, so speed, sound, crop and rotation show they are changed without looking pressed */
+.video-editor button.video-changed,
+.video-editor menubutton.video-changed > button {
+  color: mix(@accent_bg_color, white, 0.4);
+  -gtk-icon-shadow: 0 0 6px alpha(@accent_bg_color, 0.9);
+}
+
+.video-popover-value {
+  font-size: 1.6em;
+  font-weight: 700;
+}
+
+.video-time {
+  color: white;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+/* smaller still on a narrow window, before the buttons to the start and the end have to go */
+.video-time.video-time-small {
+  font-size: 0.8em;
+}
+
+.video-footer {
+  min-height: 18px;
+  padding: 0 8px;
+}
+
+.video-editor button.video-footer-button {
+  min-height: 0;
+  min-width: 0;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  color: white;
+  background: transparent;
+  box-shadow: none;
+}
+
+.video-editor button.video-footer-button:hover {
+  background: alpha(white, 0.1);
+}
+
+.video-dim-label {
+  color: alpha(white, 0.7);
+  font-size: 0.9em;
+}
+
+.video-loading {
+  padding: 20px 28px;
+}
+
+.video-popover {
+  padding: 6px;
+}
+
+.video-optimize-label {
+  padding: 4px 10px;
+  font-size: 0.85em;
+  color: alpha(white, 0.8);
+}

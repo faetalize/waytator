@@ -15,7 +15,12 @@
   wayland,
   wayland-protocols,
   adwaita-icon-theme,
+  ffmpeg,
+  libdrm,
+  pipewire,
+  rubberband,
   wl-clipboard,
+  gifski,
   tesseract,
   withOcr ? true,
 }:
@@ -45,20 +50,24 @@ stdenv.mkDerivation {
     wayland
     wayland-protocols
     adwaita-icon-theme
+    ffmpeg
+    libdrm
+    pipewire
+    rubberband
   ];
 
   mesonBuildType = "release";
 
-  # the app runs wl-copy for the clipboard and tesseract for OCR
+  # the app runs wl-copy for the clipboard, gifski for GIFs and tesseract for OCR
   preFixup = ''
     gappsWrapperArgs+=(
-      --prefix PATH : ${lib.makeBinPath ([ wl-clipboard ] ++ lib.optional withOcr tesseract)}
+      --prefix PATH : ${lib.makeBinPath ([ wl-clipboard gifski ] ++ lib.optional withOcr tesseract)}
     )
   '';
 
   meta = {
     homepage = "https://github.com/faetalize/waytator";
-    description = "Screenshot annotator and lightweight image editor";
+    description = "Screenshot annotator and lightweight image and video editor";
     license = lib.licenses.gpl3Plus;
     mainProgram = "waytator";
     platforms = lib.platforms.linux;

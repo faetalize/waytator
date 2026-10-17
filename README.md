@@ -70,15 +70,17 @@ OCR is included. For a smaller install without it, use `.default.override { with
 
 1) Required build dependencies:
 
-`meson` - `ninja` - `pkg-config` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `gcc`/`clang`/any C compiler
+`meson` - `ninja` - `pkg-config` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `ffmpeg` - `pipewire` - `rubberband` - `libdrm` - `gcc`/`clang`/any C compiler
 
 2) Required runtime dependencies:
 
 `wl-clipboard` for clipboard support
 
-3) Recommended runtime dependency:
+3) Recommended runtime dependencies:
 
 `tesseract` for OCR support
+
+`gifski` for better looking GIFs
 
 4) Install into `~/.local`:
 
@@ -122,6 +124,19 @@ waytator                            # open the app empty
 Add `--name "Screenshot.png"` to name a piped image.
 
 Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts.
+
+### Editing videos
+
+Open a screen recording or any other video to edit it, then copy or save it:
+
+```bash
+waytator path/to/recording.mp4      # open a video
+cat recording.mkv | waytator        # open a video piped in
+```
+
+Available functions: cropping, trimming, rotation, horizontal and vertical flipping, splitting, deletion of segments, muting, audio gain changes, pitch, speed changing, joins.
+
+There's a timeline track for 'objects', it isn't used yet, but it will be in the future for video annotations.
 
 ### Taking screenshots
 

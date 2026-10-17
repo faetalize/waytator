@@ -274,9 +274,38 @@ struct _WaytatorWindow {
   GPtrArray *ocr_lines;
   WaytatorOcrLine *selected_ocr_line;
   char *ocr_all_text;
+
+  //takes the canvas' place while a video is open, see waytator-window-video.c
+  GtkWidget *video_editor;
 };
 
 GPtrArray *waytator_window_strokes(WaytatorWindow *self);
+void waytator_window_show_error(WaytatorWindow *self,
+                                const char     *message);
+void waytator_window_begin_save_feedback(WaytatorWindow *self);
+void waytator_window_finish_save_feedback(WaytatorWindow *self);
+
+void waytator_window_setup_video(WaytatorWindow *self);
+gboolean waytator_window_is_video(WaytatorWindow *self);
+GFile *waytator_window_get_shown_file(WaytatorWindow *self);
+void waytator_window_sync_video_state(WaytatorWindow *self);
+void waytator_window_update_video_history_buttons(WaytatorWindow *self);
+void waytator_window_video_undo(WaytatorWindow *self,
+                                gboolean        redo);
+gboolean waytator_window_video_handle_key(WaytatorWindow *self,
+                                          guint           keyval,
+                                          GdkModifierType state);
+gboolean waytator_window_open_video(WaytatorWindow *self,
+                                    GFile          *file);
+gboolean waytator_window_video_close_request(WaytatorWindow *self);
+void waytator_window_update_video_save_menu(WaytatorWindow *self);
+void waytator_window_update_video_save_controls(WaytatorWindow *self);
+void waytator_window_video_save(WaytatorWindow *self,
+                                const char     *profile_id,
+                                GFile          *file,
+                                gboolean        copy,
+                                gboolean        close);
+AdwPreferencesPage *waytator_window_new_videos_page(WaytatorWindow *self);
 void waytator_window_update_ocr_overlay(WaytatorWindow *self);
 void waytator_window_maybe_start_ocr(WaytatorWindow *self);
 void waytator_window_update_ocr_panel(WaytatorWindow *self);
