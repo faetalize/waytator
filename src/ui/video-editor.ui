@@ -701,44 +701,6 @@
                     </child>
                   </object>
                 </child>
-
-                <child>
-                  <object class="GtkBox" id="zoom_group">
-                    <property name="halign">end</property>
-                    <property name="spacing">2</property>
-                    <style>
-                      <class name="overlay-pill"/>
-                      <class name="zoom-group"/>
-                    </style>
-
-                    <child>
-                      <object class="GtkButton">
-                        <property name="icon-name">zoom-out-symbolic</property>
-                        <property name="tooltip-text">Zoom the timeline out</property>
-                        <property name="action-name">video.zoom-out</property>
-                      </object>
-                    </child>
-
-                    <child>
-                      <object class="GtkButton">
-                        <property name="label">Fit</property>
-                        <property name="tooltip-text">Show the whole timeline</property>
-                        <property name="action-name">video.zoom-fit</property>
-                        <style>
-                          <class name="zoom-fit"/>
-                        </style>
-                      </object>
-                    </child>
-
-                    <child>
-                      <object class="GtkButton">
-                        <property name="icon-name">zoom-in-symbolic</property>
-                        <property name="tooltip-text">Zoom the timeline in, down to single frames</property>
-                        <property name="action-name">video.zoom-in</property>
-                      </object>
-                    </child>
-                  </object>
-                </child>
               </object>
             </child>
 
@@ -750,8 +712,48 @@
                 </style>
 
                 <child>
-                  <object class="WaytatorVideoTimeline" id="timeline">
+                  <object class="GtkOverlay">
                     <property name="hexpand">True</property>
+                    <property name="child">
+                      <object class="WaytatorVideoTimeline" id="timeline">
+                        <property name="hexpand">True</property>
+                      </object>
+                    </property>
+
+                    <!-- the zoom sits at the end of the ruler, beside what it zooms -->
+                    <child type="overlay">
+                      <object class="GtkBox" id="zoom_group">
+                        <property name="halign">end</property>
+                        <property name="valign">start</property>
+                        <style>
+                          <class name="video-timeline-zoom"/>
+                        </style>
+
+                        <child>
+                          <object class="GtkButton">
+                            <property name="icon-name">zoom-out-symbolic</property>
+                            <property name="tooltip-text">Zoom the timeline out (Ctrl+−)</property>
+                            <property name="action-name">video.zoom-out</property>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="GtkButton">
+                            <property name="label">Fit</property>
+                            <property name="tooltip-text">Show the whole timeline (Ctrl+0)</property>
+                            <property name="action-name">video.zoom-fit</property>
+                          </object>
+                        </child>
+
+                        <child>
+                          <object class="GtkButton">
+                            <property name="icon-name">zoom-in-symbolic</property>
+                            <property name="tooltip-text">Zoom the timeline in, down to single frames (Ctrl+=)</property>
+                            <property name="action-name">video.zoom-in</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>

@@ -42,6 +42,9 @@ void waytator_video_timeline_set_sources(WaytatorVideoTimeline              *sel
                                          const WaytatorVideoTimelineSources *sources,
                                          gpointer                            data,
                                          GDestroyNotify                      destroy);
+//leaves the right end of the ruler bare for something laid over it
+void waytator_video_timeline_set_ruler_inset(WaytatorVideoTimeline *self,
+                                             int                    inset);
 //for when more thumbnails or more of the sound are ready
 void waytator_video_timeline_refresh(WaytatorVideoTimeline *self);
 

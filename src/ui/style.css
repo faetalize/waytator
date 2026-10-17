@@ -691,6 +691,29 @@ videotimeline > accent {
   -gtk-icon-shadow: 0 0 6px alpha(@accent_bg_color, 0.9);
 }
 
+/* the timeline's zoom, small enough to sit in the end of its ruler */
+.video-timeline-zoom {
+  margin: 1px 2px 0 0;
+}
+
+.video-timeline-zoom button {
+  min-width: 24px;
+  min-height: 22px;
+  padding: 0 4px;
+  border-radius: 7px;
+  color: alpha(white, 0.75);
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.85em;
+  font-weight: 600;
+  -gtk-icon-size: 14px;
+}
+
+.video-timeline-zoom button:hover {
+  color: white;
+  background: alpha(white, 0.1);
+}
+
 .video-popover-value {
   font-size: 1.6em;
   font-weight: 700;
