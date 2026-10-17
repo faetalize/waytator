@@ -180,6 +180,13 @@ gboolean waytator_video_edit_trim_end(WaytatorVideoEdit *self,
 //across it. dragging such an edge moves where the setting changes instead of cutting anything
 gboolean waytator_video_state_edge_continues(const WaytatorVideoState *state,
                                              guint                     index);
+//whether the cut before a segment can be joined: the footage carries straight on across it, it is only cut
+gboolean waytator_video_state_can_join(const WaytatorVideoState *state,
+                                       guint                     index);
+//takes the cut before a segment away. where the two sides are set differently an edge stays where the
+//setting changes, which goes too once they are set alike
+gboolean waytator_video_edit_join(WaytatorVideoEdit *self,
+                                  guint              index);
 //moves such an edge to the frame edge nearest the source time, leaving a frame either side
 gboolean waytator_video_edit_move_edge(WaytatorVideoEdit *self,
                                        guint              index,

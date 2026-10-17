@@ -336,6 +336,39 @@ demo_check(Demo *demo)
     demo_expect(demo, demo->selection_changes == changes + 1, "selection-changed is emitted once");
   }
 
+  //ctrl and a click adds a block to the selection, and takes it out again
+  {
+    //copies, an edit makes the blocks anew
+    GArray *blocks = timeline->blocks[WAYTATOR_VIDEO_RAIL_VIDEO];
+    const WaytatorVideoRailBlock first_block = *waytator_video_timeline_block(blocks, 0);
+    const WaytatorVideoRailBlock third_block = *waytator_video_timeline_block(blocks, 2);
+    const WaytatorVideoRailBlock *first = &first_block;
+    const WaytatorVideoRailBlock *third = &third_block;
+    const double first_x = demo_x(demo, (first->start + first->end) / 2.0 / WAYTATOR_VIDEO_SECOND);
+    const double third_x = demo_x(demo, (third->start + third->end) / 2.0 / WAYTATOR_VIDEO_SECOND);
+    const double y = demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_VIDEO);
+    const gint64 third_start = third->start;
+    gint64 range_start;
+    gint64 range_end;
+
+    demo_drag(demo, first_x, y, first_x, GDK_CONTROL_MASK, TRUE);
+    demo_expect(demo, waytator_video_timeline_get_n_ranges(timeline) == 2, "ctrl and a click adds a block to the selection");
+    waytator_video_timeline_get_range(timeline, 0, &range_start, &range_end);
+    demo_expect(demo, range_start == first->start && range_end == first->end, "the ranges are in timeline order");
+
+    //cutting out the first block's head moves the third block, and its range goes with it
+    waytator_video_edit_remove(demo->edit, 0, S(2));
+    waytator_video_timeline_get_range(timeline, 1, &range_start, NULL);
+    demo_expect(demo, waytator_video_timeline_get_n_ranges(timeline) == 2 && range_start == third_start - S(2),
+                "an edit keeps each range on its blocks");
+    waytator_video_edit_undo(demo->edit);
+
+    demo_drag(demo, third_x, y, third_x, GDK_CONTROL_MASK, TRUE);
+    waytator_video_timeline_get_range(timeline, 0, &range_start, &range_end);
+    demo_expect(demo, waytator_video_timeline_get_n_ranges(timeline) == 1 && range_end == first->end,
+                "ctrl and a click on a selected block takes it out");
+  }
+
   //and a click past the end clears it
   demo_drag(demo, gtk_widget_get_width(GTK_WIDGET(timeline)) - 3, demo_rail_y(demo, WAYTATOR_VIDEO_RAIL_AUDIO),
             gtk_widget_get_width(GTK_WIDGET(timeline)) - 3, 0, TRUE);

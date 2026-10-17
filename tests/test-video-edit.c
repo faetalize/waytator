@@ -111,6 +111,62 @@ test_split(void)
   g_assert_true(waytator_video_edit_has_unsaved_changes(edit));
 }
 
+//a split joins back up, and pieces set differently keep an edge where the setting changes until it no
+//longer does, while pieces that don't carry on from each other in the source can't be joined
+static void
+test_join(void)
+{
+  g_autoptr(WaytatorVideoEdit) edit = make_edit();
+  WaytatorVideoSegment values = { .speed = 2.0 };
+
+  g_assert_true(waytator_video_edit_split(edit, MS(300)));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_false(waytator_video_state_can_join(state, 0));
+    g_assert_true(waytator_video_state_can_join(state, 1));
+  }
+  g_assert_true(waytator_video_edit_join(edit, 1));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpuint(waytator_video_state_get_n_segments(state), ==, 1);
+    g_assert_false(waytator_video_state_can_join(state, 1));
+  }
+  g_assert_true(waytator_video_edit_undo(edit));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpuint(waytator_video_state_get_n_segments(state), ==, 2);
+  }
+
+  g_assert_true(waytator_video_edit_set(edit, MS(300), MS(1000), &values, WAYTATOR_VIDEO_FIELD_SPEED));
+  g_assert_true(waytator_video_edit_join(edit, 1));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpuint(waytator_video_state_get_n_segments(state), ==, 2);
+    g_assert_true(waytator_video_state_edge_continues(state, 1));
+  }
+  values.speed = 1.0;
+  g_assert_true(waytator_video_edit_set(edit, MS(300), MS(650), &values, WAYTATOR_VIDEO_FIELD_SPEED));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpuint(waytator_video_state_get_n_segments(state), ==, 1);
+  }
+
+  //the second half first: its end doesn't lead into the first half's start
+  g_assert_true(waytator_video_edit_split(edit, MS(500)));
+  g_assert_true(waytator_video_edit_move(edit, 1, 1, 0));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_false(waytator_video_state_can_join(state, 1));
+  }
+  g_assert_false(waytator_video_edit_join(edit, 1));
+}
+
 static void
 test_set_range(void)
 {
@@ -412,6 +468,7 @@ main(int   argc,
 
   g_test_add_func("/video-edit/new", test_new);
   g_test_add_func("/video-edit/split", test_split);
+  g_test_add_func("/video-edit/join", test_join);
   g_test_add_func("/video-edit/set-range", test_set_range);
   g_test_add_func("/video-edit/split-on-setting-edge", test_split_on_setting_edge);
   g_test_add_func("/video-edit/swap-halves", test_swap_halves);

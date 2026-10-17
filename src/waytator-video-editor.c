@@ -325,6 +325,7 @@ struct _WaytatorVideoEditor {
   GtkSwitch *mute_switch;
   GtkToggleButton *transform_button;
   GtkWidget *rotate_button;
+  GtkButton *split_button;
   GtkWidget *zoom_group;
   GtkWidget *zoom_buttons;
   GtkWidget *zoom_menu_button;
@@ -409,45 +410,58 @@ waytator_video_editor_state(WaytatorVideoEditor *self)
   return self->edit != NULL ? waytator_video_edit_get_state(self->edit) : NULL;
 }
 
-//what the segment tools act on: the selection, or the whole video when nothing is selected
+//a stretch of the timeline the segment tools act on
+typedef struct {
+  gint64 start;
+  gint64 end;
+} WaytatorVideoSpan;
+
+//what the segment tools act on: each stretch selected, or the whole video when nothing is. TRUE when
+//something is selected
 static gboolean
 waytator_video_editor_get_scope(WaytatorVideoEditor *self,
                                 WaytatorVideoState  *state,
-                                gint64              *start,
-                                gint64              *end)
+                                GArray             **spans)
 {
-  gint64 selection_start;
-  gint64 selection_end;
+  const gint64 duration = waytator_video_state_get_duration(state);
+  const guint n = waytator_video_timeline_get_n_ranges(self->timeline);
 
-  waytator_video_timeline_get_selection(self->timeline, &selection_start, &selection_end, NULL);
-  if (selection_end > selection_start) {
-    *start = selection_start;
-    *end = MIN(selection_end, waytator_video_state_get_duration(state));
-    return TRUE;
+  *spans = g_array_new(FALSE, FALSE, sizeof(WaytatorVideoSpan));
+  for (guint i = 0; i < n; i++) {
+    WaytatorVideoSpan span;
+
+    waytator_video_timeline_get_range(self->timeline, i, &span.start, &span.end);
+    span.end = MIN(span.end, duration);
+    if (span.end > span.start)
+      g_array_append_val(*spans, span);
   }
+  if ((*spans)->len > 0)
+    return TRUE;
 
-  *start = 0;
-  *end = waytator_video_state_get_duration(state);
+  g_array_append_val(*spans, ((WaytatorVideoSpan) { 0, duration }));
   return FALSE;
 }
 
-//the segments the scope touches, first to last
-static gboolean
-waytator_video_editor_scope_segments(WaytatorVideoEditor *self,
-                                     WaytatorVideoState  *state,
-                                     guint               *first,
-                                     guint               *last)
+//the cut between two selected pieces that touch, the index of the segment after it, or 0 for none
+static guint
+waytator_video_editor_join_point(WaytatorVideoState *state,
+                                 GArray             *spans,
+                                 gboolean            selection)
 {
-  gint64 start;
-  gint64 end;
+  const WaytatorVideoSpan *first;
+  const WaytatorVideoSpan *second;
+  guint index;
 
-  waytator_video_editor_get_scope(self, state, &start, &end);
-  if (end <= start)
-    return FALSE;
+  if (!selection || spans->len != 2)
+    return 0;
 
-  *first = waytator_video_state_segment_at(state, start);
-  *last = waytator_video_state_segment_at(state, end - 1);
-  return TRUE;
+  first = &g_array_index(spans, WaytatorVideoSpan, 0);
+  second = &g_array_index(spans, WaytatorVideoSpan, 1);
+  if (first->end != second->start)
+    return 0;
+
+  index = waytator_video_state_segment_at(state, second->start);
+  return index > 0 && waytator_video_state_get_segment_start(state, index) == second->start ? index : 0;
 }
 
 static void
@@ -516,23 +530,30 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
   gboolean all_follow = TRUE;
   gboolean speed_changed = FALSE;
   gboolean sound_changed = FALSE;
+  g_autoptr(GArray) spans = NULL;
   const char *icon;
-  gint64 start;
-  gint64 end;
-  guint first;
-  guint last;
+  gint64 length = 0;
+  guint join;
   int width;
   int height;
 
-  if (state == NULL || !waytator_video_editor_scope_segments(self, state, &first, &last))
+  if (state == NULL || waytator_video_state_get_duration(state) <= 0)
     return;
 
   self->updating = TRUE;
-  selection = waytator_video_editor_get_scope(self, state, &start, &end);
+  selection = waytator_video_editor_get_scope(self, state, &spans);
   has_audio = waytator_video_state_has_audio(state);
-  reference = waytator_video_state_get_segment(state, first);
-  for (guint i = first; i <= last; i++) {
-    const WaytatorVideoSegment *segment = waytator_video_state_get_segment(state, i);
+  reference = waytator_video_state_get_segment(state,
+                                               waytator_video_state_segment_at(state,
+                                                                               g_array_index(spans, WaytatorVideoSpan, 0).start));
+  for (guint k = 0; k < spans->len; k++) {
+    const WaytatorVideoSpan *span = &g_array_index(spans, WaytatorVideoSpan, k);
+    const guint first = waytator_video_state_segment_at(state, span->start);
+    const guint last = waytator_video_state_segment_at(state, span->end - 1);
+
+    length += span->end - span->start;
+    for (guint i = first; i <= last; i++) {
+      const WaytatorVideoSegment *segment = waytator_video_state_get_segment(state, i);
 
     all_flipped_horizontal &= segment->flip_horizontal;
     all_flipped_vertical &= segment->flip_vertical;
@@ -542,20 +563,42 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
     same_speed &= segment->speed == reference->speed;
     same_volume &= segment->volume == reference->volume;
     same_pitch &= segment->pitch == reference->pitch;
-    speed_changed |= segment->speed != 1.0;
-    sound_changed |= segment->mute || segment->volume != 0.0 || segment->pitch != 0.0;
+      speed_changed |= segment->speed != 1.0;
+      sound_changed |= segment->mute || segment->volume != 0.0 || segment->pitch != 0.0;
+    }
   }
 
   //with nothing selected the tools change the whole video, which their menus say
   if (selection) {
-    g_autofree char *length = waytator_video_format_time(end - start, end - start);
-    g_autofree char *text = g_strdup_printf("%s selected", length);
+    g_autofree char *total = waytator_video_format_time(length, length);
+    g_autofree char *text = spans->len > 1
+                          ? g_strdup_printf("%u pieces, %s selected", spans->len, total)
+                          : g_strdup_printf("%s selected", total);
 
     gtk_label_set_text(self->scope_label, text);
   } else {
     gtk_label_set_text(self->scope_label, "");
   }
   gtk_widget_set_sensitive(GTK_WIDGET(self->delete_button), selection);
+
+  //two pieces side by side turn splitting into joining them
+  join = waytator_video_editor_join_point(state, spans, selection);
+  if (join > 0) {
+    const gboolean can_join = waytator_video_state_can_join(state, join);
+
+    gtk_button_set_icon_name(self->split_button, "waytator-join-symbolic");
+    gtk_actionable_set_action_name(GTK_ACTIONABLE(self->split_button), "video.join");
+    gtk_widget_action_set_enabled(GTK_WIDGET(self), "video.join", can_join);
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->split_button),
+                                can_join ? "Join the two pieces"
+                                         : waytator_video_state_edge_continues(state, join)
+                                         ? "These two are one piece already, only a setting changes between them"
+                                         : "These two can't be joined, the second doesn't carry on from where the first ends");
+  } else {
+    gtk_button_set_icon_name(self->split_button, "edit-cut-symbolic");
+    gtk_actionable_set_action_name(GTK_ACTIONABLE(self->split_button), "video.split");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->split_button), "Split at the playhead (S)");
+  }
 
   gtk_toggle_button_set_active(self->flip_horizontal_button, all_flipped_horizontal);
   gtk_toggle_button_set_active(self->flip_vertical_button, all_flipped_vertical);
@@ -661,34 +704,52 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
   self->updating = FALSE;
 }
 
-//sets something on the scope. a speed change makes the selection longer or shorter, so it is made to
-//cover the same part of the video again
+//sets something on each stretch of the scope, the last first so the ones before stay where they are. a speed
+//change makes a stretch longer or shorter, so the selection is made to cover the same parts of the video again
 static void
 waytator_video_editor_apply(WaytatorVideoEditor        *self,
                             const WaytatorVideoSegment *values,
                             WaytatorVideoField          fields)
 {
-  g_autoptr(WaytatorVideoState) before = waytator_video_editor_state(self);
-  g_autoptr(WaytatorVideoState) after = NULL;
-  gint64 start;
-  gint64 end;
+  g_autoptr(WaytatorVideoState) state = waytator_video_editor_state(self);
+  g_autoptr(GArray) spans = NULL;
+  g_autofree gint64 *bounds = NULL;
   WaytatorVideoRail rail;
   gboolean selection;
+  gboolean changed = FALSE;
+  gint64 shift = 0;
 
-  if (before == NULL || self->updating)
+  if (state == NULL || self->updating)
     return;
 
-  selection = waytator_video_editor_get_scope(self, before, &start, &end);
-  if (!waytator_video_edit_set(self->edit, start, end, values, fields))
-    return;
+  selection = waytator_video_editor_get_scope(self, state, &spans);
+  bounds = g_new(gint64, 2 * spans->len);
+  waytator_video_edit_begin_group(self->edit);
+  for (guint i = spans->len; i-- > 0;) {
+    const WaytatorVideoSpan *span = &g_array_index(spans, WaytatorVideoSpan, i);
+    g_autoptr(WaytatorVideoState) before = waytator_video_editor_state(self);
+    g_autoptr(WaytatorVideoState) after = NULL;
 
-  after = waytator_video_editor_state(self);
-  if (selection && (fields & WAYTATOR_VIDEO_FIELD_SPEED) != 0) {
-    //what comes after the selection did not change length, so the end moves by the difference
-    end += waytator_video_state_get_duration(after) - waytator_video_state_get_duration(before);
-    waytator_video_timeline_get_selection(self->timeline, NULL, NULL, &rail);
-    waytator_video_timeline_set_selection(self->timeline, start, end, rail);
+    changed |= waytator_video_edit_set(self->edit, span->start, span->end, values, fields);
+    after = waytator_video_editor_state(self);
+    bounds[2 * i] = span->start;
+    bounds[2 * i + 1] = span->end + waytator_video_state_get_duration(after) - waytator_video_state_get_duration(before);
   }
+  waytator_video_edit_end_group(self->edit);
+
+  if (!changed || !selection || (fields & WAYTATOR_VIDEO_FIELD_SPEED) == 0)
+    return;
+
+  //each stretch moves by what the ones before it grew or shrank by
+  for (guint i = 0; i < spans->len; i++) {
+    const gint64 grown = bounds[2 * i + 1] - g_array_index(spans, WaytatorVideoSpan, i).end;
+
+    bounds[2 * i] += shift;
+    bounds[2 * i + 1] += shift;
+    shift += grown;
+  }
+  waytator_video_timeline_get_selection(self->timeline, NULL, NULL, &rail);
+  waytator_video_timeline_set_ranges(self->timeline, bounds, spans->len, rail);
 }
 
 static void
@@ -1357,8 +1418,6 @@ waytator_video_editor_action(GtkWidget  *widget,
   WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(widget);
   g_autoptr(WaytatorVideoState) state = waytator_video_editor_state(self);
   const char *name = action_name + strlen("video.");
-  gint64 start;
-  gint64 end;
 
   if (state == NULL || self->player == NULL)
     return;
@@ -1381,11 +1440,36 @@ waytator_video_editor_action(GtkWidget  *widget,
   } else if (g_str_equal(name, "split")) {
     waytator_video_edit_split(self->edit, waytator_video_editor_position(self));
   } else if (g_str_equal(name, "delete")) {
-    if (waytator_video_editor_get_scope(self, state, &start, &end)
-        && waytator_video_edit_remove(self->edit, start, end)) {
-      waytator_video_timeline_set_selection(self->timeline, 0, 0, WAYTATOR_VIDEO_RAIL_VIDEO);
-      waytator_video_player_seek(self->player, start, FALSE);
+    g_autoptr(GArray) spans = NULL;
+    gboolean removed = FALSE;
+
+    if (!waytator_video_editor_get_scope(self, state, &spans))
+      return;
+
+    //the last first, so the ones before stay where they are
+    waytator_video_edit_begin_group(self->edit);
+    for (guint i = spans->len; i-- > 0;) {
+      const WaytatorVideoSpan *span = &g_array_index(spans, WaytatorVideoSpan, i);
+
+      removed |= waytator_video_edit_remove(self->edit, span->start, span->end);
     }
+    waytator_video_edit_end_group(self->edit);
+    if (removed) {
+      waytator_video_timeline_set_selection(self->timeline, 0, 0, WAYTATOR_VIDEO_RAIL_VIDEO);
+      waytator_video_player_seek(self->player, g_array_index(spans, WaytatorVideoSpan, 0).start, FALSE);
+    }
+  } else if (g_str_equal(name, "join")) {
+    g_autoptr(GArray) spans = NULL;
+    const gboolean selection = waytator_video_editor_get_scope(self, state, &spans);
+    const guint join = waytator_video_editor_join_point(state, spans, selection);
+    WaytatorVideoRail rail;
+
+    waytator_video_timeline_get_selection(self->timeline, NULL, NULL, &rail);
+    if (join > 0 && waytator_video_edit_join(self->edit, join))
+      waytator_video_timeline_set_selection(self->timeline,
+                                            g_array_index(spans, WaytatorVideoSpan, 0).start,
+                                            g_array_index(spans, WaytatorVideoSpan, 1).end,
+                                            rail);
   } else if (g_str_equal(name, "rotate")) {
     waytator_video_edit_set_rotation(self->edit, waytator_video_state_get_rotation(state) + 3);
   } else if (g_str_equal(name, "reset-transform")) {
@@ -1928,7 +2012,7 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
   GObjectClass *object_class = G_OBJECT_CLASS(klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS(klass);
   static const char *const actions[] = {
-    "play-pause", "step-back", "step-forward", "go-start", "go-end", "split", "delete",
+    "play-pause", "step-back", "step-forward", "go-start", "go-end", "split", "join", "delete",
     "rotate", "reset-transform", "zoom-in", "zoom-out", "zoom-fit", "cancel-export",
   };
 
@@ -1993,6 +2077,7 @@ waytator_video_editor_class_init(WaytatorVideoEditorClass *klass)
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, mute_switch);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, transform_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, rotate_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, split_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, zoom_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, zoom_buttons);
   gtk_widget_class_bind_template_child(widget_class, WaytatorVideoEditor, zoom_menu_button);

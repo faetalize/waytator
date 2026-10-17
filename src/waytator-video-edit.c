@@ -811,6 +811,35 @@ waytator_video_state_edge_continues(const WaytatorVideoState *state,
 }
 
 gboolean
+waytator_video_state_can_join(const WaytatorVideoState *state,
+                              guint                     index)
+{
+  const WaytatorVideoSegment *before;
+  const WaytatorVideoSegment *after;
+
+  if (index == 0 || index >= state->segments->len)
+    return FALSE;
+
+  before = &g_array_index(state->segments, WaytatorVideoSegment, index - 1);
+  after = &g_array_index(state->segments, WaytatorVideoSegment, index);
+  return !after->continues && before->source_end == after->source_start;
+}
+
+gboolean
+waytator_video_edit_join(WaytatorVideoEdit *self,
+                         guint              index)
+{
+  WaytatorVideoState *state;
+
+  if (!waytator_video_state_can_join(self->state, index))
+    return FALSE;
+
+  state = waytator_video_state_copy(self->state);
+  waytator_video_state_segment(state, index)->continues = TRUE;
+  return waytator_video_edit_commit(self, state);
+}
+
+gboolean
 waytator_video_edit_move_edge(WaytatorVideoEdit *self,
                               guint              index,
                               gint64             source_time)

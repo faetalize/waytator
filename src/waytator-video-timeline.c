@@ -114,11 +114,18 @@ typedef struct {
   guint before;
   gint64 before_time;
   gboolean grouped;
-  //the selection covered these segments when the drag began, so it follows them
-  gboolean selection_follows;
-  guint selection_first;
-  guint selection_last;
+  //ctrl was held, so a click adds a block to the selection or takes it out
+  gboolean toggle;
 } WaytatorTimelineDrag;
+
+//a stretch of the selection, which holds on to the segments it covers exactly so it stays on them through
+//edits and undoing, G_MAXUINT when it starts or ends inside one
+typedef struct {
+  gint64 start;
+  gint64 end;
+  guint first_id;
+  guint last_id;
+} WaytatorTimelineRange;
 
 struct _WaytatorVideoTimeline {
   GtkWidget parent_instance;
@@ -137,8 +144,8 @@ struct _WaytatorVideoTimeline {
 
   gint64 playhead;
   gboolean following;
-  gint64 selection_start;
-  gint64 selection_end;
+  //sorted, none overlapping, all on the one rail
+  GArray *ranges;
   WaytatorVideoRail selection_rail;
 
   //the time at the left end of the track and how many microseconds a pixel holds
@@ -410,59 +417,160 @@ waytator_video_timeline_zoom_around(WaytatorVideoTimeline *self,
   waytator_video_timeline_set_view(self, time - (x - self->track_x) * scale, scale);
 }
 
+static gint
+waytator_video_timeline_compare_ranges(gconstpointer a,
+                                       gconstpointer b)
+{
+  const WaytatorTimelineRange *first = a;
+  const WaytatorTimelineRange *second = b;
+
+  return first->start < second->start ? -1 : first->start > second->start;
+}
+
+//the segments a range covers exactly, if it does
+static void
+waytator_video_timeline_pin_range(WaytatorVideoTimeline *self,
+                                  WaytatorTimelineRange *range)
+{
+  guint first;
+  guint last;
+
+  range->first_id = range->last_id = G_MAXUINT;
+  if (self->state == NULL || range->end <= range->start)
+    return;
+
+  first = waytator_video_state_segment_at(self->state, range->start);
+  last = waytator_video_state_segment_at(self->state, range->end - 1);
+  if (waytator_video_state_get_segment_start(self->state, first) != range->start
+      || waytator_video_state_get_segment_end(self->state, last) != range->end)
+    return;
+
+  range->first_id = waytator_video_state_get_segment(self->state, first)->id;
+  range->last_id = waytator_video_state_get_segment(self->state, last)->id;
+}
+
+//takes ranges as the selection, sorted and with overlaps joined, and says so if that changes it
+static void
+waytator_video_timeline_take_ranges(WaytatorVideoTimeline *self,
+                                    GArray                *ranges,
+                                    WaytatorVideoRail      rail)
+{
+  g_autoptr(GArray) merged = g_array_new(FALSE, FALSE, sizeof(WaytatorTimelineRange));
+  gboolean same;
+
+  g_array_sort(ranges, waytator_video_timeline_compare_ranges);
+  for (guint i = 0; i < ranges->len; i++) {
+    WaytatorTimelineRange range = g_array_index(ranges, WaytatorTimelineRange, i);
+    WaytatorTimelineRange *previous = merged->len > 0
+                                    ? &g_array_index(merged, WaytatorTimelineRange, merged->len - 1)
+                                    : NULL;
+
+    if (range.end <= range.start)
+      continue;
+    if (previous != NULL && range.start < previous->end) {
+      previous->end = MAX(previous->end, range.end);
+      waytator_video_timeline_pin_range(self, previous);
+      continue;
+    }
+    g_array_append_val(merged, range);
+  }
+
+  same = merged->len == self->ranges->len && (merged->len == 0 || rail == self->selection_rail);
+  for (guint i = 0; same && i < merged->len; i++) {
+    const WaytatorTimelineRange *a = &g_array_index(merged, WaytatorTimelineRange, i);
+    const WaytatorTimelineRange *b = &g_array_index(self->ranges, WaytatorTimelineRange, i);
+
+    same = a->start == b->start && a->end == b->end;
+  }
+
+  g_array_set_size(self->ranges, 0);
+  g_array_append_vals(self->ranges, merged->data, merged->len);
+  if (merged->len > 0)
+    self->selection_rail = rail;
+  if (same)
+    return;
+
+  gtk_widget_queue_draw(GTK_WIDGET(self));
+  g_signal_emit(self, waytator_video_timeline_signals[SIGNAL_SELECTION_CHANGED], 0);
+}
+
+//selects one stretch, or nothing when it is empty
 static void
 waytator_video_timeline_emit_selection(WaytatorVideoTimeline *self,
                                        gint64                 start,
                                        gint64                 end,
                                        WaytatorVideoRail      rail)
 {
-  if (end <= start) {
-    start = 0;
-    end = 0;
-    rail = self->selection_rail;
-  }
-  if (start == self->selection_start && end == self->selection_end && rail == self->selection_rail)
-    return;
+  g_autoptr(GArray) ranges = g_array_new(FALSE, FALSE, sizeof(WaytatorTimelineRange));
 
-  self->selection_start = start;
-  self->selection_end = end;
-  self->selection_rail = rail;
-  gtk_widget_queue_draw(GTK_WIDGET(self));
-  g_signal_emit(self, waytator_video_timeline_signals[SIGNAL_SELECTION_CHANGED], 0);
+  if (end > start) {
+    WaytatorTimelineRange range = { start, end, G_MAXUINT, G_MAXUINT };
+
+    waytator_video_timeline_pin_range(self, &range);
+    g_array_append_val(ranges, range);
+  }
+  waytator_video_timeline_take_ranges(self, ranges, rail);
 }
 
+//a block ctrl-clicked comes out of the selection if it was in it, or joins it. on another rail it starts
+//the selection afresh
 static void
-waytator_video_timeline_clamp_selection(WaytatorVideoTimeline *self)
+waytator_video_timeline_toggle_selection(WaytatorVideoTimeline *self,
+                                         gint64                 start,
+                                         gint64                 end,
+                                         WaytatorVideoRail      rail)
+{
+  g_autoptr(GArray) ranges = NULL;
+  WaytatorTimelineRange range = { start, end, G_MAXUINT, G_MAXUINT };
+
+  if (self->ranges->len == 0 || rail != self->selection_rail) {
+    waytator_video_timeline_emit_selection(self, start, end, rail);
+    return;
+  }
+
+  ranges = g_array_new(FALSE, FALSE, sizeof(WaytatorTimelineRange));
+  for (guint i = 0; i < self->ranges->len; i++) {
+    const WaytatorTimelineRange *held = &g_array_index(self->ranges, WaytatorTimelineRange, i);
+
+    if (held->start == start && held->end == end)
+      range.end = range.start;
+    else
+      g_array_append_vals(ranges, held, 1);
+  }
+  if (range.end > range.start) {
+    waytator_video_timeline_pin_range(self, &range);
+    g_array_append_val(ranges, range);
+  }
+  waytator_video_timeline_take_ranges(self, ranges, rail);
+}
+
+//after an edit each range goes back over the segments it covered, or stays inside the video
+static void
+waytator_video_timeline_follow_selection(WaytatorVideoTimeline *self)
 {
   const gint64 duration = waytator_video_timeline_duration(self);
+  g_autoptr(GArray) ranges = g_array_new(FALSE, FALSE, sizeof(WaytatorTimelineRange));
 
-  waytator_video_timeline_emit_selection(self,
-                                         MIN(self->selection_start, duration),
-                                         MIN(self->selection_end, duration),
-                                         self->selection_rail);
-}
+  for (guint i = 0; i < self->ranges->len; i++) {
+    WaytatorTimelineRange range = g_array_index(self->ranges, WaytatorTimelineRange, i);
+    const int first = range.first_id != G_MAXUINT && self->state != NULL
+                    ? waytator_video_state_find_segment(self->state, range.first_id)
+                    : -1;
+    const int last = range.last_id != G_MAXUINT && self->state != NULL
+                   ? waytator_video_state_find_segment(self->state, range.last_id)
+                   : -1;
 
-//the first and last segment the selection covers exactly, FALSE when it starts or ends inside one
-static gboolean
-waytator_video_timeline_selected_segments(WaytatorVideoTimeline *self,
-                                          guint                 *first_id,
-                                          guint                 *last_id)
-{
-  guint first;
-  guint last;
-
-  if (self->state == NULL || self->selection_end <= self->selection_start)
-    return FALSE;
-
-  first = waytator_video_state_segment_at(self->state, self->selection_start);
-  last = waytator_video_state_segment_at(self->state, self->selection_end - 1);
-  if (waytator_video_state_get_segment_start(self->state, first) != self->selection_start
-      || waytator_video_state_get_segment_end(self->state, last) != self->selection_end)
-    return FALSE;
-
-  *first_id = waytator_video_state_get_segment(self->state, first)->id;
-  *last_id = waytator_video_state_get_segment(self->state, last)->id;
-  return TRUE;
+    if (first >= 0 && last >= first) {
+      range.start = waytator_video_state_get_segment_start(self->state, first);
+      range.end = waytator_video_state_get_segment_end(self->state, last);
+    } else {
+      range.start = MIN(range.start, duration);
+      range.end = MIN(range.end, duration);
+      waytator_video_timeline_pin_range(self, &range);
+    }
+    g_array_append_val(ranges, range);
+  }
+  waytator_video_timeline_take_ranges(self, ranges, self->selection_rail);
 }
 
 static void
@@ -512,7 +620,7 @@ waytator_video_timeline_load_state(WaytatorVideoTimeline *self)
     waytator_video_timeline_update_view(self);
   waytator_video_timeline_invalidate(self);
   waytator_video_timeline_queue_thumbnails(self);
-  waytator_video_timeline_clamp_selection(self);
+  waytator_video_timeline_follow_selection(self);
 }
 
 static void
@@ -1551,31 +1659,32 @@ waytator_video_timeline_draw_overlay(WaytatorVideoTimeline         *self,
 
   gtk_snapshot_push_clip(snapshot, &GRAPHENE_RECT_INIT(self->gutter, 0, width - self->gutter, height));
 
-  if (self->selection_end > self->selection_start) {
+  for (guint i = 0; i < self->ranges->len; i++) {
+    const WaytatorTimelineRange *range = &g_array_index(self->ranges, WaytatorTimelineRange, i);
     const graphene_rect_t *row = &self->rails[self->selection_rail];
-    const double x0 = MAX(waytator_video_timeline_x(self, self->selection_start), self->gutter - 20);
-    const double x1 = MIN(waytator_video_timeline_x(self, self->selection_end), width + 20);
+    const double x0 = MAX(waytator_video_timeline_x(self, range->start), self->gutter - 20);
+    const double x1 = MIN(waytator_video_timeline_x(self, range->end), width + 20);
     const GdkRGBA fill = waytator_video_timeline_alpha(&palette->accent, 0.28f);
     const float widths[4] = { 2, 2, 2, 2 };
     GskRoundedRect outline;
 
-    if (x1 > x0) {
-      gsk_rounded_rect_init_from_rect(&outline,
-                                      &GRAPHENE_RECT_INIT(x0, row->origin.y, MAX(x1 - x0, 2), row->size.height),
-                                      MIN(WAYTATOR_TIMELINE_RADIUS, (x1 - x0) / 2));
-      gtk_snapshot_push_rounded_clip(snapshot, &outline);
-      gtk_snapshot_append_color(snapshot, &fill, &outline.bounds);
-      gtk_snapshot_pop(snapshot);
-      gtk_snapshot_append_border(snapshot,
-                                 &outline,
-                                 widths,
-                                 (GdkRGBA[4]) { palette->accent, palette->accent, palette->accent, palette->accent });
-      //the same stretch marked along the ruler
-      gtk_snapshot_append_color(snapshot,
-                                &fill,
-                                &GRAPHENE_RECT_INIT(x0, self->ruler.origin.y + self->ruler.size.height - 4,
-                                                    x1 - x0, 4));
-    }
+    if (x1 <= x0)
+      continue;
+
+    gsk_rounded_rect_init_from_rect(&outline,
+                                    &GRAPHENE_RECT_INIT(x0, row->origin.y, MAX(x1 - x0, 2), row->size.height),
+                                    MIN(WAYTATOR_TIMELINE_RADIUS, (x1 - x0) / 2));
+    gtk_snapshot_push_rounded_clip(snapshot, &outline);
+    gtk_snapshot_append_color(snapshot, &fill, &outline.bounds);
+    gtk_snapshot_pop(snapshot);
+    gtk_snapshot_append_border(snapshot,
+                               &outline,
+                               widths,
+                               (GdkRGBA[4]) { palette->accent, palette->accent, palette->accent, palette->accent });
+    //the same stretch marked along the ruler
+    gtk_snapshot_append_color(snapshot,
+                              &fill,
+                              &GRAPHENE_RECT_INIT(x0, self->ruler.origin.y + self->ruler.size.height - 4, x1 - x0, 4));
   }
 
   if (self->drag.mode == WAYTATOR_TIMELINE_DRAG_NONE && self->hover.kind == WAYTATOR_TIMELINE_HIT_EDGE) {
@@ -1923,10 +2032,6 @@ waytator_video_timeline_begin_edge(WaytatorVideoTimeline *self)
         g_array_append_val(self->drag.snaps, time);
     }
   }
-
-  self->drag.selection_follows = waytator_video_timeline_selected_segments(self,
-                                                                           &self->drag.selection_first,
-                                                                           &self->drag.selection_last);
 }
 
 static void
@@ -1971,6 +2076,7 @@ waytator_video_timeline_press(WaytatorVideoTimeline *self,
   self->drag.start_offset = self->offset;
   self->drag.grab_time = waytator_video_timeline_time(self, x);
   self->drag.before = G_MAXUINT;
+  self->drag.toggle = (modifiers & GDK_CONTROL_MASK) != 0;
   self->drag.mode = WAYTATOR_TIMELINE_DRAG_NONE;
   if (self->state == NULL)
     return;
@@ -2096,12 +2202,6 @@ waytator_video_timeline_drag_edit(WaytatorVideoTimeline *self)
     break;
   }
   self->editing = FALSE;
-
-  if (self->drag.selection_follows)
-    waytator_video_timeline_select_segments(self,
-                                            self->drag.selection_first,
-                                            self->drag.selection_last,
-                                            self->selection_rail);
 }
 
 static void
@@ -2263,7 +2363,7 @@ waytator_video_timeline_end_drag(WaytatorVideoTimeline *self)
   g_clear_pointer(&self->drag.snaps, g_array_unref);
   self->drag.mode = WAYTATOR_TIMELINE_DRAG_NONE;
   self->drag.grouped = FALSE;
-  self->drag.selection_follows = FALSE;
+  self->drag.toggle = FALSE;
 
   if (edited)
     waytator_video_timeline_update_view(self);
@@ -2271,6 +2371,18 @@ waytator_video_timeline_end_drag(WaytatorVideoTimeline *self)
     waytator_video_timeline_invalidate(self);
   waytator_video_timeline_set_cursor(self);
   gtk_widget_queue_draw(GTK_WIDGET(self));
+}
+
+//a click on a block selects it, or with ctrl adds it to the selection or takes it out
+static void
+waytator_video_timeline_pick_block(WaytatorVideoTimeline        *self,
+                                   const WaytatorVideoRailBlock *block,
+                                   WaytatorVideoRail             rail)
+{
+  if (self->drag.toggle)
+    waytator_video_timeline_toggle_selection(self, block->start, block->end, rail);
+  else
+    waytator_video_timeline_emit_selection(self, block->start, block->end, rail);
 }
 
 static void
@@ -2286,8 +2398,8 @@ waytator_video_timeline_release(WaytatorVideoTimeline *self,
       const WaytatorVideoRailBlock *block = waytator_video_timeline_block(self->blocks[self->drag.hit.rail],
                                                                           self->drag.hit.block);
 
-      waytator_video_timeline_emit_selection(self, block->start, block->end, (WaytatorVideoRail) self->drag.hit.rail);
-    } else {
+      waytator_video_timeline_pick_block(self, block, (WaytatorVideoRail) self->drag.hit.rail);
+    } else if (!self->drag.toggle) {
       waytator_video_timeline_emit_selection(self, 0, 0, self->selection_rail);
     }
     break;
@@ -2327,8 +2439,8 @@ waytator_video_timeline_release(WaytatorVideoTimeline *self,
       const guint index = waytator_video_timeline_block_at(blocks, time);
       const WaytatorVideoRailBlock *block = waytator_video_timeline_block(blocks, index);
 
-      waytator_video_timeline_emit_selection(self, block->start, block->end, (WaytatorVideoRail) self->drag.hit.rail);
-    } else {
+      waytator_video_timeline_pick_block(self, block, (WaytatorVideoRail) self->drag.hit.rail);
+    } else if (!self->drag.toggle) {
       waytator_video_timeline_emit_selection(self, 0, 0, self->selection_rail);
     }
     break;
@@ -2579,6 +2691,7 @@ waytator_video_timeline_finalize(GObject *object)
   WaytatorVideoTimeline *self = WAYTATOR_VIDEO_TIMELINE(object);
 
   g_array_unref(self->peaks);
+  g_array_unref(self->ranges);
 
   G_OBJECT_CLASS(waytator_video_timeline_parent_class)->finalize(object);
 }
@@ -2636,6 +2749,7 @@ waytator_video_timeline_init(WaytatorVideoTimeline *self)
   self->hover.rail = -1;
   self->drag.hit.rail = -1;
   self->peaks = g_array_new(FALSE, TRUE, sizeof(WaytatorTimelinePeaks));
+  self->ranges = g_array_new(FALSE, FALSE, sizeof(WaytatorTimelineRange));
   g_array_set_clear_func(self->peaks, waytator_video_timeline_clear_peak);
 
   gtk_widget_set_focusable(widget, TRUE);
@@ -2790,11 +2904,60 @@ waytator_video_timeline_get_selection(WaytatorVideoTimeline *self,
   g_return_if_fail(WAYTATOR_IS_VIDEO_TIMELINE(self));
 
   if (start != NULL)
-    *start = self->selection_start;
+    *start = self->ranges->len > 0 ? g_array_index(self->ranges, WaytatorTimelineRange, 0).start : 0;
   if (end != NULL)
-    *end = self->selection_end;
+    *end = self->ranges->len > 0 ? g_array_index(self->ranges, WaytatorTimelineRange, self->ranges->len - 1).end : 0;
   if (rail != NULL)
     *rail = self->selection_rail;
+}
+
+void
+waytator_video_timeline_set_ranges(WaytatorVideoTimeline *self,
+                                   const gint64          *bounds,
+                                   guint                  n,
+                                   WaytatorVideoRail      rail)
+{
+  g_autoptr(GArray) ranges = NULL;
+  const gint64 duration = waytator_video_timeline_duration(self);
+
+  g_return_if_fail(WAYTATOR_IS_VIDEO_TIMELINE(self));
+
+  ranges = g_array_new(FALSE, FALSE, sizeof(WaytatorTimelineRange));
+  for (guint i = 0; i < n; i++) {
+    WaytatorTimelineRange range = {
+      CLAMP(bounds[2 * i], 0, duration), CLAMP(bounds[2 * i + 1], 0, duration), G_MAXUINT, G_MAXUINT,
+    };
+
+    waytator_video_timeline_pin_range(self, &range);
+    g_array_append_val(ranges, range);
+  }
+  waytator_video_timeline_take_ranges(self, ranges, rail);
+}
+
+guint
+waytator_video_timeline_get_n_ranges(WaytatorVideoTimeline *self)
+{
+  g_return_val_if_fail(WAYTATOR_IS_VIDEO_TIMELINE(self), 0);
+
+  return self->ranges->len;
+}
+
+void
+waytator_video_timeline_get_range(WaytatorVideoTimeline *self,
+                                  guint                  index,
+                                  gint64                *start,
+                                  gint64                *end)
+{
+  const WaytatorTimelineRange *range;
+
+  g_return_if_fail(WAYTATOR_IS_VIDEO_TIMELINE(self));
+  g_return_if_fail(index < self->ranges->len);
+
+  range = &g_array_index(self->ranges, WaytatorTimelineRange, index);
+  if (start != NULL)
+    *start = range->start;
+  if (end != NULL)
+    *end = range->end;
 }
 
 void

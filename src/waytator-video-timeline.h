@@ -52,11 +52,24 @@ gint64 waytator_video_timeline_get_playhead(WaytatorVideoTimeline *self);
 void waytator_video_timeline_set_following(WaytatorVideoTimeline *self,
                                            gboolean               following);
 
-//the selected stretch of the timeline and the rail it was picked on. start equal to end is no selection
+//the selection is one or more stretches of the timeline on the rail they were picked on, ctrl and a click
+//adding a block or taking it out. this gives from the start of the first to the end of the last, start
+//equal to end for no selection
 void waytator_video_timeline_get_selection(WaytatorVideoTimeline *self,
                                            gint64                *start,
                                            gint64                *end,
                                            WaytatorVideoRail     *rail);
+guint waytator_video_timeline_get_n_ranges(WaytatorVideoTimeline *self);
+void waytator_video_timeline_get_range(WaytatorVideoTimeline *self,
+                                       guint                  index,
+                                       gint64                *start,
+                                       gint64                *end);
+//selects n stretches, bounds holding each one's start and end in turn
+void waytator_video_timeline_set_ranges(WaytatorVideoTimeline *self,
+                                        const gint64          *bounds,
+                                        guint                  n,
+                                        WaytatorVideoRail      rail);
+//selects the one stretch
 void waytator_video_timeline_set_selection(WaytatorVideoTimeline *self,
                                            gint64                 start,
                                            gint64                 end,
