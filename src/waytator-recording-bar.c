@@ -1,7 +1,6 @@
 #include "waytator-recording-bar.h"
 #include "waytator-capture-overlay.h"
 #include "waytator-pointer-brake.h"
-#include "waytator-settings.h"
 #include "waytator-window.h"
 
 #include <gtk4-layer-shell.h>
@@ -41,19 +40,6 @@ struct _WaytatorRecordingBar {
   gboolean saving;
   WaytatorRecordingBarStopFunc stop;
   WaytatorRecordingBarMuteFunc mute;
-  gpointer user_data;
-};
-
-struct _WaytatorRecordingCountdown {
-  GtkWindow *window;
-  GtkWidget *label;
-  GtkCssProvider *pill_style;
-  guint remaining;
-  guint tick_id;
-  guint settle_id;
-  //with nothing to count, the idle that reports it is done
-  guint start_id;
-  WaytatorRecordingCountdownFunc done;
   gpointer user_data;
 };
 
@@ -108,27 +94,6 @@ waytator_recording_bar_place(const GdkRectangle *monitor,
   result->y = CLAMP(monitor->y + monitor->height - WAYTATOR_RECORDING_BAR_BOTTOM - height,
                     top,
                     MAX(bottom - height, top));
-}
-
-//the floating controls' own background and blur, read from the settings as the capture overlay does
-static GtkCssProvider *
-waytator_recording_bar_load_style(void)
-{
-  GtkCssProvider *provider;
-  WaytatorSettings settings;
-
-  waytator_window_ensure_css_loaded();
-  waytator_settings_load(&settings);
-  provider = waytator_capture_overlay_new_pill_style(&settings);
-  waytator_settings_clear(&settings);
-  return provider;
-}
-
-static void
-waytator_recording_bar_unload_style(GtkCssProvider *provider)
-{
-  gtk_style_context_remove_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(provider));
-  g_object_unref(provider);
 }
 
 //a layer surface of its own over everything, that the compositor lays out where its margins say
@@ -589,7 +554,7 @@ waytator_recording_bar_new(GdkMonitor                  *monitor,
 {
   WaytatorRecordingBar *bar = g_new0(WaytatorRecordingBar, 1);
 
-  bar->pill_style = waytator_recording_bar_load_style();
+  bar->pill_style = waytator_capture_overlay_load_pill_style();
   bar->start_time = start_time;
   bar->stop = stop;
   bar->mute = mute;
@@ -662,183 +627,7 @@ waytator_recording_bar_free(WaytatorRecordingBar *bar)
   windows[n_windows++] = bar->window;
   waytator_window_destroy_settled(windows, n_windows);
 
-  waytator_recording_bar_unload_style(bar->pill_style);
+  waytator_capture_overlay_unload_pill_style(bar->pill_style);
   g_clear_weak_pointer(&bar->monitor);
   g_free(bar);
-}
-
-static void
-waytator_recording_countdown_free(WaytatorRecordingCountdown *countdown)
-{
-  g_clear_handle_id(&countdown->tick_id, g_source_remove);
-  g_clear_handle_id(&countdown->settle_id, g_source_remove);
-  g_clear_handle_id(&countdown->start_id, g_source_remove);
-  waytator_recording_bar_unload_style(countdown->pill_style);
-  g_free(countdown);
-}
-
-static gboolean
-waytator_recording_countdown_free_idle(gpointer user_data)
-{
-  waytator_recording_countdown_free(user_data);
-  return G_SOURCE_REMOVE;
-}
-
-//a frame taken right after the countdown went must not have it in
-static gboolean
-waytator_recording_countdown_settled(gpointer user_data)
-{
-  WaytatorRecordingCountdown *countdown = user_data;
-
-  countdown->settle_id = 0;
-  countdown->done(TRUE, countdown->user_data);
-  waytator_recording_countdown_free(countdown);
-  return G_SOURCE_REMOVE;
-}
-
-static void
-waytator_recording_countdown_finish(WaytatorRecordingCountdown *countdown)
-{
-  g_clear_handle_id(&countdown->tick_id, g_source_remove);
-  waytator_window_destroy_settled(&countdown->window, 1);
-  countdown->window = NULL;
-  countdown->settle_id = g_timeout_add(WAYTATOR_CAPTURE_SETTLE_MS, waytator_recording_countdown_settled, countdown);
-}
-
-static void
-waytator_recording_countdown_set_number(WaytatorRecordingCountdown *countdown)
-{
-  g_autofree char *text = g_strdup_printf("%u", countdown->remaining);
-
-  gtk_label_set_text(GTK_LABEL(countdown->label), text);
-}
-
-static gboolean
-waytator_recording_countdown_tick(gpointer user_data)
-{
-  WaytatorRecordingCountdown *countdown = user_data;
-
-  countdown->remaining--;
-  if (countdown->remaining == 0) {
-    countdown->tick_id = 0;
-    waytator_recording_countdown_finish(countdown);
-    return G_SOURCE_REMOVE;
-  }
-
-  waytator_recording_countdown_set_number(countdown);
-  return G_SOURCE_CONTINUE;
-}
-
-static gboolean
-waytator_recording_countdown_key_pressed(GtkEventControllerKey     *controller,
-                                         guint                      keyval,
-                                         guint                      keycode,
-                                         GdkModifierType            state,
-                                         WaytatorRecordingCountdown *countdown)
-{
-  (void) controller;
-  (void) keycode;
-  (void) state;
-
-  if (keyval != GDK_KEY_Escape || countdown->window == NULL)
-    return GDK_EVENT_PROPAGATE;
-
-  g_clear_handle_id(&countdown->tick_id, g_source_remove);
-  waytator_window_destroy_settled(&countdown->window, 1);
-  countdown->window = NULL;
-  countdown->done(FALSE, countdown->user_data);
-  //this runs inside a handler of the window that just went
-  g_idle_add(waytator_recording_countdown_free_idle, countdown);
-  return GDK_EVENT_STOP;
-}
-
-static gboolean
-waytator_recording_countdown_start_idle(gpointer user_data)
-{
-  WaytatorRecordingCountdown *countdown = user_data;
-
-  countdown->start_id = 0;
-  countdown->done(TRUE, countdown->user_data);
-  waytator_recording_countdown_free(countdown);
-  return G_SOURCE_REMOVE;
-}
-
-//the number sits on its own pill, so it can be read on any picture
-WaytatorRecordingCountdown *
-waytator_recording_countdown_show(GdkMonitor                    *monitor,
-                                  const GdkRectangle            *area,
-                                  guint                          seconds,
-                                  WaytatorRecordingCountdownFunc done,
-                                  gpointer                       user_data)
-{
-  WaytatorRecordingCountdown *countdown = g_new0(WaytatorRecordingCountdown, 1);
-  GtkEventController *keys;
-
-  countdown->pill_style = waytator_recording_bar_load_style();
-  countdown->remaining = seconds;
-  countdown->done = done;
-  countdown->user_data = user_data;
-
-  //nothing to wait for, and nothing to show
-  if (seconds == 0) {
-    countdown->start_id = g_idle_add(waytator_recording_countdown_start_idle, countdown);
-    return countdown;
-  }
-
-  countdown->window = GTK_WINDOW(gtk_window_new());
-  countdown->label = gtk_label_new(NULL);
-  gtk_widget_add_css_class(countdown->label, "capture-pill");
-  gtk_widget_add_css_class(countdown->label, "recording-countdown");
-  waytator_recording_countdown_set_number(countdown);
-  gtk_window_set_child(countdown->window, countdown->label);
-  gtk_window_set_decorated(countdown->window, FALSE);
-  gtk_window_set_resizable(countdown->window, FALSE);
-  gtk_window_set_title(countdown->window, "Recording starts in");
-  gtk_widget_add_css_class(GTK_WIDGET(countdown->window), "recording-surface");
-
-  keys = gtk_event_controller_key_new();
-  gtk_event_controller_set_propagation_phase(keys, GTK_PHASE_CAPTURE);
-  g_signal_connect(keys, "key-pressed", G_CALLBACK(waytator_recording_countdown_key_pressed), countdown);
-  gtk_widget_add_controller(GTK_WIDGET(countdown->window), keys);
-
-  //gnome has no layer shell, there the desktop places the window
-  if (gtk_layer_is_supported()) {
-    waytator_recording_bar_init_layer(countdown->window,
-                                      "waytator-countdown",
-                                      monitor,
-                                      GTK_LAYER_SHELL_KEYBOARD_MODE_EXCLUSIVE);
-
-    //with no anchors the compositor centres it on the screen, which is right for a whole screen
-    if (monitor != NULL && area != NULL) {
-      GdkRectangle geometry;
-      GdkRectangle visible;
-      int width;
-      int height;
-
-      gdk_monitor_get_geometry(monitor, &geometry);
-      geometry.x = 0;
-      geometry.y = 0;
-      if (!gdk_rectangle_intersect(area, &geometry, &visible))
-        visible = geometry;
-
-      gtk_widget_measure(countdown->label, GTK_ORIENTATION_HORIZONTAL, -1, NULL, &width, NULL, NULL);
-      gtk_widget_measure(countdown->label, GTK_ORIENTATION_VERTICAL, width, NULL, &height, NULL, NULL);
-      waytator_recording_bar_set_margins(countdown->window,
-                                         visible.x + (visible.width - width) / 2,
-                                         visible.y + (visible.height - height) / 2);
-    }
-  }
-
-  countdown->tick_id = g_timeout_add(1000, waytator_recording_countdown_tick, countdown);
-  gtk_window_present(countdown->window);
-  return countdown;
-}
-
-void
-waytator_recording_countdown_cancel(WaytatorRecordingCountdown *countdown)
-{
-  if (countdown->window != NULL)
-    waytator_window_destroy_settled(&countdown->window, 1);
-  countdown->window = NULL;
-  waytator_recording_countdown_free(countdown);
 }

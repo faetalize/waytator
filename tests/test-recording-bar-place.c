@@ -7,11 +7,6 @@
 
 //the bar only needs these to put itself on a screen, which nothing here does
 void
-waytator_window_ensure_css_loaded(void)
-{
-}
-
-void
 waytator_window_destroy_settled(GtkWindow *const *windows,
                                 guint             n_windows)
 {
@@ -20,10 +15,15 @@ waytator_window_destroy_settled(GtkWindow *const *windows,
 }
 
 GtkCssProvider *
-waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings)
+waytator_capture_overlay_load_pill_style(void)
 {
-  (void) settings;
   return NULL;
+}
+
+void
+waytator_capture_overlay_unload_pill_style(GtkCssProvider *provider)
+{
+  (void) provider;
 }
 
 static const GdkRectangle monitor = { 0, 0, 1920, 1080 };

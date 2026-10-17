@@ -205,6 +205,26 @@ waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings)
   return provider;
 }
 
+GtkCssProvider *
+waytator_capture_overlay_load_pill_style(void)
+{
+  GtkCssProvider *provider;
+  WaytatorSettings settings;
+
+  waytator_window_ensure_css_loaded();
+  waytator_settings_load(&settings);
+  provider = waytator_capture_overlay_new_pill_style(&settings);
+  waytator_settings_clear(&settings);
+  return provider;
+}
+
+void
+waytator_capture_overlay_unload_pill_style(GtkCssProvider *provider)
+{
+  gtk_style_context_remove_provider_for_display(gdk_display_get_default(), GTK_STYLE_PROVIDER(provider));
+  g_object_unref(provider);
+}
+
 static gboolean
 waytator_capture_overlay_free(gpointer user_data)
 {

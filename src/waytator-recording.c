@@ -3,6 +3,7 @@
 #include "waytator-capture.h"
 #include "waytator-capture-overlay.h"
 #include "waytator-clipboard.h"
+#include "waytator-countdown.h"
 #include "waytator-notification.h"
 #include "waytator-recorder.h"
 #include "waytator-record-portal.h"
@@ -41,7 +42,7 @@ typedef struct {
   WaytatorRecordChoice *choice;
   GCancellable *cancellable;
   WaytatorRecorder *recorder;
-  WaytatorRecordingCountdown *countdown;
+  WaytatorCountdown *countdown;
   WaytatorRecordingBar *bar;
   //why it stopped before anyone asked it to, NULL when it did not
   char *ended_reason;
@@ -72,7 +73,7 @@ waytator_recording_free(WaytatorRecording *rec)
 
   g_clear_handle_id(&rec->settle_id, g_source_remove);
   if (rec->countdown != NULL)
-    waytator_recording_countdown_cancel(rec->countdown);
+    waytator_countdown_cancel(rec->countdown);
   g_clear_pointer(&rec->bar, waytator_recording_bar_free);
   g_clear_pointer(&rec->recorder, waytator_recorder_free);
   g_clear_object(&rec->cancellable);
@@ -399,11 +400,11 @@ waytator_recording_opened(GObject      *source_object,
 
   rec->state = WAYTATOR_RECORDING_COUNTING;
   monitor = waytator_recording_get_monitor(rec, &area, &has_area);
-  rec->countdown = waytator_recording_countdown_show(monitor,
-                                                     has_area ? &area : NULL,
-                                                     rec->delay_seconds,
-                                                     waytator_recording_counted,
-                                                     rec);
+  rec->countdown = waytator_countdown_show(monitor,
+                                           has_area ? &area : NULL,
+                                           rec->delay_seconds,
+                                           waytator_recording_counted,
+                                           rec);
 }
 
 static void

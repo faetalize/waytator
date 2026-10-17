@@ -9,6 +9,10 @@ G_BEGIN_DECLS
 
 //the floating controls' background and blur for the bar, loaded for the display. whoever asks removes it again
 GtkCssProvider *waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings);
+//the same for a floating surface of its own, with the settings read from the file and the stylesheet loaded.
+//let go of it with waytator_capture_overlay_unload_pill_style
+GtkCssProvider *waytator_capture_overlay_load_pill_style(void);
+void waytator_capture_overlay_unload_pill_style(GtkCssProvider *provider);
 
 //texture is NULL when the selection was cancelled, mode is whichever one was active last
 typedef void (*WaytatorCaptureOverlayCallback)(GdkTexture         *texture,

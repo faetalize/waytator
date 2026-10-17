@@ -623,7 +623,7 @@ window.recording-surface {
 }
 
 /* background and blur come from the same floating controls settings as the bar's */
-.capture-pill.recording-countdown {
+.capture-pill.capture-countdown {
   min-width: 140px;
   min-height: 140px;
   padding: 0;
