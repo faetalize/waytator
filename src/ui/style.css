@@ -580,10 +580,12 @@
 }
 
 /* the windows the recording bar, its outline and the countdown are in show nothing but themselves */
+/* without a backdrop-filter of its own gtk asks the compositor to blur the whole window, the outline's included */
 window.recording-surface {
   background: transparent;
   background-color: transparent;
   box-shadow: none;
+  backdrop-filter: none;
 }
 
 .capture-pill .recording-time {
