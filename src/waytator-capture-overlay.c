@@ -193,8 +193,12 @@ waytator_capture_overlay_new_pill_style(const WaytatorSettings *settings)
 
   //printf would use the locale's decimal separator, which is not valid css
   g_ascii_formatd(opacity_text, sizeof opacity_text, "%.2f", settings->floating_controls_opacity);
+  //the windows the recording bar, its outline and the countdown are in show nothing but themselves.
+  //it is here rather than in style.css so a user's gtk.css giving every window a background or a blur loses
   css = g_strdup_printf(".capture-pill { background: alpha(black, %s); background-color: alpha(black, %s);"
-                        " backdrop-filter: %s; }",
+                        " backdrop-filter: %s; }"
+                        " window.recording-surface { background: transparent; background-color: transparent;"
+                        " box-shadow: none; backdrop-filter: none; }",
                         opacity_text,
                         opacity_text,
                         settings->floating_controls_blur ? "blur(18px)" : "none");
