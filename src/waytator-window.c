@@ -2551,6 +2551,7 @@ waytator_window_restore_copy_button(gpointer user_data)
 
   self->copy_feedback_timeout_id = 0;
   gtk_stack_set_visible_child(self->copy_icon_stack, GTK_WIDGET(self->copy_default_icon));
+  gtk_stack_set_visible_child(self->copy_keep_open_icon_stack, GTK_WIDGET(self->copy_keep_open_default_icon));
   g_object_unref(self);
   return G_SOURCE_REMOVE;
 }
@@ -2630,13 +2631,23 @@ waytator_window_maybe_auto_copy_latest_change(WaytatorWindow *self)
   waytator_window_trigger_copy(self);
 }
 
+//the tick goes to the button that copies this way: with close on copy, a copy that stays open is the
+//keep-open button's, and where that button is folded into the menu there is none to light up
 static void
-waytator_window_flash_copy_success(WaytatorWindow *self)
+waytator_window_flash_copy_success(WaytatorWindow *self,
+                                   gboolean        close_after)
 {
-  if (self->copy_feedback_timeout_id != 0)
+  if (self->copy_feedback_timeout_id != 0) {
     g_source_remove(self->copy_feedback_timeout_id);
+    g_object_unref(self);
+  }
 
-  gtk_stack_set_visible_child(self->copy_icon_stack, GTK_WIDGET(self->copy_success_icon));
+  gtk_stack_set_visible_child(self->copy_icon_stack, GTK_WIDGET(self->copy_default_icon));
+  gtk_stack_set_visible_child(self->copy_keep_open_icon_stack, GTK_WIDGET(self->copy_keep_open_default_icon));
+  if (close_after || !waytator_window_closes_on_copy(self))
+    gtk_stack_set_visible_child(self->copy_icon_stack, GTK_WIDGET(self->copy_success_icon));
+  else
+    gtk_stack_set_visible_child(self->copy_keep_open_icon_stack, GTK_WIDGET(self->copy_keep_open_success_icon));
   self->copy_feedback_timeout_id = g_timeout_add(1200,
                                                  waytator_window_restore_copy_button,
                                                  g_object_ref(self));
@@ -3201,7 +3212,7 @@ waytator_window_copy_export_ready(GObject      *source_object,
   }
 
   waytator_window_log_formats("Clipboard accepted formats", gdk_clipboard_get_formats(clipboard));
-  waytator_window_flash_copy_success(self);
+  waytator_window_flash_copy_success(self, self->close_after_copy);
   if (self->close_after_copy) {
     self->close_after_copy = FALSE;
     waytator_window_hand_off_clipboard_and_close(self, copy_result);
@@ -4963,6 +4974,9 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_icon_stack);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_default_icon);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_success_icon);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_keep_open_icon_stack);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_keep_open_default_icon);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, copy_keep_open_success_icon);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, zoom_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, fit_zoom_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, settings_group);
