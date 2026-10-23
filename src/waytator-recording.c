@@ -65,6 +65,12 @@ waytator_recording_is_active(void)
   return waytator_recording_current != NULL;
 }
 
+gboolean
+waytator_recording_is_starting(void)
+{
+  return waytator_recording_current != NULL && waytator_recording_current->state < WAYTATOR_RECORDING_RECORDING;
+}
+
 static void
 waytator_recording_free(WaytatorRecording *rec)
 {

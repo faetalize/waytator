@@ -40,6 +40,9 @@ gboolean waytator_window_hide_all(GtkApplication *app,
                                   GPtrArray      *hidden);
 gboolean waytator_window_restore_all(GPtrArray *hidden);
 gboolean waytator_window_any_visible(GtkApplication *app);
+//whether a screenshot or a recording is still being picked, waited for or counted down anywhere,
+//so that another one would stack on top of it
+gboolean waytator_window_capture_busy(GtkApplication *app);
 void waytator_window_destroy_settled(GtkWindow *const *windows,
                                      guint             n_windows);
 gboolean waytator_window_shortcut_is_valid(const char *shortcut);

@@ -591,6 +591,10 @@ app_command_line(GApplication            *app,
     goto done;
   }
 
+  //a capture still on screen keeps it to itself, another one would only stack on top of it
+  if ((screenshot || record) && waytator_window_capture_busy(GTK_APPLICATION(app)))
+    goto done;
+
   //no window until the recording is over, and with --notify not even then unless Edit is clicked
   if (record) {
     const WaytatorRecordingRequest request = {

@@ -4191,6 +4191,20 @@ waytator_window_any_visible(GtkApplication *app)
   return FALSE;
 }
 
+gboolean
+waytator_window_capture_busy(GtkApplication *app)
+{
+  if (waytator_screenshot_is_capturing() || waytator_recording_is_starting())
+    return TRUE;
+
+  for (GList *link = gtk_application_get_windows(app); link != NULL; link = link->next) {
+    if (WAYTATOR_IS_WINDOW(link->data) && WAYTATOR_WINDOW(link->data)->capture_in_progress)
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
 static gboolean
 waytator_window_hide_for_capture(WaytatorWindow *self)
 {
@@ -4616,7 +4630,9 @@ waytator_window_begin_capture(WaytatorWindow       *self,
                               guint                 delay_seconds,
                               WaytatorCaptureEarly *early)
 {
-  if (self->capture_in_progress) {
+  GtkApplication *app = gtk_window_get_application(GTK_WINDOW(self));
+
+  if (self->capture_in_progress || (app != NULL && waytator_window_capture_busy(app))) {
     if (early != NULL)
       waytator_capture_early_unref(early);
     return;
@@ -4696,6 +4712,10 @@ waytator_window_record_action(GtkWidget  *widget,
   };
 
   (void) parameter;
+
+  //stopping one is always fine, starting one over a capture still on screen is not
+  if (!waytator_recording_is_active() && waytator_window_capture_busy(GTK_APPLICATION(app)))
+    return;
 
   if (g_strcmp0(action_name, "win.record-screen") == 0)
     request.mode = WAYTATOR_CAPTURE_SCREEN;

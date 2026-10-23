@@ -33,6 +33,8 @@ void waytator_screenshot_store(GdkTexture                  *texture,
                                const WaytatorSettings      *settings,
                                WaytatorScreenshotStoredFunc done,
                                gpointer                     user_data);
+//whether a background capture is still on its way to its frame
+gboolean waytator_screenshot_is_capturing(void);
 void waytator_screenshot_capture_background(GApplication              *app,
                                             WaytatorCaptureMode        mode,
                                             const char                *output_name,
