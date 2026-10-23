@@ -37,7 +37,32 @@ typedef struct {
   WaytatorNotification *notification;
   //the notification on screen asks for the permission the portal needs, rather than show a capture
   gboolean asking_permission;
+  //on its way to a frame: waiting, counting down, on the overlay or with the portal
+  gboolean capturing;
 } WaytatorScreenshot;
+
+//how many are capturing, any of which a second capture would only stack on top of
+static guint waytator_screenshot_n_capturing;
+
+static void
+waytator_screenshot_set_capturing(WaytatorScreenshot *shot,
+                                  gboolean            capturing)
+{
+  if (shot->capturing == capturing)
+    return;
+
+  shot->capturing = capturing;
+  if (capturing)
+    waytator_screenshot_n_capturing++;
+  else
+    waytator_screenshot_n_capturing--;
+}
+
+gboolean
+waytator_screenshot_is_capturing(void)
+{
+  return waytator_screenshot_n_capturing > 0;
+}
 
 //the home directory as a tilde, the way people write it
 char *
@@ -62,6 +87,7 @@ waytator_screenshot_make_name(void)
 static void
 waytator_screenshot_free(WaytatorScreenshot *shot)
 {
+  waytator_screenshot_set_capturing(shot, FALSE);
   waytator_notification_free(shot->notification);
   if (shot->delay_id != 0)
     g_source_remove(shot->delay_id);
@@ -526,6 +552,7 @@ static void
 waytator_screenshot_captured(WaytatorScreenshot *shot,
                              GdkTexture         *texture)
 {
+  waytator_screenshot_set_capturing(shot, FALSE);
   waytator_window_restore_all(shot->hidden);
   shot->texture = g_object_ref(texture);
   shot->name = waytator_screenshot_make_name();
@@ -544,6 +571,7 @@ waytator_screenshot_ask_permission(WaytatorScreenshot *shot)
 {
   const char *const actions[] = { "default", "Allow", "allow", "Allow", NULL };
 
+  waytator_screenshot_set_capturing(shot, FALSE);
   waytator_window_restore_all(shot->hidden);
   shot->asking_permission = TRUE;
 
@@ -663,6 +691,7 @@ waytator_screenshot_gnome_ready(GObject      *source_object,
   }
 
   //GNOME saved and copied it, so all that is left is the way to the editor
+  waytator_screenshot_set_capturing(shot, FALSE);
   waytator_window_restore_all(shot->hidden);
   shot->by_gnome = TRUE;
   shot->texture = g_object_ref(texture);
@@ -708,6 +737,7 @@ waytator_screenshot_take_after(WaytatorScreenshot *shot,
 {
   guint delay_ms = delay_seconds * 1000;
 
+  waytator_screenshot_set_capturing(shot, TRUE);
   if (shot->hide)
     wait |= waytator_window_hide_all(GTK_APPLICATION(shot->app), shot->hidden);
   else

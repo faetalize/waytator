@@ -482,9 +482,26 @@
                             <child>
                               <object class="GtkButton" id="copy_keep_open_button">
                                 <property name="tooltip-text">Copy without closing</property>
-                                <property name="icon-name">waytator-copy-symbolic</property>
                                 <property name="sensitive">False</property>
                                 <property name="visible">False</property>
+                                <property name="child">
+                                  <object class="GtkStack" id="copy_keep_open_icon_stack">
+                                    <property name="transition-type">crossfade</property>
+                                    <property name="transition-duration">160</property>
+
+                                    <child>
+                                      <object class="GtkImage" id="copy_keep_open_default_icon">
+                                        <property name="icon-name">waytator-copy-symbolic</property>
+                                      </object>
+                                    </child>
+
+                                    <child>
+                                      <object class="GtkImage" id="copy_keep_open_success_icon">
+                                        <property name="icon-name">object-select-symbolic</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </property>
                               </object>
                             </child>
                           </object>

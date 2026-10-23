@@ -139,6 +139,9 @@ struct _WaytatorWindow {
   GtkStack *copy_icon_stack;
   GtkImage *copy_default_icon;
   GtkImage *copy_success_icon;
+  GtkStack *copy_keep_open_icon_stack;
+  GtkImage *copy_keep_open_default_icon;
+  GtkImage *copy_keep_open_success_icon;
   GtkWidget *zoom_group;
   GtkButton *fit_zoom_button;
   GtkWidget *settings_group;

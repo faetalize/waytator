@@ -32,5 +32,7 @@ void waytator_recording_toggle(GApplication                   *app,
                                GDestroyNotify                  user_data_free);
 //whether a recording is being picked, waited for, counted down, recorded or saved
 gboolean waytator_recording_is_active(void);
+//whether a recording is being picked, waited for or counted down, with nothing recorded yet
+gboolean waytator_recording_is_starting(void);
 
 G_END_DECLS
