@@ -147,12 +147,14 @@ waytator can take the screenshot itself and open it for annotating straight away
 ```bash
 waytator --screenshot               # select an area of the screen
 waytator --screenshot screen        # capture a whole screen
-waytator --screenshot --notify      # save and copy it without opening the editor
+waytator --screenshot --notify      # save and copy without opening the editor, but show a notification that lets you edit it
 ```
 
 While you pick what to capture, the bar on screen switches between area and screen, waits a few seconds before capturing, and turns on a magnifier for pixel-exact selections. Hold `Shift` to slow the cursor down. `Esc` or a right click cancels. The same captures are also in the app itself.
 
 Screenshots are saved to your Screenshots folder and copied to the clipboard. Both can be changed in Preferences.
+
+To prevent the editor from spawning after every screenshot, turn off Open in the editor in Preferences → Capture. `--notify` still lets you choose each time.
 
 A few more options:
 
@@ -164,6 +166,17 @@ waytator --screenshot --screen DP-1   # capture that screen straight away
 Bind these to keys in your compositor to capture and annotate in one step. On some desktops, the first screenshot asks for permission.
 
 Run `waytator --help` for every option, including overriding shortcuts for one launch.
+
+### Recording the screen
+
+```bash
+waytator --record               # record an area of the screen
+waytator --record screen        # record a whole screen
+waytator --record window        # record a window
+waytator --record --notify      # save and copy without opening the editor, but show a notification that lets you edit it
+```
+
+Run the same command again to stop. Recordings are saved to your Screencasts folder, copied to the clipboard and opened in the editor. Copying and opening the editor can be turned off in Preferences → Capture, and the folder changed there.
 
 ### Running in background
 

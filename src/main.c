@@ -159,11 +159,13 @@ app_open(GApplication  *app,
   "Usage: %s [OPTIONS] [IMAGE|VIDEO|-|--stdin]\n" \
   "\n" \
   "  --name NAME                             Name for an image or video read from stdin\n" \
-  "  --screenshot [area|screen]              Capture the screen and open the result,\n" \
-  "                                          an area unless told otherwise\n" \
-  "  --record [area|screen|window]           Record the screen and open the result,\n" \
-  "                                          an area unless told otherwise. Run it\n" \
-  "                                          again while recording to stop\n" \
+  "  --screenshot [area|screen]              Capture the screen, an area unless told\n" \
+  "                                          otherwise. Opens the editor unless that's\n" \
+  "                                          turned off in Preferences\n" \
+  "  --record [area|screen|window]           Record the screen, an area unless told\n" \
+  "                                          otherwise. Run it again while recording\n" \
+  "                                          to stop. Opens the editor unless that's\n" \
+  "                                          turned off in Preferences\n" \
   "  --screen NAME                           With --screenshot or --record: use this\n" \
   "                                          screen, e.g. DP-1. Doesn't support GNOME\n" \
   "  --notify                                With --screenshot or --record: save, copy\n" \
