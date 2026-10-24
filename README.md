@@ -55,6 +55,8 @@ inputs.waytator = {
 };
 ```
 
+To follow `master` instead, use `url = "github:faetalize/waytator";`.
+
 Then add the package to your system:
 
 ```nix
