@@ -23,8 +23,8 @@ typedef void (*WaytatorRecordingEditFunc)(GFile   *file,
 
 //starts a recording as asked, or stops the one under way, so one key does both. a recording still waiting
 //for the portal or counting down is called off instead. edit is how the result reaches the editor: right
-//away without notify, from the notification's Edit with it. user_data_free runs once the recording is over
-//in every way. main thread
+//away without notify, from the notification's Edit with it. NULL without notify only saves and copies it.
+//user_data_free runs once the recording is over in every way. main thread
 void waytator_recording_toggle(GApplication                   *app,
                                const WaytatorRecordingRequest *request,
                                WaytatorRecordingEditFunc       edit,

@@ -290,6 +290,20 @@ app_edit_recording(GFile   *file,
   gtk_window_present(GTK_WINDOW(window));
 }
 
+//the preference for what a capture without --notify leads to
+static gboolean
+app_capture_opens_editor(gboolean recording)
+{
+  WaytatorSettings settings;
+  gboolean open_editor;
+
+  waytator_settings_load(&settings);
+  open_editor = recording ? settings.recording_open_editor : settings.screenshot_open_editor;
+  waytator_settings_clear(&settings);
+
+  return open_editor;
+}
+
 static int
 app_find_shortcut_option(const char *argument)
 {
@@ -595,7 +609,8 @@ app_command_line(GApplication            *app,
   if ((screenshot || record) && waytator_window_capture_busy(GTK_APPLICATION(app)))
     goto done;
 
-  //no window until the recording is over, and with --notify not even then unless Edit is clicked
+  //no window until the recording is over, and with --notify or the editor switched off not even then,
+  //unless Edit is clicked
   if (record) {
     const WaytatorRecordingRequest request = {
       .mode = capture_mode,
@@ -606,18 +621,20 @@ app_command_line(GApplication            *app,
 
     waytator_recording_toggle(app,
                               &request,
-                              app_edit_recording,
+                              notify || app_capture_opens_editor(TRUE) ? app_edit_recording : NULL,
                               app_overrides_new(app, close_on_copy, shortcuts),
                               app_overrides_free);
     goto done;
   }
 
-  //no window at all here, one only appears if the notification is used to ask for it
-  if (notify) {
+  //no window at all here, one only appears if the notification is used to ask for it,
+  //or when the screenshot would otherwise end up nowhere
+  if (notify || !app_capture_opens_editor(FALSE)) {
     waytator_screenshot_capture_background(app,
                                            capture_mode,
                                            capture_screen,
                                            delay_seconds,
+                                           notify,
                                            app_edit_screenshot,
                                            app_overrides_new(app, close_on_copy, shortcuts),
                                            app_overrides_free);

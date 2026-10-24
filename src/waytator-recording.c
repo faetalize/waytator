@@ -220,7 +220,9 @@ waytator_recording_saved(WaytatorRecording *rec)
   if (!rec->notify) {
     if (rec->ended_reason != NULL)
       g_printerr("The recording stopped on its own: %s\n", rec->ended_reason);
-    rec->edit(rec->file, rec->user_data);
+    //without an editor to open it is only saved and copied
+    if (rec->edit != NULL)
+      rec->edit(rec->file, rec->user_data);
     waytator_recording_free(rec);
     return;
   }

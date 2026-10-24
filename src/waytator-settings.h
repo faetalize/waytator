@@ -9,6 +9,8 @@ typedef struct {
   //empty when saving is switched off
   char *screenshot_save_dir;
   gboolean screenshot_copy;
+  //off, a screenshot is only saved and copied, unless that would leave it nowhere
+  gboolean screenshot_open_editor;
   //every visible waytator window leaves the screen while a capture is taken
   gboolean capture_hide_waytator;
   //the capture overlay shows the pixels around the pointer up close
@@ -19,6 +21,8 @@ typedef struct {
   //never empty, a recording is always saved to a file. it can only be changed
   char *recording_save_dir;
   gboolean recording_copy;
+  //off, a recording is only saved and copied
+  gboolean recording_open_editor;
   //PipeWire's node.name of the microphone, empty for the system's default one
   char *recording_microphone;
   //the bar with the time and Stop while recording, someone who starts and stops with a key can do without it

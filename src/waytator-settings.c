@@ -36,12 +36,14 @@ waytator_settings_init(WaytatorSettings *settings)
 {
   settings->screenshot_save_dir = waytator_settings_default_save_dir();
   settings->screenshot_copy = TRUE;
+  settings->screenshot_open_editor = TRUE;
   settings->capture_hide_waytator = TRUE;
   settings->capture_magnifier = FALSE;
   settings->record_system_sound = TRUE;
   settings->record_microphone = FALSE;
   settings->recording_save_dir = waytator_settings_default_recording_dir();
   settings->recording_copy = TRUE;
+  settings->recording_open_editor = TRUE;
   settings->recording_microphone = g_strdup("");
   settings->recording_show_bar = TRUE;
   settings->recording_rate = 60;
@@ -82,6 +84,12 @@ waytator_settings_read(WaytatorSettings *settings,
                                                        WAYTATOR_SETTINGS_GROUP,
                                                        "screenshot_copy",
                                                        NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "screenshot_open_editor", NULL))
+    settings->screenshot_open_editor = g_key_file_get_boolean(key_file,
+                                                              WAYTATOR_SETTINGS_GROUP,
+                                                              "screenshot_open_editor",
+                                                              NULL);
 
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "capture_hide_waytator", NULL))
     settings->capture_hide_waytator = g_key_file_get_boolean(key_file,
@@ -125,6 +133,12 @@ waytator_settings_read(WaytatorSettings *settings,
                                                       WAYTATOR_SETTINGS_GROUP,
                                                       "recording_copy",
                                                       NULL);
+
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_open_editor", NULL))
+    settings->recording_open_editor = g_key_file_get_boolean(key_file,
+                                                             WAYTATOR_SETTINGS_GROUP,
+                                                             "recording_open_editor",
+                                                             NULL);
 
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_microphone", NULL)) {
     g_autofree char *microphone = g_key_file_get_string(key_file,
@@ -213,6 +227,10 @@ waytator_settings_write(const WaytatorSettings *settings,
                          settings->screenshot_copy);
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
+                         "screenshot_open_editor",
+                         settings->screenshot_open_editor);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
                          "capture_hide_waytator",
                          settings->capture_hide_waytator);
   g_key_file_set_boolean(key_file,
@@ -235,6 +253,10 @@ waytator_settings_write(const WaytatorSettings *settings,
                          WAYTATOR_SETTINGS_GROUP,
                          "recording_copy",
                          settings->recording_copy);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "recording_open_editor",
+                         settings->recording_open_editor);
   g_key_file_set_string(key_file,
                         WAYTATOR_SETTINGS_GROUP,
                         "recording_microphone",

@@ -22,6 +22,8 @@ typedef struct {
   //whether waytator's windows leave the screen for this capture, and the ones that did
   gboolean hide;
   GPtrArray *hidden;
+  //off, nothing is shown unless the capture went nowhere or saving it failed
+  gboolean notify;
   WaytatorScreenshotEditFunc edit;
   gpointer user_data;
   GDestroyNotify user_data_free;
@@ -545,6 +547,11 @@ waytator_screenshot_notify_stored(GFile      *file,
   shot->file = file != NULL ? g_object_ref(file) : NULL;
   shot->save_error = g_strdup(save_error);
   shot->copied = copied;
+  if (!shot->notify && save_error == NULL) {
+    waytator_screenshot_free(shot);
+    return;
+  }
+
   waytator_screenshot_notify(shot);
 }
 
@@ -557,8 +564,14 @@ waytator_screenshot_captured(WaytatorScreenshot *shot,
   shot->texture = g_object_ref(texture);
   shot->name = waytator_screenshot_make_name();
 
+  //neither saved nor copied, the editor is the only place it would end up without a notification
   if (*shot->settings.screenshot_save_dir == '\0' && !shot->settings.screenshot_copy) {
-    waytator_screenshot_notify(shot);
+    if (shot->notify) {
+      waytator_screenshot_notify(shot);
+    } else {
+      waytator_screenshot_edit(shot);
+      waytator_screenshot_free(shot);
+    }
     return;
   }
 
@@ -698,6 +711,11 @@ waytator_screenshot_gnome_ready(GObject      *source_object,
   shot->name = g_file_get_basename(file);
   shot->file = g_steal_pointer(&file);
   shot->copied = TRUE;
+  if (!shot->notify) {
+    waytator_screenshot_free(shot);
+    return;
+  }
+
   waytator_screenshot_notify(shot);
 }
 
@@ -775,12 +793,14 @@ waytator_screenshot_overlay_retake(gboolean            hide_waytator,
   waytator_screenshot_take_after(shot, TRUE, delay_seconds);
 }
 
-//captures without showing a window: the result is saved, copied and announced, edit is how it reaches the editor
+//captures without showing a window: the result is saved, copied and, with notify, announced.
+//edit is how it reaches the editor
 void
 waytator_screenshot_capture_background(GApplication              *app,
                                        WaytatorCaptureMode        mode,
                                        const char                *output_name,
                                        guint                      delay_seconds,
+                                       gboolean                   notify,
                                        WaytatorScreenshotEditFunc edit,
                                        gpointer                   user_data,
                                        GDestroyNotify             user_data_free)
@@ -790,6 +810,7 @@ waytator_screenshot_capture_background(GApplication              *app,
   shot->app = g_object_ref(app);
   shot->mode = mode;
   shot->output_name = g_strdup(output_name);
+  shot->notify = notify;
   shot->edit = edit;
   shot->user_data = user_data;
   shot->user_data_free = user_data_free;

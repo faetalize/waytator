@@ -1555,6 +1555,17 @@ waytator_window_screenshot_copy_changed(AdwSwitchRow   *row,
 }
 
 static void
+waytator_window_screenshot_open_editor_changed(AdwSwitchRow   *row,
+                                               GParamSpec     *pspec,
+                                               WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->settings.screenshot_open_editor = adw_switch_row_get_active(row);
+  waytator_window_save_preferences(self);
+}
+
+static void
 waytator_window_capture_hide_changed(AdwSwitchRow   *row,
                                      GParamSpec     *pspec,
                                      WaytatorWindow *self)
@@ -1639,6 +1650,17 @@ waytator_window_recording_copy_changed(AdwSwitchRow   *row,
   (void) pspec;
 
   self->settings.recording_copy = adw_switch_row_get_active(row);
+  waytator_window_save_preferences(self);
+}
+
+static void
+waytator_window_recording_open_editor_changed(AdwSwitchRow   *row,
+                                              GParamSpec     *pspec,
+                                              WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->settings.recording_open_editor = adw_switch_row_get_active(row);
   waytator_window_save_preferences(self);
 }
 
@@ -1746,6 +1768,7 @@ waytator_window_new_recordings_group(WaytatorWindow *self)
   AdwPreferencesGroup *group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
   AdwActionRow *folder_row = ADW_ACTION_ROW(adw_action_row_new());
   AdwSwitchRow *copy_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  AdwSwitchRow *editor_row = ADW_SWITCH_ROW(adw_switch_row_new());
   AdwComboRow *microphone_row = ADW_COMBO_ROW(adw_combo_row_new());
   AdwSwitchRow *bar_row = ADW_SWITCH_ROW(adw_switch_row_new());
   AdwComboRow *rate_row = ADW_COMBO_ROW(adw_combo_row_new());
@@ -1772,6 +1795,10 @@ waytator_window_new_recordings_group(WaytatorWindow *self)
   adw_switch_row_set_active(copy_row, self->settings.recording_copy);
   g_signal_connect(copy_row, "notify::active", G_CALLBACK(waytator_window_recording_copy_changed), self);
 
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(editor_row), "Open in the editor");
+  adw_switch_row_set_active(editor_row, self->settings.recording_open_editor);
+  g_signal_connect(editor_row, "notify::active", G_CALLBACK(waytator_window_recording_open_editor_changed), self);
+
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(microphone_row), "Microphone");
   waytator_window_fill_microphone_row(self, microphone_row);
   g_signal_connect(microphone_row, "notify::selected", G_CALLBACK(waytator_window_recording_microphone_changed), self);
@@ -1792,6 +1819,7 @@ waytator_window_new_recordings_group(WaytatorWindow *self)
 
   adw_preferences_group_add(group, GTK_WIDGET(folder_row));
   adw_preferences_group_add(group, GTK_WIDGET(copy_row));
+  adw_preferences_group_add(group, GTK_WIDGET(editor_row));
   adw_preferences_group_add(group, GTK_WIDGET(microphone_row));
   adw_preferences_group_add(group, GTK_WIDGET(bar_row));
   adw_preferences_group_add(group, GTK_WIDGET(rate_row));
@@ -1806,6 +1834,7 @@ waytator_window_new_capture_page(WaytatorWindow *self)
   AdwPreferencesGroup *group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
   AdwActionRow *folder_row = ADW_ACTION_ROW(adw_action_row_new());
   AdwSwitchRow *copy_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  AdwSwitchRow *editor_row = ADW_SWITCH_ROW(adw_switch_row_new());
   AdwSwitchRow *hide_row = ADW_SWITCH_ROW(adw_switch_row_new());
   AdwComboRow *brake_row = ADW_COMBO_ROW(adw_combo_row_new());
   g_autoptr(GtkStringList) brake_model = gtk_string_list_new((const char *[]) { "25%", "50%", "75%", NULL });
@@ -1847,6 +1876,10 @@ waytator_window_new_capture_page(WaytatorWindow *self)
   adw_switch_row_set_active(copy_row, self->settings.screenshot_copy);
   g_signal_connect(copy_row, "notify::active", G_CALLBACK(waytator_window_screenshot_copy_changed), self);
 
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(editor_row), "Open in the editor");
+  adw_switch_row_set_active(editor_row, self->settings.screenshot_open_editor);
+  g_signal_connect(editor_row, "notify::active", G_CALLBACK(waytator_window_screenshot_open_editor_changed), self);
+
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(hide_row), "Hide waytator");
   adw_switch_row_set_active(hide_row, self->settings.capture_hide_waytator);
   g_signal_connect(hide_row, "notify::active", G_CALLBACK(waytator_window_capture_hide_changed), self);
@@ -1864,6 +1897,7 @@ waytator_window_new_capture_page(WaytatorWindow *self)
 
   adw_preferences_group_add(group, GTK_WIDGET(folder_row));
   adw_preferences_group_add(group, GTK_WIDGET(copy_row));
+  adw_preferences_group_add(group, GTK_WIDGET(editor_row));
   adw_preferences_group_add(group, GTK_WIDGET(hide_row));
   adw_preferences_group_add(group, GTK_WIDGET(brake_row));
   adw_preferences_page_add(page, group);
@@ -4385,6 +4419,131 @@ waytator_window_ask_capture_permission(WaytatorWindow     *self,
   adw_dialog_present(dialog, GTK_WIDGET(self));
 }
 
+//a screenshot from the window that skipped the editor, kept for Edit on its toast
+typedef struct {
+  WaytatorWindow *window;
+  GdkTexture *texture;
+  //set once it is saved
+  GFile *file;
+  char *name;
+} WaytatorQuietCapture;
+
+static void
+waytator_quiet_capture_free(gpointer user_data)
+{
+  WaytatorQuietCapture *capture = user_data;
+
+  g_object_unref(capture->window);
+  g_object_unref(capture->texture);
+  g_clear_object(&capture->file);
+  g_free(capture->name);
+  g_free(capture);
+}
+
+//the window that asked keeps its image, a capture only takes its place when it has none
+static WaytatorWindow *
+waytator_window_target_for_capture(WaytatorWindow *self)
+{
+  if (self->texture != NULL)
+    return waytator_window_for_new_image(gtk_window_get_application(GTK_WINDOW(self)));
+
+  return self;
+}
+
+static void
+waytator_window_quiet_capture_edit(AdwToast *toast,
+                                   gpointer  user_data)
+{
+  WaytatorQuietCapture *capture = user_data;
+  WaytatorWindow *target = waytator_window_target_for_capture(capture->window);
+  g_autoptr(GError) error = NULL;
+
+  (void) toast;
+
+  //the saved file may be gone by now, the capture itself is still around
+  if (capture->file == NULL || !waytator_window_open_file(target, capture->file, &error))
+    waytator_window_open_capture(target, capture->texture, capture->name, TRUE);
+  gtk_window_present(GTK_WINDOW(target));
+}
+
+static void
+waytator_window_show_quiet_capture(WaytatorQuietCapture *capture,
+                                   const char           *title)
+{
+  AdwToast *toast = adw_toast_new(title);
+
+  adw_toast_set_button_label(toast, "Edit");
+  //goes when the toast does
+  g_object_set_data_full(G_OBJECT(toast), "capture", capture, waytator_quiet_capture_free);
+  g_signal_connect(toast, "button-clicked", G_CALLBACK(waytator_window_quiet_capture_edit), capture);
+  adw_toast_overlay_add_toast(capture->window->toast_overlay, toast);
+}
+
+static void
+waytator_window_quiet_capture_stored(GFile      *file,
+                                     const char *save_error,
+                                     gboolean    copied,
+                                     gpointer    user_data)
+{
+  WaytatorQuietCapture *capture = user_data;
+  WaytatorWindow *self = capture->window;
+
+  if (self->disposed) {
+    waytator_quiet_capture_free(capture);
+    return;
+  }
+
+  //it ended up nowhere, so it goes to the editor after all. a folder that failed is not offered again
+  if (file == NULL && !copied) {
+    WaytatorWindow *target = waytator_window_target_for_capture(self);
+
+    waytator_window_open_capture(target, capture->texture, capture->name, save_error == NULL);
+    gtk_window_present(GTK_WINDOW(target));
+    if (save_error != NULL) {
+      g_autofree char *message = g_strdup_printf("%s Save to choose another place.", save_error);
+
+      waytator_window_show_error(target, message);
+    }
+    waytator_quiet_capture_free(capture);
+    return;
+  }
+
+  //copied, but the folder did not take it
+  if (save_error != NULL)
+    waytator_window_show_error(self, save_error);
+
+  capture->file = file != NULL ? g_object_ref(file) : NULL;
+  waytator_window_show_quiet_capture(capture, file != NULL ? "Screenshot saved" : "Screenshot copied");
+}
+
+//saved and copied as the preferences say, with the window left on what it shows. file is set when
+//GNOME's screenshot UI already did both. FALSE when the screenshot would end up nowhere, so it needs the editor
+static gboolean
+waytator_window_capture_quietly(WaytatorWindow *self,
+                                GdkTexture     *texture,
+                                GFile          *file,
+                                const char     *name)
+{
+  WaytatorQuietCapture *capture;
+
+  if (file == NULL && *self->settings.screenshot_save_dir == '\0' && !self->settings.screenshot_copy)
+    return FALSE;
+
+  capture = g_new0(WaytatorQuietCapture, 1);
+  capture->window = g_object_ref(self);
+  capture->texture = g_object_ref(texture);
+  capture->name = g_strdup(name);
+
+  if (file != NULL) {
+    capture->file = g_object_ref(file);
+    waytator_window_show_quiet_capture(capture, "Screenshot saved");
+  } else {
+    waytator_screenshot_store(texture, name, &self->settings, waytator_window_quiet_capture_stored, capture);
+  }
+
+  return TRUE;
+}
+
 //file is set when GNOME's screenshot UI took the capture and already saved and copied it
 static void
 waytator_window_finish_capture(WaytatorWindow *self,
@@ -4421,8 +4580,13 @@ waytator_window_finish_capture(WaytatorWindow *self,
   if (texture != NULL) {
     g_autofree char *name = file != NULL ? g_file_get_basename(file) : waytator_screenshot_make_name();
 
-    if (self->texture != NULL)
-      target = waytator_window_for_new_image(gtk_window_get_application(GTK_WINDOW(self)));
+    //a window that only exists for this capture has nothing to stay on, it goes to the editor whatever the switch says
+    if (!self->settings.screenshot_open_editor
+        && self->capture_window_was_visible
+        && waytator_window_capture_quietly(self, texture, file, name))
+      return;
+
+    target = waytator_window_target_for_capture(self);
 
     if (file != NULL) {
       //GNOME saved and copied it already, saving edits updates its file
@@ -4698,6 +4862,56 @@ waytator_window_recording_edit(GFile   *file,
   gtk_window_present(GTK_WINDOW(window));
 }
 
+//a recording started from a window, for what its end leads to
+typedef struct {
+  GtkApplication *app;
+  GWeakRef window;
+  gboolean open_editor;
+} WaytatorWindowRecording;
+
+static void
+waytator_window_recording_free(gpointer user_data)
+{
+  WaytatorWindowRecording *recording = user_data;
+
+  g_object_unref(recording->app);
+  g_weak_ref_clear(&recording->window);
+  g_free(recording);
+}
+
+static void
+waytator_window_recording_toast_edit(AdwToast       *toast,
+                                     WaytatorWindow *self)
+{
+  waytator_window_recording_edit(g_object_get_data(G_OBJECT(toast), "file"),
+                                 gtk_window_get_application(GTK_WINDOW(self)));
+}
+
+//with the editor switched off the window that asked says where it went, and once it is closed nothing does
+static void
+waytator_window_recording_done(GFile   *file,
+                               gpointer user_data)
+{
+  WaytatorWindowRecording *recording = user_data;
+  g_autoptr(WaytatorWindow) self = NULL;
+  AdwToast *toast;
+
+  if (recording->open_editor) {
+    waytator_window_recording_edit(file, recording->app);
+    return;
+  }
+
+  self = g_weak_ref_get(&recording->window);
+  if (self == NULL || self->disposed)
+    return;
+
+  toast = adw_toast_new("Recording saved");
+  adw_toast_set_button_label(toast, "Edit");
+  g_object_set_data_full(G_OBJECT(toast), "file", g_object_ref(file), g_object_unref);
+  g_signal_connect(toast, "button-clicked", G_CALLBACK(waytator_window_recording_toast_edit), self);
+  adw_toast_overlay_add_toast(self->toast_overlay, toast);
+}
+
 //also what stops a recording, the menu offers the same actions then
 static void
 waytator_window_record_action(GtkWidget  *widget,
@@ -4710,6 +4924,7 @@ waytator_window_record_action(GtkWidget  *widget,
     .mode = WAYTATOR_CAPTURE_AREA,
     .delay_seconds = delay != NULL ? g_variant_get_uint32(delay) : 0,
   };
+  WaytatorWindowRecording *recording;
 
   (void) parameter;
 
@@ -4722,7 +4937,11 @@ waytator_window_record_action(GtkWidget  *widget,
   else if (g_strcmp0(action_name, "win.record-window") == 0)
     request.mode = WAYTATOR_CAPTURE_WINDOW;
 
-  waytator_recording_toggle(app, &request, waytator_window_recording_edit, g_object_ref(app), g_object_unref);
+  recording = g_new0(WaytatorWindowRecording, 1);
+  recording->app = GTK_APPLICATION(g_object_ref(app));
+  g_weak_ref_init(&recording->window, widget);
+  recording->open_editor = WAYTATOR_WINDOW(widget)->settings.recording_open_editor;
+  waytator_recording_toggle(app, &request, waytator_window_recording_done, recording, waytator_window_recording_free);
 }
 
 static void
@@ -5357,6 +5576,19 @@ waytator_window_class_init(WaytatorWindowClass *klass)
   waytator_window_install_actions(widget_class);
 }
 
+//put in here rather than the template, where it would push all of the window's content one level deeper
+static void
+waytator_window_setup_toast_overlay(WaytatorWindow *self)
+{
+  GtkWidget *content = g_object_ref(adw_application_window_get_content(ADW_APPLICATION_WINDOW(self)));
+
+  self->toast_overlay = ADW_TOAST_OVERLAY(adw_toast_overlay_new());
+  adw_application_window_set_content(ADW_APPLICATION_WINDOW(self), NULL);
+  adw_toast_overlay_set_child(self->toast_overlay, content);
+  adw_application_window_set_content(ADW_APPLICATION_WINDOW(self), GTK_WIDGET(self->toast_overlay));
+  g_object_unref(content);
+}
+
 static void
 waytator_window_init(WaytatorWindow *self)
 {
@@ -5364,6 +5596,7 @@ waytator_window_init(WaytatorWindow *self)
   waytator_window_ensure_icons_registered();
 
   gtk_widget_init_template(GTK_WIDGET(self));
+  waytator_window_setup_toast_overlay(self);
   waytator_window_setup_window_background(self);
   waytator_window_ensure_css_loaded();
 

@@ -39,6 +39,7 @@ void waytator_screenshot_capture_background(GApplication              *app,
                                             WaytatorCaptureMode        mode,
                                             const char                *output_name,
                                             guint                      delay_seconds,
+                                            gboolean                   notify,
                                             WaytatorScreenshotEditFunc edit,
                                             gpointer                   user_data,
                                             GDestroyNotify             user_data_free);

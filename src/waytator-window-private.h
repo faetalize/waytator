@@ -53,6 +53,8 @@ struct _WaytatorWindow {
   GtkEventController *touch_legacy_controller;
   GtkFixed *ocr_overlay;
   AdwBottomSheet *ocr_panel_bottom_sheet;
+  //wraps the template's content, for captures that skip the editor to say where they went
+  AdwToastOverlay *toast_overlay;
   GtkWidget *ocr_panel;
   GtkWidget *ocr_panel_toggle_container;
   GtkToggleButton *ocr_panel_toggle_button;
