@@ -74,7 +74,6 @@ struct _WaytatorWindow {
   GtkWidget *chrome_watcher;
   GtkWidget *open_label_button;
   GtkMenuButton *open_menu_button;
-  GtkLabel *open_menu_badge;
   GtkWidget *open_separator;
   GtkWidget *crop_actions;
   GtkWidget *zoom_out_button;
@@ -97,13 +96,6 @@ struct _WaytatorWindow {
   GtkImage *record_icon;
   GtkLabel *record_time;
   guint record_tick_id;
-  GtkWidget *delay_separator;
-  GtkMenuButton *capture_delay_button;
-  GtkLabel *capture_delay_label;
-  //what the capture-delay action is set to, which decides whether the delay button is there
-  guint capture_delay_seconds;
-  GtkMenuButton *home_delay_button;
-  GtkLabel *home_delay_hint;
   GtkLabel *capture_area_hint;
   GtkLabel *open_hint;
   GtkWidget *file_group;
@@ -137,9 +129,6 @@ struct _WaytatorWindow {
   GMenu *save_menu;
   //Screenshot and Record in the folded menu, with Stop recording in Record's place while one is under way
   GMenu *capture_menu;
-  //the folded menu's delays, only there while a delay is set, and the row of choices that goes in it
-  GMenu *delay_menu;
-  GtkWidget *menu_delay_choices;
   char *save_menu_key;
   GtkStack *save_icon_stack;
   GtkImage *save_default_icon;

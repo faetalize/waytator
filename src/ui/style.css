@@ -381,11 +381,7 @@
   color: transparent;
 }
 
-.open-group button.capture-button {
-  min-width: 32px;
-  padding: 0;
-}
-
+.open-group button.capture-button,
 .open-group button.record-button {
   min-width: 32px;
   padding: 0;
@@ -401,68 +397,10 @@
   background: alpha(white, 0.2);
 }
 
-.open-group .record-time,
-.open-group .capture-delay-button label {
+.open-group .record-time {
   font-size: 0.9em;
   font-weight: 700;
   font-feature-settings: "tnum";
-}
-
-/* only there while a delay is set */
-.open-group menubutton.capture-delay-button > button {
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: 10px;
-  color: white;
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.open-group menubutton.capture-delay-button > button:hover,
-.open-group menubutton.capture-delay-button > button:checked {
-  background: alpha(white, 0.08);
-}
-
-/* the delays as one row of choices, in the delay button's popover and the folded menu */
-.delay-popover {
-  padding: 4px;
-}
-
-.delay-heading {
-  font-size: 0.9em;
-  font-weight: 700;
-  opacity: 0.6;
-  padding: 0 4px;
-}
-
-.delay-choices {
-  padding: 2px 4px 4px;
-}
-
-.delay-choices button.delay-choice {
-  min-height: 28px;
-  min-width: 0;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-weight: 600;
-}
-
-.delay-choices button.delay-choice:checked {
-  background-color: @accent_bg_color;
-  color: @accent_fg_color;
-}
-
-/* the delay that is set, on the folded menu's corner */
-.open-group .delay-badge {
-  margin: 1px 0 0 0;
-  padding: 0 3px;
-  min-height: 13px;
-  border-radius: 6px;
-  font-size: 0.65em;
-  font-weight: 800;
-  background-color: @accent_bg_color;
-  color: @accent_fg_color;
 }
 
 /* Open, screenshot and record folded into one menu once the bar runs short */
@@ -480,27 +418,6 @@
 .open-group menubutton.open-menu-button > button:hover,
 .open-group menubutton.open-menu-button > button:checked {
   background: alpha(white, 0.08);
-}
-
-/* a menu button shaped like the other home actions, its button is the part that shows */
-.home-actions menubutton.home-delay > button {
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
-  color: white;
-  font-weight: normal;
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.home-actions menubutton.home-delay > button:hover,
-.home-actions menubutton.home-delay > button:checked {
-  background: alpha(white, 0.08);
-}
-
-.home-actions menubutton.home-delay image {
-  opacity: 0.85;
 }
 
 /* background and blur follow the floating controls settings, see the capture overlay */

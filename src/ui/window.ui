@@ -95,7 +95,7 @@
 
                             <child>
                               <object class="GtkImage">
-                                <property name="icon-name">media-record-symbolic</property>
+                                <property name="icon-name">camera-video-symbolic</property>
                               </object>
                             </child>
 
@@ -104,41 +104,6 @@
                                 <property name="label">Record</property>
                                 <property name="xalign">0</property>
                                 <property name="hexpand">True</property>
-                              </object>
-                            </child>
-                          </object>
-                        </property>
-                      </object>
-                    </child>
-
-                    <child>
-                      <object class="GtkMenuButton" id="home_delay_button">
-                        <style>
-                          <class name="home-delay"/>
-                        </style>
-                        <property name="child">
-                          <object class="GtkBox">
-                            <property name="spacing">12</property>
-
-                            <child>
-                              <object class="GtkImage">
-                                <property name="icon-name">alarm-symbolic</property>
-                              </object>
-                            </child>
-
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label">Delay</property>
-                                <property name="xalign">0</property>
-                                <property name="hexpand">True</property>
-                              </object>
-                            </child>
-
-                            <child>
-                              <object class="GtkLabel" id="home_delay_hint">
-                                <style>
-                                  <class name="home-hint"/>
-                                </style>
                               </object>
                             </child>
                           </object>
@@ -303,33 +268,12 @@
 
                             <child>
                               <object class="GtkMenuButton" id="open_menu_button">
+                                <property name="icon-name">open-menu-symbolic</property>
                                 <property name="tooltip-text">Open or capture</property>
                                 <property name="visible">False</property>
                                 <style>
                                   <class name="open-menu-button"/>
                                 </style>
-                                <property name="child">
-                                  <object class="GtkOverlay">
-                                    <property name="child">
-                                      <object class="GtkImage">
-                                        <property name="icon-name">open-menu-symbolic</property>
-                                        <property name="halign">center</property>
-                                        <property name="valign">center</property>
-                                      </object>
-                                    </property>
-                                    <child type="overlay">
-                                      <object class="GtkLabel" id="open_menu_badge">
-                                        <property name="halign">end</property>
-                                        <property name="valign">start</property>
-                                        <property name="can-target">False</property>
-                                        <property name="visible">False</property>
-                                        <style>
-                                          <class name="delay-badge"/>
-                                        </style>
-                                      </object>
-                                    </child>
-                                  </object>
-                                </property>
                               </object>
                             </child>
 
@@ -378,40 +322,6 @@
                                           <class name="record-time"/>
                                         </style>
                                       </object>
-                                    </child>
-                                  </object>
-                                </property>
-                              </object>
-                            </child>
-
-                            <child>
-                              <object class="GtkSeparator" id="delay_separator">
-                                <property name="orientation">vertical</property>
-                                <property name="margin-start">4</property>
-                                <property name="margin-end">4</property>
-                                <property name="visible">False</property>
-                              </object>
-                            </child>
-
-                            <child>
-                              <object class="GtkMenuButton" id="capture_delay_button">
-                                <property name="tooltip-text">Delay</property>
-                                <property name="visible">False</property>
-                                <style>
-                                  <class name="capture-delay-button"/>
-                                </style>
-                                <property name="child">
-                                  <object class="GtkBox">
-                                    <property name="spacing">5</property>
-
-                                    <child>
-                                      <object class="GtkImage">
-                                        <property name="icon-name">alarm-symbolic</property>
-                                      </object>
-                                    </child>
-
-                                    <child>
-                                      <object class="GtkLabel" id="capture_delay_label"/>
                                     </child>
                                   </object>
                                 </property>

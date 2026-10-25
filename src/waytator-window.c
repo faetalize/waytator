@@ -4831,16 +4831,15 @@ waytator_window_capture_action(GtkWidget  *widget,
                                const char *action_name,
                                GVariant   *parameter)
 {
-  g_autoptr(GVariant) delay = g_action_group_get_action_state(G_ACTION_GROUP(widget), "capture-delay");
-
   (void) parameter;
 
+  //a delay is picked in the capture overlay, or given with --delay
   waytator_window_begin_capture(WAYTATOR_WINDOW(widget),
                                 g_strcmp0(action_name, "win.capture-screen") == 0
                                   ? WAYTATOR_CAPTURE_SCREEN
                                   : WAYTATOR_CAPTURE_AREA,
                                 NULL,
-                                delay != NULL ? g_variant_get_uint32(delay) : 0,
+                                0,
                                 NULL);
 }
 
@@ -4920,10 +4919,8 @@ waytator_window_record_action(GtkWidget  *widget,
                               GVariant   *parameter)
 {
   GApplication *app = G_APPLICATION(gtk_window_get_application(GTK_WINDOW(widget)));
-  g_autoptr(GVariant) delay = g_action_group_get_action_state(G_ACTION_GROUP(widget), "capture-delay");
   WaytatorRecordingRequest request = {
     .mode = WAYTATOR_CAPTURE_AREA,
-    .delay_seconds = delay != NULL ? g_variant_get_uint32(delay) : 0,
   };
   WaytatorWindowRecording *recording;
 
@@ -5090,8 +5087,6 @@ waytator_window_dispose(GObject *object)
   g_clear_object(&self->adopt_file);
   g_clear_object(&self->save_menu);
   g_clear_object(&self->capture_menu);
-  g_clear_object(&self->delay_menu);
-  g_clear_object(&self->menu_delay_choices);
   g_clear_handle_id(&self->record_tick_id, g_source_remove);
   g_clear_pointer(&self->save_menu_key, g_free);
   g_clear_handle_id(&self->chrome_layout_id, g_source_remove);
@@ -5156,11 +5151,6 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, record_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, record_icon);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, record_time);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, delay_separator);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, capture_delay_button);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, capture_delay_label);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, home_delay_button);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, home_delay_hint);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, capture_area_hint);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, open_hint);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, file_group);
@@ -5175,7 +5165,6 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, chrome_watcher);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, open_label_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, open_menu_button);
-  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, open_menu_badge);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, open_separator);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, crop_actions);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, zoom_out_button);
@@ -5434,62 +5423,6 @@ waytator_window_save_as_clicked(GtkButton *button,
   gtk_widget_activate_action(GTK_WIDGET(user_data), "win.save-image", NULL);
 }
 
-static void
-waytator_window_update_delay_menu(WaytatorWindow *self);
-
-//a delay that is set shows in the bar, and in a badge on the folded menu, so it is never a surprise
-static void
-waytator_window_capture_delay_changed(GSimpleAction  *action,
-                                      GParamSpec     *pspec,
-                                      WaytatorWindow *self)
-{
-  g_autoptr(GVariant) state = g_action_get_state(G_ACTION(action));
-  const guint seconds = g_variant_get_uint32(state);
-  g_autofree char *hint = seconds == 0 ? g_strdup("Off") : g_strdup_printf("%u s", seconds);
-  g_autofree char *badge = g_strdup_printf("%us", seconds);
-
-  (void) pspec;
-
-  gtk_label_set_text(self->home_delay_hint, hint);
-  gtk_label_set_text(self->capture_delay_label, hint);
-  gtk_label_set_text(self->open_menu_badge, badge);
-  gtk_widget_set_visible(GTK_WIDGET(self->open_menu_badge), seconds > 0);
-
-  //a pick is made with one click, the choices have nothing more to offer after it
-  gtk_menu_button_popdown(self->capture_delay_button);
-  gtk_menu_button_popdown(self->open_menu_button);
-
-  if (seconds == self->capture_delay_seconds)
-    return;
-
-  self->capture_delay_seconds = seconds;
-  waytator_window_update_delay_menu(self);
-  waytator_window_queue_chrome_layout(self);
-}
-
-//Off and the delays side by side, each one picked by the capture-delay action it stands for
-static GtkWidget *
-waytator_window_new_delay_choices(void)
-{
-  static const guint delays[] = { 0, 1, 3, 5, 10 };
-  GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
-
-  gtk_widget_add_css_class(box, "delay-choices");
-
-  for (guint i = 0; i < G_N_ELEMENTS(delays); i++) {
-    g_autofree char *label = delays[i] == 0 ? g_strdup("Off") : g_strdup_printf("%u s", delays[i]);
-    GtkWidget *choice = gtk_toggle_button_new_with_label(label);
-
-    gtk_widget_add_css_class(choice, "delay-choice");
-    gtk_widget_set_focus_on_click(choice, FALSE);
-    gtk_actionable_set_action_name(GTK_ACTIONABLE(choice), "win.capture-delay");
-    gtk_actionable_set_action_target_value(GTK_ACTIONABLE(choice), g_variant_new_uint32(delays[i]));
-    gtk_box_append(GTK_BOX(box), choice);
-  }
-
-  return box;
-}
-
 //a menu item can't change its label in place, so while a recording is under way Stop recording takes the
 //place of Record. it is the same action, which stops a recording that is going
 static void
@@ -5500,33 +5433,6 @@ waytator_window_update_capture_menu(WaytatorWindow *self)
   g_menu_append(self->capture_menu,
                 waytator_recording_is_active() ? "Stop recording" : "Record",
                 "win.record-area");
-}
-
-//the folded menu only offers the delays while one is set, the capture overlay has them otherwise. the row of
-//choices goes back into its slot each time, the slot is made anew with the section
-static void
-waytator_window_update_delay_menu(WaytatorWindow *self)
-{
-  GtkPopover *popover = gtk_menu_button_get_popover(self->open_menu_button);
-  g_autoptr(GMenu) section = NULL;
-  g_autoptr(GMenuItem) item = NULL;
-
-  g_menu_remove_all(self->delay_menu);
-  if (self->capture_delay_seconds == 0)
-    return;
-
-  section = g_menu_new();
-  item = g_menu_item_new(NULL, NULL);
-  g_menu_item_set_attribute(item, "custom", "s", "delay-choices");
-  g_menu_append_item(section, item);
-  g_menu_append_section(self->delay_menu, "Delay", G_MENU_MODEL(section));
-
-  if (!GTK_IS_POPOVER_MENU(popover))
-    return;
-
-  if (gtk_widget_get_parent(self->menu_delay_choices) != NULL)
-    gtk_widget_unparent(self->menu_delay_choices);
-  gtk_popover_menu_add_child(GTK_POPOVER_MENU(popover), self->menu_delay_choices, "delay-choices");
 }
 
 //the menu is brought up to date as it opens, it doesn't follow a recording that starts or ends while it is open
@@ -5595,62 +5501,22 @@ waytator_window_update_recording_all(GtkApplication *app)
   }
 }
 
-//how long a capture started from this window waits first, for whoever does not use --delay. it lasts as long as
-//the window, a delay that came back on its own days later would only be a surprise
+//what the Open, screenshot and record buttons do, for when the bar is too short for them. the capture overlay
+//has the rest, so there is no picking of a screen, a window or a delay here
 static void
-waytator_window_setup_capture_delay(WaytatorWindow *self)
+waytator_window_setup_open_menu(WaytatorWindow *self)
 {
-  static const guint delays[] = { 0, 1, 3, 5, 10 };
-  g_autoptr(GSimpleAction) action = g_simple_action_new_stateful("capture-delay",
-                                                                 G_VARIANT_TYPE_UINT32,
-                                                                 g_variant_new_uint32(0));
-  g_autoptr(GMenu) menu = g_menu_new();
-  g_autoptr(GMenu) section = g_menu_new();
   g_autoptr(GMenu) open_menu = g_menu_new();
   g_autoptr(GMenu) open_section = g_menu_new();
-  GtkWidget *popover = gtk_popover_new();
-  GtkWidget *popover_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
-  GtkWidget *heading = gtk_label_new("Delay");
 
-  for (guint i = 0; i < G_N_ELEMENTS(delays); i++) {
-    g_autofree char *label = delays[i] == 0
-                           ? g_strdup("No Delay")
-                           : g_strdup_printf(delays[i] == 1 ? "%u Second" : "%u Seconds", delays[i]);
-    g_autoptr(GMenuItem) item = g_menu_item_new(label, NULL);
-
-    g_menu_item_set_action_and_target_value(item, "win.capture-delay", g_variant_new_uint32(delays[i]));
-    g_menu_append_item(section, item);
-  }
-  g_menu_append_section(menu, "Delay", G_MENU_MODEL(section));
-
-  g_signal_connect(action, "notify::state", G_CALLBACK(waytator_window_capture_delay_changed), self);
-  g_action_map_add_action(G_ACTION_MAP(self), G_ACTION(action));
-  gtk_menu_button_set_menu_model(self->home_delay_button, G_MENU_MODEL(menu));
-
-  //the bar's delay button is only there while a delay is set, and changes it or turns it off
-  gtk_label_set_xalign(GTK_LABEL(heading), 0);
-  gtk_widget_add_css_class(heading, "delay-heading");
-  gtk_box_append(GTK_BOX(popover_box), heading);
-  gtk_box_append(GTK_BOX(popover_box), waytator_window_new_delay_choices());
-  gtk_widget_add_css_class(popover_box, "delay-popover");
-  gtk_popover_set_child(GTK_POPOVER(popover), popover_box);
-  gtk_menu_button_set_popover(self->capture_delay_button, popover);
-  waytator_window_setup_menu_button_popover(self->capture_delay_button, GTK_ARROW_DOWN, GTK_POS_BOTTOM);
-
-  //what the Open, screenshot and record buttons do, for when the bar is too short for them. the capture
-  //overlay has the rest, so there is no picking of a screen or a window here
   self->capture_menu = g_menu_new();
-  self->delay_menu = g_menu_new();
-  self->menu_delay_choices = g_object_ref_sink(waytator_window_new_delay_choices());
   waytator_window_update_capture_menu(self);
   g_menu_append(open_section, "Open…", "win.open");
   g_menu_append_section(open_menu, NULL, G_MENU_MODEL(open_section));
   g_menu_append_section(open_menu, NULL, G_MENU_MODEL(self->capture_menu));
-  g_menu_append_section(open_menu, NULL, G_MENU_MODEL(self->delay_menu));
   gtk_menu_button_set_menu_model(self->open_menu_button, G_MENU_MODEL(open_menu));
   g_signal_connect(self->open_menu_button, "notify::active", G_CALLBACK(waytator_window_open_menu_opened), self);
   waytator_window_setup_menu_button_popover(self->open_menu_button, GTK_ARROW_DOWN, GTK_POS_BOTTOM);
-  waytator_window_capture_delay_changed(action, NULL, self);
   waytator_window_update_recording(self);
 }
 
@@ -5662,7 +5528,7 @@ waytator_window_setup_capture_button(WaytatorWindow *self)
 
   gtk_label_set_text(self->open_hint, open_hint);
   waytator_window_update_capture_controls(self);
-  waytator_window_setup_capture_delay(self);
+  waytator_window_setup_open_menu(self);
 }
 
 static void
