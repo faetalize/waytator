@@ -25,6 +25,8 @@ WaytatorRecordingBar *waytator_recording_bar_new(GdkMonitor                  *mo
 void waytator_recording_bar_set_saving(WaytatorRecordingBar *bar);
 //takes the bar and the outline off the screen
 void waytator_recording_bar_free(WaytatorRecordingBar *bar);
+//elapsed, in microseconds, as m:ss, and h:mm:ss once it is more than an hour
+char *waytator_recording_bar_format_time(gint64 elapsed);
 
 //where the bar goes: centred below area if it fits on the monitor, else above, else to the right, else to the
 //left, all with a gap; and bottom centre inside the monitor when none fits or there is no area. everything is

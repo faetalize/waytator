@@ -59,6 +59,7 @@
     <file alias="audio-input-microphone-symbolic.svg">ui/icons/adwaita/audio-input-microphone-symbolic.svg</file>
     <file alias="audio-volume-overamplified-symbolic.svg">ui/icons/adwaita/audio-volume-overamplified-symbolic.svg</file>
     <file alias="camera-photo-symbolic.svg">ui/icons/adwaita/camera-photo-symbolic.svg</file>
+    <file alias="camera-video-symbolic.svg">ui/icons/adwaita/camera-video-symbolic.svg</file>
     <file alias="edit-redo-symbolic.svg">ui/icons/adwaita/edit-redo-symbolic.svg</file>
     <file alias="edit-undo-symbolic.svg">ui/icons/adwaita/edit-undo-symbolic.svg</file>
     <file alias="folder-open-symbolic.svg">ui/icons/adwaita/folder-open-symbolic.svg</file>

@@ -412,8 +412,7 @@ waytator_recording_bar_append_handle(WaytatorRecordingBar *bar)
   gtk_box_append(GTK_BOX(bar->pill), handle);
 }
 
-//m:ss, and h:mm:ss once it is more than an hour
-static char *
+char *
 waytator_recording_bar_format_time(gint64 elapsed)
 {
   const gint64 seconds = MAX(elapsed, 0) / G_USEC_PER_SEC;

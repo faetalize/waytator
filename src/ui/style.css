@@ -386,10 +386,32 @@
   padding: 0;
 }
 
+.open-group button.record-button {
+  min-width: 32px;
+  padding: 0;
+}
+
+/* stop and the time while a recording is under way */
+.open-group button.record-button.recording {
+  padding: 0 10px;
+  background: alpha(white, 0.14);
+}
+
+.open-group button.record-button.recording:hover {
+  background: alpha(white, 0.2);
+}
+
+.open-group .record-time,
+.open-group .capture-delay-button label {
+  font-size: 0.9em;
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+/* only there while a delay is set */
 .open-group menubutton.capture-delay-button > button {
-  min-width: 20px;
   min-height: 32px;
-  padding: 0 4px;
+  padding: 0 9px;
   border-radius: 10px;
   color: white;
   background: transparent;
@@ -402,7 +424,48 @@
   background: alpha(white, 0.08);
 }
 
-/* Open, capture and the delay folded into one menu once the bar runs short */
+/* the delays as one row of choices, in the delay button's popover and the folded menu */
+.delay-popover {
+  padding: 4px;
+}
+
+.delay-heading {
+  font-size: 0.9em;
+  font-weight: 700;
+  opacity: 0.6;
+  padding: 0 4px;
+}
+
+.delay-choices {
+  padding: 2px 4px 4px;
+}
+
+.delay-choices button.delay-choice {
+  min-height: 28px;
+  min-width: 0;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.delay-choices button.delay-choice:checked {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+/* the delay that is set, on the folded menu's corner */
+.open-group .delay-badge {
+  margin: 1px 0 0 0;
+  padding: 0 3px;
+  min-height: 13px;
+  border-radius: 6px;
+  font-size: 0.65em;
+  font-weight: 800;
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+/* Open, screenshot and record folded into one menu once the bar runs short */
 .open-group menubutton.open-menu-button > button {
   min-width: 32px;
   min-height: 32px;
