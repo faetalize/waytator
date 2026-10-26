@@ -34,5 +34,7 @@ void waytator_recording_toggle(GApplication                   *app,
 gboolean waytator_recording_is_active(void);
 //whether a recording is being picked, waited for or counted down, with nothing recorded yet
 gboolean waytator_recording_is_starting(void);
+//when the one under way started recording, in monotonic time. 0 while nothing is being recorded
+gint64 waytator_recording_get_start_time(void);
 
 G_END_DECLS

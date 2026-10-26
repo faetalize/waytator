@@ -412,8 +412,7 @@ waytator_recording_bar_append_handle(WaytatorRecordingBar *bar)
   gtk_box_append(GTK_BOX(bar->pill), handle);
 }
 
-//m:ss, and h:mm:ss once it is more than an hour
-static char *
+char *
 waytator_recording_bar_format_time(gint64 elapsed)
 {
   const gint64 seconds = MAX(elapsed, 0) / G_USEC_PER_SEC;
@@ -475,7 +474,7 @@ static void
 waytator_recording_bar_build_pill(WaytatorRecordingBar *bar,
                                   gboolean              microphone)
 {
-  GtkWidget *mark = gtk_image_new_from_icon_name("media-record-symbolic");
+  GtkWidget *mark = gtk_image_new_from_icon_name("camera-video-symbolic");
   GtkWidget *mute;
 
   bar->pill = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);

@@ -381,28 +381,29 @@
   color: transparent;
 }
 
-.open-group button.capture-button {
+.open-group button.capture-button,
+.open-group button.record-button {
   min-width: 32px;
   padding: 0;
 }
 
-.open-group menubutton.capture-delay-button > button {
-  min-width: 20px;
-  min-height: 32px;
-  padding: 0 4px;
-  border-radius: 10px;
-  color: white;
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
+/* stop and the time while a recording is under way */
+.open-group button.record-button.recording {
+  padding: 0 10px;
+  background: alpha(white, 0.14);
 }
 
-.open-group menubutton.capture-delay-button > button:hover,
-.open-group menubutton.capture-delay-button > button:checked {
-  background: alpha(white, 0.08);
+.open-group button.record-button.recording:hover {
+  background: alpha(white, 0.2);
 }
 
-/* Open, capture and the delay folded into one menu once the bar runs short */
+.open-group .record-time {
+  font-size: 0.9em;
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+/* Open, screenshot and record folded into one menu once the bar runs short */
 .open-group menubutton.open-menu-button > button {
   min-width: 32px;
   min-height: 32px;
@@ -417,27 +418,6 @@
 .open-group menubutton.open-menu-button > button:hover,
 .open-group menubutton.open-menu-button > button:checked {
   background: alpha(white, 0.08);
-}
-
-/* a menu button shaped like the other home actions, its button is the part that shows */
-.home-actions menubutton.home-delay > button {
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
-  color: white;
-  font-weight: normal;
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.home-actions menubutton.home-delay > button:hover,
-.home-actions menubutton.home-delay > button:checked {
-  background: alpha(white, 0.08);
-}
-
-.home-actions menubutton.home-delay image {
-  opacity: 0.85;
 }
 
 /* background and blur follow the floating controls settings, see the capture overlay */
@@ -504,7 +484,7 @@
   min-width: 16px;
   min-height: 32px;
   margin: 0 4px 0 2px;
-  color: #e5484d;
+  color: white;
 }
 
 .capture-pill button.capture-cancel {

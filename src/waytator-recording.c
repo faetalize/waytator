@@ -71,10 +71,28 @@ waytator_recording_is_starting(void)
   return waytator_recording_current != NULL && waytator_recording_current->state < WAYTATOR_RECORDING_RECORDING;
 }
 
+gint64
+waytator_recording_get_start_time(void)
+{
+  if (waytator_recording_current == NULL || waytator_recording_current->state != WAYTATOR_RECORDING_RECORDING)
+    return 0;
+
+  return waytator_recorder_get_start_time(waytator_recording_current->recorder);
+}
+
+//the windows' record buttons follow the recording through its states
+static void
+waytator_recording_changed(WaytatorRecording *rec)
+{
+  waytator_window_update_recording_all(GTK_APPLICATION(rec->app));
+}
+
 static void
 waytator_recording_free(WaytatorRecording *rec)
 {
-  if (waytator_recording_current == rec)
+  const gboolean was_current = waytator_recording_current == rec;
+
+  if (was_current)
     waytator_recording_current = NULL;
 
   g_clear_handle_id(&rec->settle_id, g_source_remove);
@@ -96,6 +114,8 @@ waytator_recording_free(WaytatorRecording *rec)
   waytator_settings_clear(&rec->settings);
   if (rec->user_data_free != NULL)
     rec->user_data_free(rec->user_data);
+  if (was_current)
+    waytator_recording_changed(rec);
   //the application stayed alive for this, with no window of its own
   g_application_release(rec->app);
   g_object_unref(rec->app);
@@ -216,6 +236,7 @@ waytator_recording_saved(WaytatorRecording *rec)
 {
   //a new recording may start while this one's notification is still up
   waytator_recording_current = NULL;
+  waytator_recording_changed(rec);
 
   if (!rec->notify) {
     if (rec->ended_reason != NULL)
@@ -297,6 +318,7 @@ waytator_recording_stop(WaytatorRecording *rec)
     return;
 
   rec->state = WAYTATOR_RECORDING_SAVING;
+  waytator_recording_changed(rec);
   if (rec->bar != NULL)
     waytator_recording_bar_set_saving(rec->bar);
   waytator_recorder_stop_async(rec->recorder, waytator_recording_stopped, rec);
@@ -360,6 +382,7 @@ waytator_recording_begin(WaytatorRecording *rec)
                                           waytator_recording_bar_mute,
                                           rec);
   waytator_recorder_set_ended_func(rec->recorder, waytator_recording_ended, rec);
+  waytator_recording_changed(rec);
 }
 
 static void
@@ -655,6 +678,7 @@ waytator_recording_new(GApplication                   *app,
                                                 rec);
   waytator_recording_current = rec;
   g_application_hold(app);
+  waytator_recording_changed(rec);
 
   waytator_recording_start(rec);
 }

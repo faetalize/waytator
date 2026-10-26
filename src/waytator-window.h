@@ -43,6 +43,8 @@ gboolean waytator_window_any_visible(GtkApplication *app);
 //whether a screenshot or a recording is still being picked, waited for or counted down anywhere,
 //so that another one would stack on top of it
 gboolean waytator_window_capture_busy(GtkApplication *app);
+//brings every window's record button up to date with the recording under way, or the lack of one
+void waytator_window_update_recording_all(GtkApplication *app);
 void waytator_window_destroy_settled(GtkWindow *const *windows,
                                      guint             n_windows);
 gboolean waytator_window_shortcut_is_valid(const char *shortcut);

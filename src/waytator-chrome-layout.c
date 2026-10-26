@@ -1,4 +1,5 @@
 #include "waytator-window-private.h"
+#include "waytator-recording.h"
 #include "waytator-video-editor.h"
 
 #include <string.h>
@@ -109,7 +110,8 @@ waytator_chrome_apply(WaytatorWindow            *self,
   gtk_widget_set_visible(self->open_label_button, !folds->open_menu);
   gtk_widget_set_visible(self->open_separator, !folds->open_menu);
   gtk_widget_set_visible(GTK_WIDGET(self->capture_button), !folds->open_menu);
-  gtk_widget_set_visible(GTK_WIDGET(self->capture_delay_button), !folds->open_menu);
+  //a recording under way keeps its stop button beside the folded menu
+  gtk_widget_set_visible(GTK_WIDGET(self->record_button), !folds->open_menu || waytator_recording_is_active());
   gtk_widget_set_visible(GTK_WIDGET(self->open_menu_button), folds->open_menu);
   gtk_widget_set_visible(self->file_group, has_content && folds->title);
   gtk_widget_set_visible(self->zoom_group, has_image && folds->zoom != WAYTATOR_ZOOM_MENU);

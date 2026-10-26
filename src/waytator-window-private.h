@@ -92,9 +92,10 @@ struct _WaytatorWindow {
   GListModel *start_window_controls_children;
   GtkWidget *open_actions;
   GtkButton *capture_button;
-  GtkMenuButton *capture_delay_button;
-  GtkMenuButton *home_delay_button;
-  GtkLabel *home_delay_hint;
+  GtkButton *record_button;
+  GtkImage *record_icon;
+  GtkLabel *record_time;
+  guint record_tick_id;
   GtkLabel *capture_area_hint;
   GtkLabel *open_hint;
   GtkWidget *file_group;
@@ -126,8 +127,8 @@ struct _WaytatorWindow {
   GtkMenuButton *save_button;
   GtkButton *save_as_button;
   GMenu *save_menu;
-  //what recording offers in the delay menu and the folded one, which changes while a recording is under way
-  GMenu *record_menu;
+  //Screenshot and Record in the folded menu, with Stop recording in Record's place while one is under way
+  GMenu *capture_menu;
   char *save_menu_key;
   GtkStack *save_icon_stack;
   GtkImage *save_default_icon;
