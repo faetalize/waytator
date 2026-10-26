@@ -130,8 +130,8 @@ static const struct {
   [WAYTATOR_SHORTCUT_SAVE] = { "save_shortcut", "save", "Save", "win.save-image", "<Primary>s" },
   [WAYTATOR_SHORTCUT_SAVE_CLOSE] = { "save_close_shortcut", "save-and-close", "Save and close", "win.save-and-close", "" },
   [WAYTATOR_SHORTCUT_SAVE_COPY_CLOSE] = { "save_copy_close_shortcut", "save-copy-and-close", "Save, copy and close", "win.save-copy-and-close", "" },
-  [WAYTATOR_SHORTCUT_CAPTURE_AREA] = { "capture_area_shortcut", "capture-area", "Capture area", "win.capture-area", "<Primary><Shift>a" },
-  [WAYTATOR_SHORTCUT_CAPTURE_SCREEN] = { "capture_screen_shortcut", "capture-screen", "Capture screen", "win.capture-screen", "<Primary><Shift>s" },
+  [WAYTATOR_SHORTCUT_CAPTURE_AREA] = { "capture_area_shortcut", "capture-area", "Screenshot area", "win.capture-area", "<Primary><Shift>a" },
+  [WAYTATOR_SHORTCUT_CAPTURE_SCREEN] = { "capture_screen_shortcut", "capture-screen", "Screenshot screen", "win.capture-screen", "<Primary><Shift>s" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_PAN)] = { "pan_tool_shortcut", NULL, "Pan", NULL, "p" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_CROP)] = { "crop_tool_shortcut", NULL, "Transform", NULL, "c" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_BRUSH)] = { "brush_tool_shortcut", NULL, "Brush", NULL, "b" },
@@ -1829,7 +1829,18 @@ waytator_window_new_recordings_group(WaytatorWindow *self)
 }
 
 static AdwPreferencesPage *
-waytator_window_new_capture_page(WaytatorWindow *self)
+waytator_window_new_recordings_page(WaytatorWindow *self)
+{
+  AdwPreferencesPage *page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
+
+  adw_preferences_page_set_title(page, "Recordings");
+  adw_preferences_page_set_icon_name(page, "camera-video-symbolic");
+  adw_preferences_page_add(page, waytator_window_new_recordings_group(self));
+  return page;
+}
+
+static AdwPreferencesPage *
+waytator_window_new_screenshots_page(WaytatorWindow *self)
 {
   AdwPreferencesPage *page = ADW_PREFERENCES_PAGE(adw_preferences_page_new());
   AdwPreferencesGroup *group = ADW_PREFERENCES_GROUP(adw_preferences_group_new());
@@ -1843,7 +1854,7 @@ waytator_window_new_capture_page(WaytatorWindow *self)
   GtkWidget *choose_button = gtk_button_new_from_icon_name("folder-open-symbolic");
   GtkWidget *clear_button = gtk_button_new_from_icon_name("window-close-symbolic");
 
-  adw_preferences_page_set_title(page, "Capture");
+  adw_preferences_page_set_title(page, "Screenshots");
   adw_preferences_page_set_icon_name(page, "camera-photo-symbolic");
   adw_preferences_group_set_title(group, "Screenshots");
   //GNOME's screenshot UI saves and copies on its own, so the folder and the copy are not waytator's to decide there
@@ -1902,7 +1913,6 @@ waytator_window_new_capture_page(WaytatorWindow *self)
   adw_preferences_group_add(group, GTK_WIDGET(hide_row));
   adw_preferences_group_add(group, GTK_WIDGET(brake_row));
   adw_preferences_page_add(page, group);
-  adw_preferences_page_add(page, waytator_window_new_recordings_group(self));
   return page;
 }
 
@@ -2127,7 +2137,8 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_preferences_page_add(shortcuts_page, color_shortcuts_group);
   waytator_window_update_shortcut_conflicts(self);
   adw_preferences_dialog_add(dialog, page);
-  adw_preferences_dialog_add(dialog, waytator_window_new_capture_page(self));
+  adw_preferences_dialog_add(dialog, waytator_window_new_screenshots_page(self));
+  adw_preferences_dialog_add(dialog, waytator_window_new_recordings_page(self));
   adw_preferences_dialog_add(dialog, waytator_window_new_videos_page(self));
   adw_preferences_dialog_add(dialog, shortcuts_page);
   adw_dialog_set_title(ADW_DIALOG(dialog), "Preferences");

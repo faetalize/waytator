@@ -159,7 +159,7 @@ app_open(GApplication  *app,
   "Usage: %s [OPTIONS] [IMAGE|VIDEO|-|--stdin]\n" \
   "\n" \
   "  --name NAME                             Name for an image or video read from stdin\n" \
-  "  --screenshot [area|screen]              Capture the screen, an area unless told\n" \
+  "  --screenshot [area|screen]              Take a screenshot, of an area unless told\n" \
   "                                          otherwise. Opens the editor unless that's\n" \
   "                                          turned off in Preferences\n" \
   "  --record [area|screen|window]           Record the screen, an area unless told\n" \
@@ -181,8 +181,8 @@ app_open(GApplication  *app,
   "  --save-shortcut SHORTCUT\n" \
   "  --save-and-close-shortcut SHORTCUT\n" \
   "  --save-copy-and-close-shortcut SHORTCUT\n" \
-  "  --capture-area-shortcut SHORTCUT\n" \
-  "  --capture-screen-shortcut SHORTCUT\n" \
+  "  --screenshot-area-shortcut SHORTCUT\n" \
+  "  --screenshot-screen-shortcut SHORTCUT\n" \
   "\n" \
   "SHORTCUT is a key, or modifiers and a key joined with \"+\", for example\n" \
   "\"s\", \"F5\", \"escape\", \"ctrl+s\" or \"ctrl+shift+s\". It can also be\n" \
@@ -199,6 +199,9 @@ static const struct {
   { "--save-shortcut", "save" },
   { "--save-and-close-shortcut", "save-and-close" },
   { "--save-copy-and-close-shortcut", "save-copy-and-close" },
+  { "--screenshot-area-shortcut", "capture-area" },
+  { "--screenshot-screen-shortcut", "capture-screen" },
+  //their old names, so commands that still use them keep working
   { "--capture-area-shortcut", "capture-area" },
   { "--capture-screen-shortcut", "capture-screen" },
 };
@@ -447,7 +450,7 @@ app_command_line(GApplication            *app,
       } else if (i + 1 < argc && arguments[i + 1][0] != '-') {
         //an image cannot go with a capture anyway, so this is most likely a mistyped mode
         g_application_command_line_printerr(command_line,
-                                            "Unknown capture mode \"%s\", use area or screen\n",
+                                            "Unknown screenshot mode \"%s\", use area or screen\n",
                                             arguments[i + 1]);
         status = 1;
         goto done;

@@ -530,7 +530,7 @@ waytator_screenshot_notify(WaytatorScreenshot *shot)
   }
 
   waytator_notification_show(shot->notification,
-                             shot->save_error != NULL ? "Screenshot not saved" : "Screenshot captured",
+                             shot->save_error != NULL ? "Screenshot not saved" : "Screenshot taken",
                              body,
                              shot->file != NULL ? actions_with_file : actions_without_file,
                              path);

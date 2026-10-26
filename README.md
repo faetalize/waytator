@@ -146,24 +146,24 @@ waytator can take the screenshot itself and open it for annotating straight away
 
 ```bash
 waytator --screenshot               # select an area of the screen
-waytator --screenshot screen        # capture a whole screen
+waytator --screenshot screen        # screenshot a whole screen
 waytator --screenshot --notify      # save and copy without opening the editor, but show a notification that lets you edit it
 ```
 
-While you pick what to capture, the bar on screen switches between area and screen, waits a few seconds before capturing, and turns on a magnifier for pixel-exact selections. Hold `Shift` to slow the cursor down. `Esc` or a right click cancels. The same captures are also in the app itself.
+While you pick what to screenshot, the bar on screen switches between area and screen, waits a few seconds first, and turns on a magnifier for pixel-exact selections. Hold `Shift` to slow the cursor down. `Esc` or a right click cancels. The app itself has the same Screenshot and Record buttons.
 
 Screenshots are saved to your Screenshots folder and copied to the clipboard. Both can be changed in Preferences.
 
-To prevent the editor from spawning after every screenshot, turn off Open in the editor in Preferences → Capture. `--notify` still lets you choose each time.
+To prevent the editor from spawning after every screenshot, turn off Open in the editor in Preferences → Screenshots. `--notify` still lets you choose each time.
 
 A few more options:
 
 ```bash
-waytator --screenshot --delay 3       # wait 3 seconds before capturing
-waytator --screenshot --screen DP-1   # capture that screen straight away
+waytator --screenshot --delay 3       # wait 3 seconds first
+waytator --screenshot --screen DP-1   # screenshot that screen straight away
 ```
 
-Bind these to keys in your compositor to capture and annotate in one step. On some desktops, the first screenshot asks for permission.
+Bind these to keys in your compositor to screenshot and annotate in one step. On some desktops, the first screenshot asks for permission.
 
 Run `waytator --help` for every option, including overriding shortcuts for one launch.
 
@@ -176,7 +176,7 @@ waytator --record window        # record a window
 waytator --record --notify      # save and copy without opening the editor, but show a notification that lets you edit it
 ```
 
-Run the same command again to stop. Recordings are saved to your Screencasts folder, copied to the clipboard and opened in the editor. Copying and opening the editor can be turned off in Preferences → Capture, and the folder changed there.
+Run the same command again to stop. Recordings are saved to your Screencasts folder, copied to the clipboard and opened in the editor. Copying and opening the editor can be turned off in Preferences → Recordings, and the folder changed there.
 
 ### Running in background
 
@@ -194,7 +194,7 @@ Screenshots are tested on niri and GNOME.
 
 ### niri
 
-Keybinds that capture and annotate in one step:
+Keybinds that screenshot and annotate in one step:
 
 ```kdl
 // in your config.kdl, in the binds section
