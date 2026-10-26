@@ -474,7 +474,7 @@ static void
 waytator_recording_bar_build_pill(WaytatorRecordingBar *bar,
                                   gboolean              microphone)
 {
-  GtkWidget *mark = gtk_image_new_from_icon_name("media-record-symbolic");
+  GtkWidget *mark = gtk_image_new_from_icon_name("camera-video-symbolic");
   GtkWidget *mute;
 
   bar->pill = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);

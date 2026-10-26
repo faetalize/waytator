@@ -1527,7 +1527,7 @@ waytator_capture_overlay_handle_drag_end(GtkGestureDrag      *gesture,
 static void
 waytator_capture_overlay_append_record_mark(WaytatorCaptureView *view)
 {
-  GtkWidget *mark = gtk_image_new_from_icon_name("media-record-symbolic");
+  GtkWidget *mark = gtk_image_new_from_icon_name("camera-video-symbolic");
 
   gtk_widget_add_css_class(mark, "capture-record-mark");
   gtk_box_append(GTK_BOX(view->pill), mark);
