@@ -574,6 +574,10 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
   encoder->color_primaries = source_frame->color_primaries;
   encoder->color_trc = source_frame->color_trc;
   encoder->colorspace = source_frame->colorspace;
+  //temporary: Mesa's VA driver misreads some of h264_vaapi's headers and hangs for good in vaRenderPicture,
+  //and B-frames make it far more likely. revert once Mesa ships the fix
+  if (g_str_equal(codec->name, "h264_vaapi"))
+    encoder->max_b_frames = 0;
   if (exporter->muxer != NULL && (exporter->muxer->oformat->flags & AVFMT_GLOBALHEADER) != 0)
     encoder->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
