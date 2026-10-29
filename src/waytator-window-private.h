@@ -55,6 +55,8 @@ struct _WaytatorWindow {
   AdwBottomSheet *ocr_panel_bottom_sheet;
   //wraps the template's content, for captures that skip the editor to say where they went
   AdwToastOverlay *toast_overlay;
+  //across the top, once a newer waytator was installed while this one runs
+  AdwBanner *out_of_date_banner;
   GtkWidget *ocr_panel;
   GtkWidget *ocr_panel_toggle_container;
   GtkToggleButton *ocr_panel_toggle_button;

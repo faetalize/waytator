@@ -45,6 +45,8 @@ gboolean waytator_window_any_visible(GtkApplication *app);
 gboolean waytator_window_capture_busy(GtkApplication *app);
 //brings every window's record button up to date with the recording under way, or the lack of one
 void waytator_window_update_recording_all(GtkApplication *app);
+//shows or hides the banner that says a newer waytator was installed, and whether it offers a restart
+void waytator_window_update_out_of_date_all(GtkApplication *app);
 void waytator_window_destroy_settled(GtkWindow *const *windows,
                                      guint             n_windows);
 gboolean waytator_window_shortcut_is_valid(const char *shortcut);

@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "waytator-capture.h"
+#include "waytator-instance.h"
 #include "waytator-recording.h"
 #include "waytator-screenshot.h"
 #include "waytator-video-editor.h"
@@ -266,9 +267,15 @@ app_edit_screenshot(GdkTexture *texture,
                     gpointer    user_data)
 {
   AppOverrides *overrides = user_data;
-  WaytatorWindow *window = waytator_window_for_new_image(GTK_APPLICATION(overrides->app));
+  WaytatorWindow *window;
   g_autoptr(GError) error = NULL;
 
+  //once a newer version has taken over, it opens the file. the overrides stay behind, and a file that is
+  //gone by now still opens here, where the capture itself is
+  if (waytator_instance_open_in_newer(file))
+    return;
+
+  window = waytator_window_for_new_image(GTK_APPLICATION(overrides->app));
   app_apply_overrides(window, overrides->close_on_copy, (const char *const *) overrides->shortcuts);
 
   //the saved file may be gone by the time someone clicks, the capture itself is still around.
@@ -285,9 +292,14 @@ app_edit_recording(GFile   *file,
                    gpointer user_data)
 {
   AppOverrides *overrides = user_data;
-  WaytatorWindow *window = waytator_window_for_new_image(GTK_APPLICATION(overrides->app));
+  WaytatorWindow *window;
   g_autoptr(GError) error = NULL;
 
+  //once a newer version has taken over, it opens the recording, without the overrides
+  if (waytator_instance_open_in_newer(file))
+    return;
+
+  window = waytator_window_for_new_image(GTK_APPLICATION(overrides->app));
   app_apply_overrides(window, overrides->close_on_copy, (const char *const *) overrides->shortcuts);
 
   if (!waytator_window_open_file(window, file, &error)) {
@@ -745,16 +757,87 @@ app_skip_desktop_themes(void)
   settings_class->constructed = app_settings_constructed;
 }
 
+//set when a launch found an out-of-date waytator with nothing open and takes over from it, and whether that one
+//was the background service, which this one starts again once it is done
+static gboolean app_replace;
+static gboolean app_adopt_service;
+
 //under --gapplication-service nothing holds the app until a window opens, and gio drops a service it
-//is not holding after a few idle seconds, so the service holds itself to stay loaded
+//is not holding after a few idle seconds, so the service holds itself to stay loaded, until a newer one takes over
 static void
 app_startup(GApplication *app,
             gpointer      user_data)
 {
   (void) user_data;
 
-  if ((g_application_get_flags(app) & G_APPLICATION_IS_SERVICE) != 0)
-    g_application_hold(app);
+  waytator_instance_setup(app, (g_application_get_flags(app) & G_APPLICATION_IS_SERVICE) != 0);
+  if (app_adopt_service)
+    waytator_instance_adopt_service();
+}
+
+//registering is what every launch does first, and a launch that finds waytator running fetches its actions while
+//it does, which say whether it is out of date. so this asks nothing extra, it only registers a little earlier
+static int
+app_handle_local_options(GApplication *app,
+                         GVariantDict *options,
+                         gpointer      user_data)
+{
+  (void) options;
+  (void) user_data;
+
+  //a second service has no command to hand over, and a launch taking over already decided
+  if ((g_application_get_flags(app) & (G_APPLICATION_IS_SERVICE | G_APPLICATION_REPLACE)) != 0)
+    return -1;
+
+  //on failure g_application_run tries again and says why
+  if (!g_application_register(app, NULL, NULL))
+    return -1;
+
+  if (g_application_get_is_remote(app) && waytator_instance_should_replace(app, &app_adopt_service)) {
+    app_replace = TRUE;
+    return EXIT_SUCCESS;
+  }
+
+  return -1;
+}
+
+static AdwApplication *
+app_new(GApplicationFlags flags)
+{
+  //a newer version can always take over from this one, which is how it decides who goes, see waytator-instance.h
+  AdwApplication *app = adw_application_new(WAYTATOR_APP_ID,
+                                            G_APPLICATION_HANDLES_COMMAND_LINE
+                                              | G_APPLICATION_HANDLES_OPEN
+                                              | G_APPLICATION_ALLOW_REPLACEMENT
+                                              | flags);
+
+  g_application_set_resource_base_path(G_APPLICATION(app), "/dev/faetalize/waytator");
+
+  g_action_map_add_action_entries(G_ACTION_MAP(app),
+                                  app_actions,
+                                  G_N_ELEMENTS(app_actions),
+                                  app);
+
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.open", (const char *[]) { "<Primary>o", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.preferences", (const char *[]) { "<Primary>comma", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.undo", (const char *[]) { "<Primary>z", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.redo", (const char *[]) { "<Primary><Shift>z", "<Primary>y", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-in", (const char *[]) { "<Primary>plus", "<Primary>equal", "<Primary>KP_Add", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-out", (const char *[]) { "<Primary>minus", "<Primary>KP_Subtract", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-fit", (const char *[]) { "<Primary>0", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-actual-size", (const char *[]) { "<Primary>1", "<Primary>KP_1", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.rotate-counter-clockwise", (const char *[]) { "<Primary><Shift>r", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.flip-horizontal", (const char *[]) { "<Primary><Shift>h", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.flip-vertical", (const char *[]) { "<Primary><Shift>v", NULL });
+  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "app.quit", (const char *[]) { "<Primary>q", NULL });
+
+  g_signal_connect(app, "handle-local-options", G_CALLBACK(app_handle_local_options), NULL);
+  g_signal_connect(app, "startup", G_CALLBACK(app_startup), NULL);
+  g_signal_connect(app, "activate", G_CALLBACK(app_activate), NULL);
+  g_signal_connect(app, "open", G_CALLBACK(app_open), NULL);
+  g_signal_connect(app, "command-line", G_CALLBACK(app_command_line), NULL);
+
+  return app;
 }
 
 int
@@ -776,36 +859,21 @@ main(int   argc,
   }
 
   app_skip_desktop_themes();
-
-  app = adw_application_new(WAYTATOR_APP_ID,
-                             G_APPLICATION_HANDLES_COMMAND_LINE | G_APPLICATION_HANDLES_OPEN);
-  g_application_set_resource_base_path(G_APPLICATION(app), "/dev/faetalize/waytator");
+  waytator_instance_set_launch_name(argv[0]);
   gtk_window_set_default_icon_name(WAYTATOR_APP_ID);
 
-  g_action_map_add_action_entries(G_ACTION_MAP(app),
-                                  app_actions,
-                                  G_N_ELEMENTS(app_actions),
-                                  app);
-
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.open", (const char *[]) { "<Primary>o", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.preferences", (const char *[]) { "<Primary>comma", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.undo", (const char *[]) { "<Primary>z", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.redo", (const char *[]) { "<Primary><Shift>z", "<Primary>y", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-in", (const char *[]) { "<Primary>plus", "<Primary>equal", "<Primary>KP_Add", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-out", (const char *[]) { "<Primary>minus", "<Primary>KP_Subtract", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-fit", (const char *[]) { "<Primary>0", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.zoom-actual-size", (const char *[]) { "<Primary>1", "<Primary>KP_1", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.rotate-counter-clockwise", (const char *[]) { "<Primary><Shift>r", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.flip-horizontal", (const char *[]) { "<Primary><Shift>h", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "win.flip-vertical", (const char *[]) { "<Primary><Shift>v", NULL });
-  gtk_application_set_accels_for_action(GTK_APPLICATION(app), "app.quit", (const char *[]) { "<Primary>q", NULL });
-
-  g_signal_connect(app, "startup", G_CALLBACK(app_startup), NULL);
-  g_signal_connect(app, "activate", G_CALLBACK(app_activate), NULL);
-  g_signal_connect(app, "open", G_CALLBACK(app_open), NULL);
-  g_signal_connect(app, "command-line", G_CALLBACK(app_command_line), NULL);
-
+  app = app_new(G_APPLICATION_DEFAULT_FLAGS);
   status = g_application_run(G_APPLICATION(app), run_argc, run_argv);
+
+  //the first one only found out, as a remote that never started. this one takes the name and handles the
+  //command itself, nothing of it was handed over yet, stdin included
+  if (app_replace) {
+    g_clear_object(&app);
+    app = app_new(G_APPLICATION_REPLACE);
+    status = g_application_run(G_APPLICATION(app), run_argc, run_argv);
+    g_clear_object(&app);
+    waytator_instance_finish();
+  }
   g_free(stdin_argv);
 
   return status;

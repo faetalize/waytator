@@ -4,6 +4,7 @@
 #include "waytator-capture-overlay.h"
 #include "waytator-clipboard.h"
 #include "waytator-countdown.h"
+#include "waytator-instance.h"
 #include "waytator-notification.h"
 #include "waytator-recorder.h"
 #include "waytator-record-portal.h"
@@ -54,6 +55,8 @@ typedef struct {
   WaytatorRecordingEditFunc edit;
   gpointer user_data;
   GDestroyNotify user_data_free;
+  //lost if this process went away: everything up to the recording being on disk, see waytator-instance.h
+  gboolean working;
 } WaytatorRecording;
 
 //the one that is being picked, recorded or saved, a finished one waiting on its notification is not in the way
@@ -87,10 +90,23 @@ waytator_recording_changed(WaytatorRecording *rec)
   waytator_window_update_recording_all(GTK_APPLICATION(rec->app));
 }
 
+//on disk, all that is left is its notification, which a newer version can take over from
+static void
+waytator_recording_stop_working(WaytatorRecording *rec)
+{
+  if (!rec->working)
+    return;
+
+  rec->working = FALSE;
+  waytator_instance_work_end();
+}
+
 static void
 waytator_recording_free(WaytatorRecording *rec)
 {
   const gboolean was_current = waytator_recording_current == rec;
+
+  waytator_recording_stop_working(rec);
 
   if (was_current)
     waytator_recording_current = NULL;
@@ -236,6 +252,7 @@ waytator_recording_saved(WaytatorRecording *rec)
 {
   //a new recording may start while this one's notification is still up
   waytator_recording_current = NULL;
+  waytator_recording_stop_working(rec);
   waytator_recording_changed(rec);
 
   if (!rec->notify) {
@@ -678,6 +695,8 @@ waytator_recording_new(GApplication                   *app,
                                                 rec);
   waytator_recording_current = rec;
   g_application_hold(app);
+  rec->working = TRUE;
+  waytator_instance_work_begin();
   waytator_recording_changed(rec);
 
   waytator_recording_start(rec);
