@@ -1,0 +1,4 @@
+#pragma once
+
+//when the commit this was built from was made, in seconds since 1970, or 0 for a release tarball
+#define WAYTATOR_COMMIT_TIME "@VCS_TAG@"

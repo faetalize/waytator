@@ -3,6 +3,7 @@
 #include "waytator-capture-overlay.h"
 #include "waytator-countdown.h"
 #include "waytator-export.h"
+#include "waytator-instance.h"
 #include "waytator-notification.h"
 #include "waytator-settings.h"
 #include "waytator-window.h"
@@ -41,6 +42,8 @@ typedef struct {
   gboolean asking_permission;
   //on its way to a frame: waiting, counting down, on the overlay or with the portal
   gboolean capturing;
+  //lost if this process went away: everything up to the capture being on disk, see waytator-instance.h
+  gboolean working;
 } WaytatorScreenshot;
 
 //how many are capturing, any of which a second capture would only stack on top of
@@ -86,10 +89,22 @@ waytator_screenshot_make_name(void)
   return g_date_time_format(now, "Screenshot from %Y-%m-%d %H-%M-%S.png");
 }
 
+//on disk, all that is left is its notification, which a newer version can take over from
+static void
+waytator_screenshot_stop_working(WaytatorScreenshot *shot)
+{
+  if (!shot->working)
+    return;
+
+  shot->working = FALSE;
+  waytator_instance_work_end();
+}
+
 static void
 waytator_screenshot_free(WaytatorScreenshot *shot)
 {
   waytator_screenshot_set_capturing(shot, FALSE);
+  waytator_screenshot_stop_working(shot);
   waytator_notification_free(shot->notification);
   if (shot->delay_id != 0)
     g_source_remove(shot->delay_id);
@@ -306,6 +321,7 @@ waytator_screenshot_store_finish(WaytatorScreenshotStore *store,
 {
   store->done(store->file, store->save_error, copied, store->user_data);
   waytator_screenshot_store_free(store);
+  waytator_instance_work_end();
   g_application_release(g_application_get_default());
 }
 
@@ -394,8 +410,9 @@ waytator_screenshot_store(GdkTexture                  *texture,
   store->done = done;
   store->user_data = user_data;
 
-  //closing the last window must not cut a save off halfway
+  //closing the last window must not cut a save off halfway, and a newer version must not either
   g_application_hold(g_application_get_default());
+  waytator_instance_work_begin();
   task = g_task_new(NULL, NULL, waytator_screenshot_stored, store);
   g_task_set_task_data(task, store, NULL);
   g_task_run_in_thread(task, waytator_screenshot_store_thread);
@@ -534,6 +551,9 @@ waytator_screenshot_notify(WaytatorScreenshot *shot)
                              body,
                              shot->file != NULL ? actions_with_file : actions_without_file,
                              path);
+  //neither saved nor copied, or only copied, it exists nowhere else and Edit is the way to keep it
+  if (shot->file != NULL)
+    waytator_screenshot_stop_working(shot);
 }
 
 static void
@@ -822,6 +842,8 @@ waytator_screenshot_capture_background(GApplication              *app,
                                                  waytator_screenshot_notification_gone,
                                                  shot);
   g_application_hold(app);
+  shot->working = TRUE;
+  waytator_instance_work_begin();
 
   waytator_screenshot_take_after(shot, FALSE, delay_seconds);
 }

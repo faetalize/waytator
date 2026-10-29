@@ -27,6 +27,7 @@
         pkgs.callPackage ./nix/package.nix {
           src = self;
           inherit version;
+          commitTime = self.lastModified or 0;
         };
     in
     {

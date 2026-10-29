@@ -4,6 +4,7 @@
 
 #include "waytator-capture-overlay.h"
 #include "waytator-export.h"
+#include "waytator-instance.h"
 #include "waytator-ocr.h"
 #include "waytator-passthrough.h"
 #include "waytator-record-audio.h"
@@ -5512,6 +5513,100 @@ waytator_window_update_recording_all(GtkApplication *app)
   }
 }
 
+//what a restart would lose: edits, an image or video that exists nowhere else, or a save or export under way
+static gboolean
+waytator_window_has_progress(WaytatorWindow *self)
+{
+  if (waytator_window_is_video(self)) {
+    WaytatorVideoEditor *editor = WAYTATOR_VIDEO_EDITOR(self->video_editor);
+
+    return waytator_video_editor_has_unsaved_changes(editor)
+        || waytator_video_editor_is_exporting(editor)
+        || waytator_video_editor_get_file(editor) == NULL;
+  }
+
+  return self->texture != NULL
+      && (waytator_window_has_unsaved_changes(self)
+          || self->never_saved
+          || self->save_in_progress
+          || self->capture_storing);
+}
+
+//the new version opens what this window shows, and takes over from this process
+static void
+waytator_window_restart(WaytatorWindow *self)
+{
+  g_autoptr(GError) error = NULL;
+
+  if (!waytator_instance_restart(waytator_window_get_shown_file(self), &error)) {
+    g_autofree char *message = g_strdup_printf("Could not start the new version: %s", error->message);
+
+    waytator_window_show_error(self, message);
+  }
+}
+
+static void
+waytator_window_restart_response(AdwAlertDialog *dialog,
+                                 const char     *response,
+                                 gpointer        user_data)
+{
+  (void) dialog;
+
+  if (g_strcmp0(response, "restart") == 0)
+    waytator_window_restart(WAYTATOR_WINDOW(user_data));
+}
+
+//every window goes with the restart, so any of them with something to lose is asked about first
+static void
+waytator_window_restart_clicked(AdwBanner *banner,
+                                gpointer   user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  GtkApplication *app = gtk_window_get_application(GTK_WINDOW(self));
+  gboolean progress = FALSE;
+  AdwDialog *dialog;
+
+  (void) banner;
+
+  for (GList *link = app != NULL ? gtk_application_get_windows(app) : NULL; link != NULL; link = link->next) {
+    if (WAYTATOR_IS_WINDOW(link->data) && waytator_window_has_progress(WAYTATOR_WINDOW(link->data)))
+      progress = TRUE;
+  }
+
+  if (!progress) {
+    waytator_window_restart(self);
+    return;
+  }
+
+  dialog = adw_alert_dialog_new("This won't save your progress", NULL);
+  adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog),
+                                 "cancel", "_Cancel",
+                                 "restart", "_Restart",
+                                 NULL);
+  adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "restart", ADW_RESPONSE_DESTRUCTIVE);
+  adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "cancel");
+  adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
+  g_signal_connect(dialog, "response", G_CALLBACK(waytator_window_restart_response), self);
+  adw_dialog_present(dialog, GTK_WIDGET(self));
+}
+
+static void
+waytator_window_update_out_of_date(WaytatorWindow *self)
+{
+  //a recording or capture under way would be cut off, so the restart waits for it
+  adw_banner_set_button_label(self->out_of_date_banner, waytator_instance_can_restart() ? "Restart" : NULL);
+  adw_banner_set_revealed(self->out_of_date_banner, waytator_instance_is_out_of_date());
+}
+
+void
+waytator_window_update_out_of_date_all(GtkApplication *app)
+{
+  for (GList *link = gtk_application_get_windows(app); link != NULL; link = link->next) {
+    if (WAYTATOR_IS_WINDOW(link->data) && !WAYTATOR_WINDOW(link->data)->disposed)
+      waytator_window_update_out_of_date(WAYTATOR_WINDOW(link->data));
+  }
+}
+
 //what the Open, screenshot and record buttons do, for when the bar is too short for them. the capture overlay
 //has the rest, so there is no picking of a screen, a window or a delay here
 static void
@@ -5598,6 +5693,23 @@ waytator_window_setup_toast_overlay(WaytatorWindow *self)
   g_object_unref(content);
 }
 
+//above the content rather than over it, so it never covers the bars
+static void
+waytator_window_setup_out_of_date_banner(WaytatorWindow *self)
+{
+  GtkWidget *content = g_object_ref(adw_toast_overlay_get_child(self->toast_overlay));
+  GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+
+  self->out_of_date_banner = ADW_BANNER(adw_banner_new("This version of Waytator is out of date"));
+  g_signal_connect(self->out_of_date_banner, "button-clicked", G_CALLBACK(waytator_window_restart_clicked), self);
+  adw_toast_overlay_set_child(self->toast_overlay, NULL);
+  gtk_box_append(GTK_BOX(box), GTK_WIDGET(self->out_of_date_banner));
+  gtk_box_append(GTK_BOX(box), content);
+  adw_toast_overlay_set_child(self->toast_overlay, box);
+  g_object_unref(content);
+  waytator_window_update_out_of_date(self);
+}
+
 static void
 waytator_window_init(WaytatorWindow *self)
 {
@@ -5606,6 +5718,7 @@ waytator_window_init(WaytatorWindow *self)
 
   gtk_widget_init_template(GTK_WIDGET(self));
   waytator_window_setup_toast_overlay(self);
+  waytator_window_setup_out_of_date_banner(self);
   waytator_window_setup_window_background(self);
   waytator_window_ensure_css_loaded();
 
