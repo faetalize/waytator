@@ -24,6 +24,7 @@
   wl-clipboard,
   gifski,
   tesseract,
+  dbus,
   withOcr ? true,
 }:
 
@@ -61,6 +62,15 @@ stdenv.mkDerivation {
   ];
 
   mesonBuildType = "release";
+
+  # the tests run with every build, so a failing test fails the build and CI with it. the portal
+  # test starts a bus of its own with dbus-daemon, and the build sandbox has no home to write to.
+  # tests that need a gpu, a display or pipewire skip themselves
+  doCheck = true;
+  nativeCheckInputs = [ dbus ];
+  preCheck = ''
+    export HOME=$(mktemp -d)
+  '';
 
   # the app runs wl-copy for the clipboard, gifski for GIFs and tesseract for OCR
   preFixup = ''
