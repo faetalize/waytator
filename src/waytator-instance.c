@@ -197,16 +197,18 @@ waytator_instance_newer_launched(GSimpleAction *action,
 {
   const char *version;
   const char *binary;
+  int compared;
 
   (void) action;
   (void) user_data;
 
   g_variant_get(parameter, "(&s&s)", &version, &binary);
+  compared = waytator_instance_compare_versions(WAYTATOR_VERSION, version);
   //the same version only says so once the binary here was replaced, which then is the one to restart into
-  if (waytator_instance_compare_versions(WAYTATOR_VERSION, version) >= 0 && !instance.replaced)
+  if (compared > 0 || (compared == 0 && !instance.replaced))
     return;
 
-  if (*binary != '\0' && waytator_instance_compare_versions(WAYTATOR_VERSION, version) < 0) {
+  if (*binary != '\0' && compared < 0) {
     g_free(instance.newer_binary);
     instance.newer_binary = g_strdup(binary);
   }
@@ -331,6 +333,7 @@ waytator_instance_should_replace(GApplication *app,
   gboolean replaced = FALSE;
   gboolean busy = FALSE;
   gboolean service = FALSE;
+  int compared;
   g_autofree char *binary = NULL;
 
   *adopt_service = FALSE;
@@ -345,7 +348,10 @@ waytator_instance_should_replace(GApplication *app,
   g_variant_lookup(state, "busy", "b", &busy);
   g_variant_lookup(state, "service", "b", &service);
 
-  if (!replaced && waytator_instance_compare_versions(version, WAYTATOR_VERSION) >= 0)
+  //a replaced binary only matters to the same version, like a rebuild from source. an older release launched
+  //from another install never wins
+  compared = waytator_instance_compare_versions(version, WAYTATOR_VERSION);
+  if (compared > 0 || (compared == 0 && !replaced))
     return FALSE;
 
   //sent ahead of the command on the same connection, so it is in by the time a window opens for it
