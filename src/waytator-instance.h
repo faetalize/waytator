@@ -5,8 +5,8 @@
 G_BEGIN_DECLS
 
 //how a running waytator makes way for a newer one launched next to it. the running one tells every launch its
-//version, whether its binary was replaced on disk, and whether it is busy: a window open or work in progress.
-//a newer launch takes over from one that is not busy, and tells a busy one it is out of date instead
+//version and commit time, whether its binary was replaced on disk, and whether it is busy: a window open or work
+//in progress. a newer launch takes over from one that is not busy, and tells a busy one it is out of date instead
 
 //where this process was started from, argv[0], kept for when it is out of date and a restart needs the binary
 //that replaced it. only stored here, nothing is looked up until after startup

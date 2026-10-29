@@ -26,6 +26,8 @@
   tesseract,
   dbus,
   withOcr ? true,
+  # when the commit was made, the source has no .git to read it from
+  commitTime ? 0,
 }:
 
 stdenv.mkDerivation {
@@ -62,6 +64,7 @@ stdenv.mkDerivation {
   ];
 
   mesonBuildType = "release";
+  mesonFlags = [ "-Dcommit_time=${toString commitTime}" ];
 
   # the tests run with every build, so a failing test fails the build and CI with it. the portal
   # test starts a bus of its own with dbus-daemon, and the build sandbox has no home to write to.

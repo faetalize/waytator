@@ -104,6 +104,23 @@ configure_file(
   configuration: waytator_conf,
 )
 
+#read again on every build, so a rebuild after a new commit knows it. only from a checkout of waytator itself,
+#a tarball unpacked inside some other repository would read that one's
+if import('fs').exists(meson.project_source_root() / '.git')
+  waytator_commit = vcs_tag(
+    input: 'waytator-commit.h.in',
+    output: 'waytator-commit.h',
+    command: ['git', 'log', '-1', '--format=%ct'],
+    fallback: get_option('commit_time'),
+  )
+else
+  waytator_commit = configure_file(
+    input: 'waytator-commit.h.in',
+    output: 'waytator-commit.h',
+    configuration: {'VCS_TAG': get_option('commit_time')},
+  )
+endif
+
 waytator_resources = gnome.compile_resources(
   'waytator-resources',
   'waytator.gresource.xml',
@@ -114,6 +131,7 @@ waytator_resources = gnome.compile_resources(
 executable(
   'waytator',
   waytator_sources,
+  waytator_commit,
   waytator_resources,
   waytator_video_edit_sources,
   wayland_protocol_sources,

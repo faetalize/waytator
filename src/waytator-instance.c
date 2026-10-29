@@ -5,13 +5,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "waytator-commit.h"
 #include "waytator-config.h"
 #include "waytator-window.h"
 
 //what a running instance tells launches about itself, read from the actions every launch already fetches
 //while it registers, so asking costs nothing
 #define WAYTATOR_INSTANCE_STATE_ACTION "instance"
-//what a newer launch tells a busy instance: its version and the binary to restart into
+//what a newer launch tells a busy instance: its version, commit time and the binary to restart into. a dictionary,
+//so later versions can tell more and older ones still understand them
 #define WAYTATOR_INSTANCE_NEWER_ACTION "newer-version"
 
 static struct {
@@ -60,6 +62,30 @@ waytator_instance_compare_versions(const char *a,
     b = *b_end == '.' ? b_end + 1 : b_end;
   }
 
+  return 0;
+}
+
+static gint64
+waytator_instance_commit_time(void)
+{
+  return g_ascii_strtoll(WAYTATOR_COMMIT_TIME, NULL, 10);
+}
+
+//by version, then by when the commit it was built from was made, so builds of master between releases, which
+//all carry the last release's version, come out in order. a release tarball has no commit time and is 0,
+//older than any build from master of the same version
+static int
+waytator_instance_compare(const char *version,
+                          gint64      commit_time,
+                          const char *other_version,
+                          gint64      other_commit_time)
+{
+  const int compared = waytator_instance_compare_versions(version, other_version);
+
+  if (compared != 0)
+    return compared;
+  if (commit_time != other_commit_time)
+    return commit_time < other_commit_time ? -1 : 1;
   return 0;
 }
 
@@ -157,6 +183,7 @@ waytator_instance_publish(void)
 
   g_variant_dict_init(&state, NULL);
   g_variant_dict_insert(&state, "version", "s", WAYTATOR_VERSION);
+  g_variant_dict_insert(&state, "commit-time", "x", waytator_instance_commit_time());
   g_variant_dict_insert(&state, "replaced", "b", instance.replaced);
   g_variant_dict_insert(&state, "busy", "b", waytator_instance_is_busy());
   g_variant_dict_insert(&state, "service", "b", instance.service || instance.adopted);
@@ -195,16 +222,20 @@ waytator_instance_newer_launched(GSimpleAction *action,
                                  GVariant      *parameter,
                                  gpointer       user_data)
 {
-  const char *version;
-  const char *binary;
+  const char *version = NULL;
+  gint64 commit_time = 0;
+  const char *binary = "";
   int compared;
 
   (void) action;
   (void) user_data;
 
-  g_variant_get(parameter, "(&s&s)", &version, &binary);
-  compared = waytator_instance_compare_versions(WAYTATOR_VERSION, version);
-  //the same version only says so once the binary here was replaced, which then is the one to restart into
+  if (!g_variant_lookup(parameter, "version", "&s", &version))
+    return;
+  g_variant_lookup(parameter, "commit-time", "x", &commit_time);
+  g_variant_lookup(parameter, "binary", "&s", &binary);
+  compared = waytator_instance_compare(WAYTATOR_VERSION, waytator_instance_commit_time(), version, commit_time);
+  //the same build only says so once the binary here was replaced, which then is the one to restart into
   if (compared > 0 || (compared == 0 && !instance.replaced))
     return;
 
@@ -300,7 +331,7 @@ void
 waytator_instance_setup(GApplication *app,
                         gboolean      service)
 {
-  g_autoptr(GSimpleAction) newer = g_simple_action_new(WAYTATOR_INSTANCE_NEWER_ACTION, G_VARIANT_TYPE("(ss)"));
+  g_autoptr(GSimpleAction) newer = g_simple_action_new(WAYTATOR_INSTANCE_NEWER_ACTION, G_VARIANT_TYPE_VARDICT);
 
   instance.app = app;
   instance.service = service;
@@ -330,11 +361,13 @@ waytator_instance_should_replace(GApplication *app,
 {
   g_autoptr(GVariant) state = g_action_group_get_action_state(G_ACTION_GROUP(app), WAYTATOR_INSTANCE_STATE_ACTION);
   const char *version = NULL;
+  gint64 commit_time = 0;
   gboolean replaced = FALSE;
   gboolean busy = FALSE;
   gboolean service = FALSE;
   int compared;
   g_autofree char *binary = NULL;
+  GVariantDict newer;
 
   *adopt_service = FALSE;
 
@@ -344,22 +377,25 @@ waytator_instance_should_replace(GApplication *app,
       || !g_variant_lookup(state, "version", "&s", &version))
     return FALSE;
 
+  g_variant_lookup(state, "commit-time", "x", &commit_time);
   g_variant_lookup(state, "replaced", "b", &replaced);
   g_variant_lookup(state, "busy", "b", &busy);
   g_variant_lookup(state, "service", "b", &service);
 
-  //a replaced binary only matters to the same version, like a rebuild from source. an older release launched
-  //from another install never wins
-  compared = waytator_instance_compare_versions(version, WAYTATOR_VERSION);
+  //a replaced binary only matters to the same build, like a rebuild with changes not committed yet. an older
+  //build launched from another install never wins
+  compared = waytator_instance_compare(version, commit_time, WAYTATOR_VERSION, waytator_instance_commit_time());
   if (compared > 0 || (compared == 0 && !replaced))
     return FALSE;
 
   //sent ahead of the command on the same connection, so it is in by the time a window opens for it
   if (busy) {
     binary = waytator_instance_resolve_launch_name();
-    g_action_group_activate_action(G_ACTION_GROUP(app),
-                                   WAYTATOR_INSTANCE_NEWER_ACTION,
-                                   g_variant_new("(ss)", WAYTATOR_VERSION, binary != NULL ? binary : ""));
+    g_variant_dict_init(&newer, NULL);
+    g_variant_dict_insert(&newer, "version", "s", WAYTATOR_VERSION);
+    g_variant_dict_insert(&newer, "commit-time", "x", waytator_instance_commit_time());
+    g_variant_dict_insert(&newer, "binary", "s", binary != NULL ? binary : "");
+    g_action_group_activate_action(G_ACTION_GROUP(app), WAYTATOR_INSTANCE_NEWER_ACTION, g_variant_dict_end(&newer));
     return FALSE;
   }
 
