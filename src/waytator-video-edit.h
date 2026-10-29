@@ -11,7 +11,8 @@ G_BEGIN_DECLS
 typedef struct {
   //stays with the segment through edits, a split gives the second piece a new one
   guint id;
-  //a frame's start and the start of the frame after the last one, so the segment always holds whole frames
+  //where the segment starts and ends in the source. edits put these on steps of the timeline's grid rather than
+  //where the source's own frames start, so a frame held for a long time can show on both sides of an edge
   gint64 source_start;
   gint64 source_end;
   //1 is normal speed, 2 twice as fast
@@ -155,7 +156,8 @@ WaytatorVideoEdit *waytator_video_edit_new(WaytatorVideoFrames *frames,
 //a reference that stays valid however the edit changes later
 WaytatorVideoState *waytator_video_edit_get_state(WaytatorVideoEdit *self);
 
-//a split lands on the start of the frame showing at the time. FALSE when that is already a segment edge
+//a split lands on the start of the timeline step showing at the time, wherever the source's own frames start.
+//FALSE when that is already a segment edge
 gboolean waytator_video_edit_split(WaytatorVideoEdit *self,
                                    gint64             time);
 //takes out everything from start up to end, and what comes after closes the gap
@@ -168,7 +170,7 @@ gboolean waytator_video_edit_move(WaytatorVideoEdit *self,
                                   guint              first,
                                   guint              n,
                                   guint              before);
-//moves an edge of a segment to the frame edge nearest the source time, leaving at least one frame. growing,
+//moves an edge of a segment to the timeline step nearest the source time, leaving at least one step. growing,
 //it only takes in footage nothing else shows, and stops where another segment's footage starts, leaving that
 //segment as it was
 gboolean waytator_video_edit_trim_start(WaytatorVideoEdit *self,
@@ -188,7 +190,7 @@ gboolean waytator_video_state_can_join(const WaytatorVideoState *state,
 //setting changes, which goes too once they are set alike
 gboolean waytator_video_edit_join(WaytatorVideoEdit *self,
                                   guint              index);
-//moves such an edge to the frame edge nearest the source time, leaving a frame either side
+//moves such an edge to the timeline step nearest the source time, leaving a step either side
 gboolean waytator_video_edit_move_edge(WaytatorVideoEdit *self,
                                        guint              index,
                                        gint64             source_time);

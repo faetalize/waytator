@@ -93,7 +93,7 @@ test_split(void)
   g_autoptr(WaytatorVideoEdit) edit = make_edit();
   g_autoptr(WaytatorVideoState) state = NULL;
 
-  //the cut lands on the start of the frame showing, frame 3
+  //the cut lands on the start of the step showing
   g_assert_true(waytator_video_edit_split(edit, MS(350)));
   state = waytator_video_edit_get_state(edit);
   g_assert_cmpuint(waytator_video_state_get_n_segments(state), ==, 2);
@@ -292,7 +292,7 @@ test_trim(void)
   g_autoptr(WaytatorVideoState) state = NULL;
 
   g_assert_true(waytator_video_edit_split(edit, MS(500)));
-  //trims land on the nearest frame edge
+  //trims land on the nearest step
   g_assert_true(waytator_video_edit_trim_end(edit, 0, MS(240)));
   g_assert_true(waytator_video_edit_trim_start(edit, 1, MS(860)));
   state = waytator_video_edit_get_state(edit);
@@ -526,6 +526,90 @@ test_uneven_frames(void)
     g_assert_cmpint(waytator_video_state_time_step(state, waytator_video_state_step_time(state, step)), ==, step);
 }
 
+//edits land on the playhead's step even inside a frame the screen held for a long time, and that frame shows on
+//both sides of the edge
+static void
+test_held_frame(void)
+{
+  g_autoptr(WaytatorVideoFrames) frames = waytator_video_frames_new(4);
+  g_autoptr(WaytatorVideoEdit) edit = NULL;
+  const WaytatorVideoSegment values = { .speed = 0.5 };
+  gint64 step_30;
+  gint64 step_40;
+
+  frames->pts[0] = 0;
+  frames->pts[1] = MS(17);
+  frames->pts[2] = MS(900);
+  frames->pts[3] = MS(917);
+  frames->keyframe[0] = TRUE;
+  frames->duration = MS(2000);
+  frames->rate_num = 60;
+  frames->rate_den = 1;
+  edit = waytator_video_edit_new(frames, 640, 480, FALSE);
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    step_30 = waytator_video_state_step_time(state, 30);
+    step_40 = waytator_video_state_step_time(state, 40);
+  }
+
+  //frame 1 shows from 17 ms to 900 ms, the cut still goes where the playhead is
+  g_assert_true(waytator_video_edit_split(edit, step_30));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end, ==, step_30);
+    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start, ==, step_30);
+  }
+  g_assert_cmpuint(frame_at(edit, step_30 - MS(17)), ==, 1);
+  g_assert_cmpuint(frame_at(edit, step_30), ==, 1);
+  g_assert_false(waytator_video_edit_split(edit, step_30));
+
+  //trimming moves a step at a time, not to where the frame starts or ends
+  g_assert_true(waytator_video_edit_trim_end(edit, 0, step_30 - MS(30)));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment(state, 0)->source_end,
+                    ==,
+                    waytator_video_state_step_time(state, 28));
+  }
+  g_assert_true(waytator_video_edit_undo(edit));
+  g_assert_true(waytator_video_edit_trim_start(edit, 1, step_30 + MS(170)));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment(state, 1)->source_start,
+                    ==,
+                    waytator_video_state_step_time(state, 40));
+  }
+  g_assert_true(waytator_video_edit_undo(edit));
+  g_assert_true(waytator_video_edit_undo(edit));
+
+  //taking out part of the hold takes out exactly those steps
+  g_assert_true(waytator_video_edit_remove(edit, step_30, step_40));
+  g_assert_cmpint(duration(edit), ==, MS(2000) - (step_40 - step_30));
+  g_assert_cmpuint(frame_at(edit, step_30), ==, 1);
+  g_assert_cmpuint(n_segments(edit), ==, 2);
+  g_assert_true(waytator_video_edit_undo(edit));
+
+  //at half speed a step plays half a step of the source, and the cut still lands on the playhead
+  g_assert_true(waytator_video_edit_set(edit, 0, MS(2000), &values, WAYTATOR_VIDEO_FIELD_SPEED));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    step_30 = waytator_video_state_step_time(state, 30);
+  }
+  g_assert_true(waytator_video_edit_split(edit, step_30));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(edit);
+
+    g_assert_cmpint(waytator_video_state_get_segment_start(state, 1), >=, step_30 - 50);
+    g_assert_cmpint(waytator_video_state_get_segment_start(state, 1), <=, step_30 + 50);
+    g_assert_cmpuint(waytator_video_state_segment_at(state, step_30 + 50), ==, 1);
+  }
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -548,6 +632,7 @@ main(int   argc,
   g_test_add_func("/video-edit/move-edge", test_move_edge);
   g_test_add_func("/video-edit/crop-rotation", test_crop_rotation);
   g_test_add_func("/video-edit/uneven-frames", test_uneven_frames);
+  g_test_add_func("/video-edit/held-frame", test_held_frame);
 
   return g_test_run();
 }

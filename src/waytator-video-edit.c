@@ -3,6 +3,9 @@
 #include <math.h>
 
 #define WAYTATOR_VIDEO_HISTORY_LIMIT 200
+//edits put their edges on the timeline's grid, and rounding a source time back and forth at a speed leaves an
+//edge a few microseconds either side of its step. far less than any step, so an edge this close counts as on it
+#define WAYTATOR_VIDEO_EDGE_SLACK 50
 
 struct _WaytatorVideoState {
   WaytatorVideoFrames *frames;
@@ -375,7 +378,8 @@ waytator_video_state_frame_at(const WaytatorVideoState *state,
 
   //the very end shows the last frame, the way a player stopped at the end does
   time = CLAMP(time, 0, duration - 1);
-  index = waytator_video_state_segment_at(state, time);
+  //a segment starting a hair after the step still starts on it
+  index = waytator_video_state_segment_at(state, MIN(time + WAYTATOR_VIDEO_EDGE_SLACK, duration - 1));
   source_time = waytator_video_state_source_in_segment(state, index, time);
   if (segment_index != NULL)
     *segment_index = index;
@@ -598,7 +602,96 @@ waytator_video_edit_commit(WaytatorVideoEdit  *self,
   return TRUE;
 }
 
-//makes sure a segment starts with the frame showing at the time and gives its index, the number of
+//every edit puts its edges on the timeline's grid, the steps the playhead takes, and never on where the source's
+//own frames start. a recording only has a new frame when its screen changes, so one frame can show for many
+//steps, and an edge put on where it starts would land well before the playhead. the frame showing on either
+//side of the edge just carries on. these work on a laid out state
+
+//where a step starts, counting back before zero too, for an edge pulled out past the start of the timeline
+static gint64
+waytator_video_state_grid_time(const WaytatorVideoState *state,
+                               gint64                    step)
+{
+  return step < 0 ? -waytator_video_frames_grid_time(state->frames, -step)
+                  : waytator_video_frames_grid_time(state->frames, step);
+}
+
+//the step starting nearest a timeline time
+static gint64
+waytator_video_state_nearest_step(const WaytatorVideoState *state,
+                                  gint64                    time)
+{
+  const gint64 scale = (gint64) state->frames->rate_den * WAYTATOR_VIDEO_SECOND;
+  const gint64 step = (ABS(time) * state->frames->rate_num + scale / 2) / scale;
+
+  return time < 0 ? -step : step;
+}
+
+//the first and last steps a segment shows
+static gint64
+waytator_video_state_first_step(const WaytatorVideoState *state,
+                                guint                     index)
+{
+  const gint64 start = state->starts[index] - WAYTATOR_VIDEO_EDGE_SLACK;
+  gint64 step;
+
+  if (start <= 0)
+    return 0;
+
+  step = waytator_video_frames_grid_step(state->frames, start);
+  return waytator_video_frames_grid_time(state->frames, step) < start ? step + 1 : step;
+}
+
+static gint64
+waytator_video_state_last_step(const WaytatorVideoState *state,
+                               guint                     index)
+{
+  return waytator_video_frames_grid_step(state->frames,
+                                         MAX(state->starts[index + 1] - WAYTATOR_VIDEO_EDGE_SLACK - 1, 0));
+}
+
+//the source time a segment would play at a timeline time, and the other way, carried on past its ends
+static gint64
+waytator_video_state_source_of(const WaytatorVideoState *state,
+                               guint                     index,
+                               gint64                    time)
+{
+  const WaytatorVideoSegment *segment = &g_array_index(state->segments, WaytatorVideoSegment, index);
+
+  return segment->source_start + llround((double) (time - state->starts[index]) * segment->speed);
+}
+
+static gint64
+waytator_video_state_time_of(const WaytatorVideoState *state,
+                             guint                     index,
+                             gint64                    source_time)
+{
+  const WaytatorVideoSegment *segment = &g_array_index(state->segments, WaytatorVideoSegment, index);
+
+  return state->starts[index] + llround((double) (source_time - segment->source_start) / segment->speed);
+}
+
+//the source time a segment plays at the start of a step
+static gint64
+waytator_video_state_step_source(const WaytatorVideoState *state,
+                                 guint                     index,
+                                 gint64                    step)
+{
+  return waytator_video_state_source_of(state, index, waytator_video_state_grid_time(state, step));
+}
+
+//where an edge dragged to a source time in a segment lands, on the step nearest it
+static gint64
+waytator_video_state_snap_edge(const WaytatorVideoState *state,
+                               guint                     index,
+                               gint64                    source_time)
+{
+  const gint64 time = waytator_video_state_time_of(state, index, source_time);
+
+  return waytator_video_state_step_source(state, index, waytator_video_state_nearest_step(state, time));
+}
+
+//makes sure a segment starts at the step showing at the time and gives its index, the number of
 //segments for the very end. a new piece reads as the same segment when continues says the cut only
 //marks where a setting starts
 static guint
@@ -608,21 +701,23 @@ waytator_video_state_edge_at(WaytatorVideoState *state,
                              guint              *next_id,
                              gboolean           *changed)
 {
+  const gint64 duration = waytator_video_state_get_duration(state);
   WaytatorVideoSegment *segment;
   WaytatorVideoSegment piece;
   guint index;
-  guint frame;
   gint64 cut;
 
+  if (time >= duration)
+    return state->segments->len;
+  time = waytator_video_state_snap_time(state, time);
   if (time <= 0)
     return 0;
-  if (time >= waytator_video_state_get_duration(state))
+  if (time + WAYTATOR_VIDEO_EDGE_SLACK >= duration)
     return state->segments->len;
 
-  waytator_video_state_frame_at(state, time, &index, &frame);
+  index = waytator_video_state_segment_at(state, time + WAYTATOR_VIDEO_EDGE_SLACK);
   segment = waytator_video_state_segment(state, index);
-  cut = state->frames->pts[frame];
-  if (cut <= segment->source_start) {
+  if (time - state->starts[index] <= WAYTATOR_VIDEO_EDGE_SLACK) {
     //a real cut where a setting already split it turns that edge into a cut
     if (!continues && segment->continues) {
       segment->continues = FALSE;
@@ -632,6 +727,7 @@ waytator_video_state_edge_at(WaytatorVideoState *state,
     return index;
   }
 
+  cut = waytator_video_state_source_of(state, index, time);
   piece = *segment;
   piece.id = (*next_id)++;
   piece.source_start = cut;
@@ -661,7 +757,7 @@ waytator_video_edit_split(WaytatorVideoEdit *self,
   return waytator_video_edit_commit(self, state);
 }
 
-//the segments from start up to end, once both ends are cut. the frame showing at end is left out
+//the segments from start up to end, once both ends are cut. the step showing at end is left out
 static gboolean
 waytator_video_state_cut_range(WaytatorVideoState *state,
                                gint64              start,
@@ -742,18 +838,6 @@ waytator_video_edit_move(WaytatorVideoEdit *self,
   return waytator_video_edit_commit(self, state);
 }
 
-//the frame edge nearest a source time
-static gint64
-waytator_video_state_nearest_edge(const WaytatorVideoState *state,
-                                  gint64                    source_time)
-{
-  const guint frame = waytator_video_frames_find(state->frames, source_time);
-  const gint64 start = state->frames->pts[frame];
-  const gint64 end = waytator_video_frames_end(state->frames, frame);
-
-  return source_time - start <= end - source_time ? start : end;
-}
-
 //where the footage the other segments show ends nearest before a source time, or starts nearest after it. an
 //edge growing over footage stops there rather than show it twice
 static gint64
@@ -797,19 +881,21 @@ waytator_video_edit_trim_start(WaytatorVideoEdit *self,
 {
   WaytatorVideoState *state;
   WaytatorVideoSegment *segment;
-  guint last_frame;
+  gint64 last;
   gint64 start;
 
   if (index >= self->state->segments->len)
     return FALSE;
 
+  //the steps are worked out on the state as it is, which is laid out
   state = waytator_video_state_copy(self->state);
   segment = waytator_video_state_segment(state, index);
-  last_frame = waytator_video_frames_find(state->frames, segment->source_end - 1);
-  start = waytator_video_state_nearest_edge(state, MAX(source_time, 0));
+  //a step is always left
+  last = waytator_video_state_step_source(self->state, index, waytator_video_state_last_step(self->state, index));
+  start = MAX(waytator_video_state_snap_edge(self->state, index, MAX(source_time, 0)), 0);
   if (start < segment->source_start)
     start = MAX(start, waytator_video_state_used_before(state, index, segment->source_start));
-  segment->source_start = MIN(start, state->frames->pts[last_frame]);
+  segment->source_start = MIN(start, MAX(last, segment->source_start));
   segment->continues = FALSE;
 
   return waytator_video_edit_commit(self, state);
@@ -822,7 +908,7 @@ waytator_video_edit_trim_end(WaytatorVideoEdit *self,
 {
   WaytatorVideoState *state;
   WaytatorVideoSegment *segment;
-  guint first_frame;
+  gint64 first;
   gint64 end;
 
   if (index >= self->state->segments->len)
@@ -830,11 +916,13 @@ waytator_video_edit_trim_end(WaytatorVideoEdit *self,
 
   state = waytator_video_state_copy(self->state);
   segment = waytator_video_state_segment(state, index);
-  first_frame = waytator_video_frames_find(state->frames, segment->source_start);
-  end = waytator_video_state_nearest_edge(state, MIN(source_time, state->frames->duration));
+  //a step is always left
+  first = waytator_video_state_step_source(self->state, index, waytator_video_state_first_step(self->state, index) + 1);
+  end = MIN(waytator_video_state_snap_edge(self->state, index, MIN(source_time, state->frames->duration)),
+            state->frames->duration);
   if (end > segment->source_end)
     end = MIN(end, waytator_video_state_used_after(state, index, segment->source_end));
-  segment->source_end = MAX(end, waytator_video_frames_end(state->frames, first_frame));
+  segment->source_end = MAX(end, MIN(first, segment->source_end));
   if (index + 1 < state->segments->len)
     waytator_video_state_segment(state, index + 1)->continues = FALSE;
 
@@ -889,21 +977,26 @@ waytator_video_edit_move_edge(WaytatorVideoEdit *self,
   WaytatorVideoState *state;
   WaytatorVideoSegment *before;
   WaytatorVideoSegment *after;
-  guint lowest;
-  guint highest;
+  gint64 lowest;
+  gint64 highest;
   gint64 edge;
 
   if (!waytator_video_state_edge_continues(self->state, index))
     return FALSE;
 
+  //a step stays on either side
+  lowest = waytator_video_state_step_source(self->state, index - 1,
+                                            waytator_video_state_first_step(self->state, index - 1) + 1);
+  highest = waytator_video_state_step_source(self->state, index, waytator_video_state_last_step(self->state, index));
+  if (lowest > highest)
+    return FALSE;
+
   state = waytator_video_state_copy(self->state);
   before = waytator_video_state_segment(state, index - 1);
   after = waytator_video_state_segment(state, index);
-  //a frame stays on either side
-  lowest = waytator_video_frames_find(state->frames, before->source_start) + 1;
-  highest = waytator_video_frames_find(state->frames, after->source_end - 1);
-  edge = waytator_video_state_nearest_edge(state, source_time);
-  edge = CLAMP(edge, state->frames->pts[lowest], state->frames->pts[highest]);
+  //the footage carries straight on across the edge, so the time is measured in whichever side it falls in
+  edge = waytator_video_state_snap_edge(self->state, source_time < after->source_start ? index - 1 : index, source_time);
+  edge = CLAMP(edge, lowest, highest);
   before->source_end = edge;
   after->source_start = edge;
 
