@@ -168,8 +168,11 @@ app_open(GApplication  *app,
   "                                          turned off in Preferences\n" \
   "  --screen NAME                           With --screenshot or --record: use this\n" \
   "                                          screen, e.g. DP-1. Doesn't support GNOME\n" \
-  "  --notify                                With --screenshot or --record: save, copy\n" \
-  "                                          and notify instead of opening the editor\n" \
+  "  --notify                                Use with --screenshot or --record. Shows\n" \
+  "                                          a notification after the capture that\n" \
+  "                                          lets you edit it, instead of opening the\n" \
+  "                                          editor. Saves and copies as set in\n" \
+  "                                          Preferences\n" \
   "  --gapplication-service                  Run as a background application service\n" \
   "  --delay SECONDS                         With --screenshot: wait this many whole\n" \
   "                                          seconds first, at most 300. With --record:\n" \
