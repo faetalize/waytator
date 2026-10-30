@@ -418,7 +418,7 @@ waytator_window_video_start(WaytatorWindow *self,
   }
 
   waytator_window_begin_save_feedback(self);
-  waytator_video_editor_export_async(editor, profile, save->file, waytator_window_video_saved, save);
+  waytator_video_editor_export_async(editor, profile, save->file, save->replaces, waytator_window_video_saved, save);
 }
 
 //the name a file gets with the extension a profile makes, keeping the rest of its name

@@ -1521,6 +1521,7 @@ void
 waytator_video_editor_export_async(WaytatorVideoEditor        *self,
                                    const WaytatorVideoProfile *profile,
                                    GFile                      *file,
+                                   GFile                      *replaces,
                                    GAsyncReadyCallback         callback,
                                    gpointer                    user_data)
 {
@@ -1548,6 +1549,7 @@ waytator_video_editor_export_async(WaytatorVideoEditor        *self,
                               state,
                               profile,
                               file,
+                              replaces,
                               self->export_cancellable,
                               waytator_video_editor_export_progress,
                               self,

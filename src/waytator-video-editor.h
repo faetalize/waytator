@@ -49,10 +49,11 @@ const char *waytator_video_editor_get_display_name(WaytatorVideoEditor *self);
 gboolean waytator_video_editor_has_unsaved_changes(WaytatorVideoEditor *self);
 
 //saves the edit through a profile, showing how far it got with a way to cancel. once it is saved the edit
-//counts as saved
+//counts as saved. replaces is the file it takes the place of under another name, whose permissions it keeps
 void waytator_video_editor_export_async(WaytatorVideoEditor        *self,
                                         const WaytatorVideoProfile *profile,
                                         GFile                      *file,
+                                        GFile                      *replaces,
                                         GAsyncReadyCallback         callback,
                                         gpointer                    user_data);
 gboolean waytator_video_editor_export_finish(WaytatorVideoEditor *self,

@@ -1,6 +1,10 @@
+//O_CLOEXEC, fchmod and fsync, which strict c11 leaves out
+#define _DEFAULT_SOURCE
+
 #include "waytator-video-export.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <glib/gstdio.h>
 #include <libavcodec/avcodec.h>
 #include <libavfilter/avfilter.h>
@@ -11,6 +15,7 @@
 #include <libavutil/opt.h>
 #include <libswresample/swresample.h>
 #include <math.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "waytator-video-audio.h"
@@ -1255,11 +1260,43 @@ waytator_export_run(WaytatorExporter *exporter,
       && waytator_export_finish_muxer(exporter, error);
 }
 
+//the finished export takes the permissions of the file it replaces, and is on disk before it does, or a
+//crash could leave the original's name with an empty file
+static gboolean
+waytator_export_settle(const char *partial,
+                       const char *replaces,
+                       GError    **error)
+{
+  GStatBuf info;
+  int saved = 0;
+  int fd;
+
+  fd = g_open(partial, O_RDONLY | O_CLOEXEC, 0);
+  if (fd < 0) {
+    saved = errno;
+  } else {
+    //only who may read, write and run it. a file system with no permissions to keep leaves the export as it is
+    if (g_stat(replaces, &info) == 0)
+      (void) fchmod(fd, info.st_mode & 0777);
+    if (fsync(fd) != 0 && errno != EINVAL)
+      saved = errno;
+    close(fd);
+  }
+  if (saved != 0) {
+    g_set_error(error, G_IO_ERROR, g_io_error_from_errno(saved), "Could not write the export: %s",
+                g_strerror(saved));
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
 gboolean
 waytator_video_export(WaytatorVideoSource        *source,
                       WaytatorVideoState         *state,
                       const WaytatorVideoProfile *profile,
                       const char                 *path,
+                      const char                 *replaces,
                       GCancellable               *cancellable,
                       WaytatorVideoExportProgress progress,
                       gpointer                    progress_data,
@@ -1285,8 +1322,9 @@ waytator_video_export(WaytatorVideoSource        *source,
   int note_fd;
   int fd;
 
-  //written next to where it goes and renamed there at the end, so a half made file never shows up
-  fd = g_mkstemp(partial);
+  //written next to where it goes and renamed there at the end, so a half made file never shows up. open
+  //to others like any file of ours, the default of g_mkstemp would keep it to us alone
+  fd = g_mkstemp_full(partial, O_RDWR | O_CLOEXEC, 0666);
   if (fd < 0) {
     g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Could not write to %s: %s",
                 folder, g_strerror(errno));
@@ -1298,6 +1336,8 @@ waytator_video_export(WaytatorVideoSource        *source,
   note_fd = waytator_video_cache_note(partial, &note);
   ok = waytator_export_run(&exporter, partial, error);
   waytator_export_clear(&exporter);
+  if (ok)
+    ok = waytator_export_settle(partial, replaces != NULL ? replaces : path, error);
   if (ok && g_rename(partial, path) != 0) {
     g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Could not export %s: %s", path, g_strerror(errno));
     ok = FALSE;
@@ -1319,6 +1359,7 @@ typedef struct {
   WaytatorVideoState *state;
   WaytatorVideoProfile *profile;
   char *path;
+  char *replaces;
   WaytatorVideoExportProgress progress;
   gpointer progress_data;
   GMainContext *context;
@@ -1333,6 +1374,7 @@ waytator_export_task_free(gpointer data)
   waytator_video_state_unref(task->state);
   waytator_video_profile_free(task->profile);
   g_free(task->path);
+  g_free(task->replaces);
   g_main_context_unref(task->context);
   g_free(task);
 }
@@ -1380,6 +1422,7 @@ waytator_export_thread(GTask        *task,
                             export->state,
                             export->profile,
                             export->path,
+                            export->replaces,
                             cancellable,
                             export->progress != NULL ? waytator_export_thread_progress : NULL,
                             export,
@@ -1394,6 +1437,7 @@ waytator_video_export_async(WaytatorVideoSource        *source,
                             WaytatorVideoState         *state,
                             const WaytatorVideoProfile *profile,
                             GFile                      *file,
+                            GFile                      *replaces,
                             GCancellable               *cancellable,
                             WaytatorVideoExportProgress progress,
                             gpointer                    progress_data,
@@ -1407,6 +1451,7 @@ waytator_video_export_async(WaytatorVideoSource        *source,
   export->state = waytator_video_state_ref(state);
   export->profile = waytator_video_profile_copy(profile);
   export->path = g_file_get_path(file);
+  export->replaces = replaces != NULL ? g_file_get_path(replaces) : NULL;
   export->progress = progress;
   export->progress_data = progress_data;
   export->context = g_main_context_ref_thread_default();
