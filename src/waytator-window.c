@@ -2864,7 +2864,7 @@ waytator_window_make_copy_name(const char *filename)
                          dot);
 }
 
-static gboolean
+gboolean
 waytator_window_error_is_user_dismissed(const GError *error)
 {
   if (error == NULL)
