@@ -6,6 +6,7 @@
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 #include <math.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "waytator-video-edit.h"
@@ -323,7 +324,7 @@ check_transform(const char  *input,
 
   fd = g_mkstemp(output);
   close(fd);
-  g_assert_true(waytator_video_export(source, state, profile, output, NULL, NULL, NULL, &error));
+  g_assert_true(waytator_video_export(source, state, profile, output, NULL, NULL, NULL, NULL, &error));
   g_assert_no_error(error);
 
   result = read_first_frame(output);
@@ -380,7 +381,7 @@ test_crop_and_speed(void)
   state = waytator_video_edit_get_state(edit);
   fd = g_mkstemp(output);
   close(fd);
-  g_assert_true(waytator_video_export(source, state, profile, output, NULL, NULL, NULL, &error));
+  g_assert_true(waytator_video_export(source, state, profile, output, NULL, NULL, NULL, NULL, &error));
   g_assert_no_error(error);
 
   //the top right quarter only, at half the length
@@ -445,7 +446,7 @@ export_to(WaytatorVideoSource        *source,
   *output = g_build_filename(g_get_tmp_dir(), template, NULL);
   fd = g_mkstemp(*output);
   close(fd);
-  if (!waytator_video_export(source, state, profile, *output, NULL, NULL, NULL, &error)) {
+  if (!waytator_video_export(source, state, profile, *output, NULL, NULL, NULL, NULL, &error)) {
     g_test_message("export failed: %s", error->message);
     return FALSE;
   }
@@ -560,6 +561,67 @@ test_gif(void)
   g_unlink(input);
 }
 
+//the mode an export lands with, written to path in place of replaces
+static int
+export_mode(WaytatorVideoSource        *source,
+            WaytatorVideoState         *state,
+            const WaytatorVideoProfile *profile,
+            const char                 *path,
+            const char                 *replaces)
+{
+  g_autoptr(GError) error = NULL;
+  GStatBuf info;
+
+  g_assert_true(waytator_video_export(source, state, profile, path, replaces, NULL, NULL, NULL, &error));
+  g_assert_no_error(error);
+  g_assert_cmpint(g_stat(path, &info), ==, 0);
+  return info.st_mode & 0777;
+}
+
+static void
+test_permissions(void)
+{
+  g_autofree char *input = make_video(0);
+  g_autoptr(GError) error = NULL;
+  g_autoptr(WaytatorVideoSource) source = waytator_video_source_open(input, NULL, &error);
+  g_autoptr(WaytatorVideoEdit) edit = NULL;
+  g_autoptr(WaytatorVideoState) state = NULL;
+  g_autoptr(WaytatorVideoProfile) profile = test_profile();
+  g_autofree char *folder = g_dir_make_tmp("waytator-test-export-XXXXXX", &error);
+  g_autofree char *copy = NULL;
+  g_autofree char *original = NULL;
+  g_autofree char *renamed = NULL;
+  mode_t mask;
+
+  g_assert_no_error(error);
+  edit = waytator_video_edit_new(waytator_video_source_get_frames(source), WIDTH, HEIGHT, FALSE);
+  state = waytator_video_edit_get_state(edit);
+  profile->encoder = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
+  copy = g_build_filename(folder, "copy.mp4", NULL);
+  original = g_build_filename(folder, "original.mp4", NULL);
+  renamed = g_build_filename(folder, "original.webm", NULL);
+  mask = umask(022);
+
+  //a new file is open to others like a recording, not kept to us alone
+  g_assert_cmpint(export_mode(source, state, profile, copy, NULL), ==, 0644);
+
+  //one written over keeps the mode the old one had
+  g_assert_true(g_file_set_contents(original, "", 0, NULL));
+  g_assert_cmpint(g_chmod(original, 0640), ==, 0);
+  g_assert_cmpint(export_mode(source, state, profile, original, NULL), ==, 0640);
+
+  //and so does one taking the place of another under a new name
+  g_assert_cmpint(g_chmod(original, 0604), ==, 0);
+  g_assert_cmpint(export_mode(source, state, profile, renamed, original), ==, 0604);
+
+  umask(mask);
+  g_unlink(copy);
+  g_unlink(original);
+  g_unlink(renamed);
+  g_rmdir(folder);
+  g_unlink(input);
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -575,6 +637,7 @@ main(int   argc,
   g_test_add_data_func("/video-export/sound/opus", GINT_TO_POINTER(WAYTATOR_VIDEO_SOUND_OPUS), test_sound);
   g_test_add_func("/video-export/size-limit", test_size_limit);
   g_test_add_func("/video-export/gif", test_gif);
+  g_test_add_func("/video-export/permissions", test_permissions);
 
   return g_test_run();
 }
