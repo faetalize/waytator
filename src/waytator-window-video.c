@@ -7,6 +7,7 @@
 
 #include "waytator-clipboard.h"
 #include "waytator-video-cache.h"
+#include "waytator-video-copy.h"
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
 
@@ -441,9 +442,9 @@ waytator_window_video_copy_again(WaytatorWindow *self,
   waytator_clipboard_copy_file_async(save->file, waytator_window_video_copied, save);
 }
 
-//exports through a profile to file, or to a new one in the cache for Copy, or for Copy uses the one it already
-//made of the same edits. replaces is the opened video when the export takes its place under another name,
-//deleted once it is done
+//exports through a profile to file, or with no file for Copy, to a new one in the cache or the one it already made
+//of the same edits. copy puts the result on the clipboard, and close closes the window once all that is done.
+//replaces is the opened video when the export takes its place under another name, deleted once it is done
 static void
 waytator_window_video_start(WaytatorWindow *self,
                             const char     *profile_id,
@@ -461,7 +462,7 @@ waytator_window_video_start(WaytatorWindow *self,
   if (waytator_video_editor_get_edit(editor) == NULL || waytator_video_editor_is_exporting(editor))
     return;
 
-  if (copy) {
+  if (file == NULL) {
     g_autoptr(GFile) made = waytator_video_editor_reuse_copy(editor, profile);
 
     if (made != NULL) {
@@ -484,7 +485,7 @@ waytator_window_video_start(WaytatorWindow *self,
   }
 
   waytator_window_begin_save_feedback(self);
-  if (copy)
+  if (file == NULL)
     waytator_video_editor_export_copy_async(editor, profile, save->file, waytator_window_video_saved, save);
   else
     waytator_video_editor_export_async(editor, profile, save->file, save->replaces, waytator_window_video_saved, save);
@@ -512,6 +513,8 @@ typedef struct {
   WaytatorWindow *window;
   //replacing the opened video rather than exporting a copy wherever the file dialog says
   gboolean replace;
+  //the export goes on the clipboard once it is made
+  gboolean copy;
   gboolean close;
   //the profile picked from the list, NULL until one is
   char *profile_id;
@@ -547,7 +550,7 @@ waytator_window_video_file_picked(GObject      *source_object,
     return;
   }
 
-  waytator_window_video_start(self, choice->profile_id, file, FALSE, choice->close, NULL);
+  waytator_window_video_start(self, choice->profile_id, file, choice->copy, choice->close, NULL);
   waytator_window_video_choice_free(choice);
 }
 
@@ -605,7 +608,7 @@ waytator_window_video_export_picked(WaytatorWindowVideoChoice *choice)
   waytator_window_video_start(self,
                               choice->profile_id,
                               target,
-                              FALSE,
+                              choice->copy,
                               choice->close,
                               g_file_equal(target, original) ? NULL : original);
   waytator_window_video_choice_free(choice);
@@ -685,16 +688,13 @@ waytator_window_video_replace_response(AdwAlertDialog *dialog,
   waytator_window_video_ask_profile(choice);
 }
 
-//exports through a profile to file, or for Copy to a new one in the cache, copy putting it on the clipboard
-//and close closing the window once all that is done. given no file and no profile it asks: a copy or the
-//original replaced, when there is an original, then which profile, then for a copy where it goes
+//does what request plans. when it asks: a copy or the original replaced, when there is an original, then which
+//profile, then for a copy where it goes
 void
-waytator_window_video_save(WaytatorWindow *self,
-                           const char     *profile_id,
-                           GFile          *file,
-                           gboolean        copy,
-                           gboolean        close)
+waytator_window_video_save(WaytatorWindow          *self,
+                           WaytatorVideoSaveRequest request)
 {
+  const WaytatorVideoSavePlan plan = waytator_video_save_plan(request);
   WaytatorVideoEditor *editor = WAYTATOR_VIDEO_EDITOR(self->video_editor);
   g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
   WaytatorWindowVideoChoice *choice;
@@ -704,16 +704,17 @@ waytator_window_video_save(WaytatorWindow *self,
     return;
 
   //Copy goes straight through its own profile, it needs a file of its own
-  if (copy || file != NULL || profile_id != NULL) {
+  if (!plan.ask) {
     waytator_window_video_start(self,
-                                profile_id != NULL ? profile_id : waytator_window_video_default_profile(self, profiles),
-                                file, copy, close, NULL);
+                                waytator_window_video_default_profile(self, profiles),
+                                NULL, plan.copy, plan.close, NULL);
     return;
   }
 
   choice = g_new0(WaytatorWindowVideoChoice, 1);
   choice->window = g_object_ref(self);
-  choice->close = close;
+  choice->copy = plan.copy;
+  choice->close = plan.close;
 
   //a piped video has no original to replace
   if (waytator_video_editor_get_file(editor) == NULL) {

@@ -172,6 +172,30 @@ test_file_gone(Fixture       *fixture,
   g_assert_false(matches_now(fixture, copy));
 }
 
+//saving has to reach somewhere lasting, so only Copy on its own may stay in the cache, which deletes what it holds
+static void
+test_save_plans(void)
+{
+  static const struct {
+    WaytatorVideoSaveRequest request;
+    WaytatorVideoSavePlan plan;
+  } plans[] = {
+    { WAYTATOR_VIDEO_SAVE, { .ask = TRUE, .copy = FALSE, .close = FALSE } },
+    { WAYTATOR_VIDEO_SAVE_AND_CLOSE, { .ask = TRUE, .copy = FALSE, .close = TRUE } },
+    { WAYTATOR_VIDEO_COPY, { .ask = FALSE, .copy = TRUE, .close = FALSE } },
+    { WAYTATOR_VIDEO_COPY_AND_CLOSE, { .ask = FALSE, .copy = TRUE, .close = TRUE } },
+    { WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE, { .ask = TRUE, .copy = TRUE, .close = TRUE } },
+  };
+
+  for (guint i = 0; i < G_N_ELEMENTS(plans); i++) {
+    const WaytatorVideoSavePlan plan = waytator_video_save_plan(plans[i].request);
+
+    g_assert_cmpint(plan.ask, ==, plans[i].plan.ask);
+    g_assert_cmpint(plan.copy, ==, plans[i].plan.copy);
+    g_assert_cmpint(plan.close, ==, plans[i].plan.close);
+  }
+}
+
 int
 main(int    argc,
      char **argv)
@@ -185,5 +209,6 @@ main(int    argc,
   ADD("/video-copy/profile", test_profile);
   ADD("/video-copy/file-gone", test_file_gone);
 #undef ADD
+  g_test_add_func("/video-copy/save-plans", test_save_plans);
   return g_test_run();
 }

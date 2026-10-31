@@ -23,4 +23,23 @@ gboolean waytator_video_copy_matches(const WaytatorVideoCopy    *copy,
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(WaytatorVideoCopy, waytator_video_copy_free)
 
+//what a button or shortcut wants done with a video
+typedef enum {
+  WAYTATOR_VIDEO_SAVE,
+  WAYTATOR_VIDEO_SAVE_AND_CLOSE,
+  WAYTATOR_VIDEO_COPY,
+  WAYTATOR_VIDEO_COPY_AND_CLOSE,
+  WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE,
+} WaytatorVideoSaveRequest;
+
+typedef struct {
+  //asks where it goes, otherwise it is a file of Copy's own in the cache, which doesn't last
+  gboolean ask;
+  //what is made goes on the clipboard
+  gboolean copy;
+  gboolean close;
+} WaytatorVideoSavePlan;
+
+WaytatorVideoSavePlan waytator_video_save_plan(WaytatorVideoSaveRequest request);
+
 G_END_DECLS

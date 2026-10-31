@@ -47,3 +47,21 @@ waytator_video_copy_matches(const WaytatorVideoCopy    *copy,
       && waytator_video_profile_equal(copy->profile, profile)
       && g_file_query_file_type(copy->file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) == G_FILE_TYPE_REGULAR;
 }
+
+WaytatorVideoSavePlan
+waytator_video_save_plan(WaytatorVideoSaveRequest request)
+{
+  switch (request) {
+  case WAYTATOR_VIDEO_SAVE_AND_CLOSE:
+    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = FALSE, .close = TRUE };
+  case WAYTATOR_VIDEO_COPY:
+    return (WaytatorVideoSavePlan) { .ask = FALSE, .copy = TRUE, .close = FALSE };
+  case WAYTATOR_VIDEO_COPY_AND_CLOSE:
+    return (WaytatorVideoSavePlan) { .ask = FALSE, .copy = TRUE, .close = TRUE };
+  case WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE:
+    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = TRUE, .close = TRUE };
+  case WAYTATOR_VIDEO_SAVE:
+  default:
+    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = FALSE, .close = FALSE };
+  }
+}
