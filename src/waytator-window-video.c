@@ -306,9 +306,6 @@ typedef struct {
   gboolean close;
   //the video that was opened, deleted once the export has taken its place under another name
   GFile *replaces;
-  //the export took the opened video's place, so it is opened afresh: the editor would otherwise read the
-  //export where it expects the original and make the same edits again
-  gboolean reopen;
 } WaytatorWindowVideoSave;
 
 static void
@@ -318,6 +315,32 @@ waytator_window_video_save_free(WaytatorWindowVideoSave *save)
   g_object_unref(save->file);
   g_clear_object(&save->replaces);
   g_free(save);
+}
+
+//whether the opened video's path now leads to the export, however its name was reached. this asks once the
+//export is in place because the rename only replaces the name picked: beforehand a symlink or a hard link
+//to the opened video looks the same as the video itself, and those leave it untouched
+static gboolean
+waytator_window_video_is_opened(WaytatorWindow *self,
+                                GFile          *file)
+{
+  GFile *original = waytator_video_editor_get_file(WAYTATOR_VIDEO_EDITOR(self->video_editor));
+  g_autoptr(GFileInfo) original_info = NULL;
+  g_autoptr(GFileInfo) file_info = NULL;
+  const char *id;
+
+  if (original == NULL)
+    return FALSE;
+  if (g_file_equal(file, original))
+    return TRUE;
+
+  original_info = g_file_query_info(original, G_FILE_ATTRIBUTE_ID_FILE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  file_info = g_file_query_info(file, G_FILE_ATTRIBUTE_ID_FILE, G_FILE_QUERY_INFO_NONE, NULL, NULL);
+  if (original_info == NULL || file_info == NULL)
+    return FALSE;
+
+  id = g_file_info_get_attribute_string(original_info, G_FILE_ATTRIBUTE_ID_FILE);
+  return id != NULL && g_strcmp0(id, g_file_info_get_attribute_string(file_info, G_FILE_ATTRIBUTE_ID_FILE)) == 0;
 }
 
 static void
@@ -381,7 +404,9 @@ waytator_window_video_saved(GObject      *source_object,
   }
 
   waytator_window_finish_save_feedback(self);
-  if (save->reopen && !save->close)
+  //the export took the opened video's place, so it is opened afresh: the editor would otherwise read the
+  //export where it expects the original and make the same edits again
+  if (!save->close && (save->replaces != NULL || waytator_window_video_is_opened(self, save->file)))
     waytator_window_open_video(self, save->file);
   if (save->copy) {
     waytator_clipboard_copy_file_async(save->file, waytator_window_video_copied, save);
@@ -401,16 +426,14 @@ waytator_window_video_default_profile(WaytatorWindow *self,
   return waytator_window_video_find_profile(profiles, self->settings.video_copy_profile)->id;
 }
 
-//exports through a profile to file, or to a new one in the videos folder for Copy. reopen opens the export
-//once it is made, and replaces is the opened video when the export takes its place under another name,
-//deleted once it is done
+//exports through a profile to file, or to a new one in the videos folder for Copy. replaces is the opened
+//video when the export takes its place under another name, deleted once it is done
 static void
 waytator_window_video_start(WaytatorWindow *self,
                             const char     *profile_id,
                             GFile          *file,
                             gboolean        copy,
                             gboolean        close,
-                            gboolean        reopen,
                             GFile          *replaces)
 {
   WaytatorVideoEditor *editor = WAYTATOR_VIDEO_EDITOR(self->video_editor);
@@ -428,7 +451,6 @@ waytator_window_video_start(WaytatorWindow *self,
   save->copy = copy;
   save->close = close;
   save->replaces = replaces != NULL ? g_object_ref(replaces) : NULL;
-  save->reopen = reopen;
   if (save->file == NULL) {
     waytator_window_show_error(self, error->message);
     g_object_unref(save->window);
@@ -484,7 +506,6 @@ waytator_window_video_file_picked(GObject      *source_object,
   WaytatorWindow *self = choice->window;
   g_autoptr(GError) error = NULL;
   g_autoptr(GFile) file = gtk_file_dialog_save_finish(GTK_FILE_DIALOG(source_object), result, &error);
-  GFile *original;
 
   if (self->disposed) {
     waytator_window_video_choice_free(choice);
@@ -498,15 +519,7 @@ waytator_window_video_file_picked(GObject      *source_object,
     return;
   }
 
-  //picking the opened video itself is replacing it, and the editor has to read it afresh
-  original = waytator_video_editor_get_file(WAYTATOR_VIDEO_EDITOR(self->video_editor));
-  waytator_window_video_start(self,
-                              choice->profile_id,
-                              file,
-                              FALSE,
-                              choice->close,
-                              original != NULL && g_file_equal(file, original),
-                              NULL);
+  waytator_window_video_start(self, choice->profile_id, file, FALSE, choice->close, NULL);
   waytator_window_video_choice_free(choice);
 }
 
@@ -567,7 +580,6 @@ waytator_window_video_export_picked(WaytatorWindowVideoChoice *choice)
                               target,
                               FALSE,
                               choice->close,
-                              TRUE,
                               g_file_equal(target, original) ? NULL : original);
   waytator_window_video_choice_free(choice);
 }
@@ -668,7 +680,7 @@ waytator_window_video_save(WaytatorWindow *self,
   if (copy || file != NULL || profile_id != NULL) {
     waytator_window_video_start(self,
                                 profile_id != NULL ? profile_id : waytator_window_video_default_profile(self, profiles),
-                                file, copy, close, FALSE, NULL);
+                                file, copy, close, NULL);
     return;
   }
 
