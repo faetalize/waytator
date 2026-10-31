@@ -138,6 +138,8 @@ cat recording.mkv | waytator        # open a video piped in
 
 Available functions: cropping, trimming, rotation, horizontal and vertical flipping, splitting, deletion of segments, muting, audio gain changes, pitch, speed changing, joins.
 
+Copy puts the video on the clipboard as a file, kept in `~/.cache/waytator/copies` for a week, and only exports again once the edit or its profile changes. Use Export to keep a video somewhere.
+
 There's a timeline track for 'objects', it isn't used yet, but it will be in the future for video annotations.
 
 ### Taking screenshots
