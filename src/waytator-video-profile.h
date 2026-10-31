@@ -49,6 +49,9 @@ WaytatorVideoProfile *waytator_video_profile_copy(const WaytatorVideoProfile *pr
 void waytator_video_profile_free(WaytatorVideoProfile *profile);
 //e.g. "mp4" or "gif"
 const char *waytator_video_profile_get_extension(const WaytatorVideoProfile *profile);
+//whether two profiles make the same file, whatever they are called
+gboolean waytator_video_profile_equal(const WaytatorVideoProfile *first,
+                                      const WaytatorVideoProfile *second);
 //a line saying what comes out, e.g. "MP4, H.264, up to 1080p"
 char *waytator_video_profile_describe(const WaytatorVideoProfile *profile);
 
