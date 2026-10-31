@@ -2864,17 +2864,11 @@ waytator_window_make_copy_name(const char *filename)
                          dot);
 }
 
-static gboolean
+gboolean
 waytator_window_error_is_user_dismissed(const GError *error)
 {
-  if (error == NULL)
-    return FALSE;
-
-  if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
-    return TRUE;
-
-  return error->message != NULL
-      && g_ascii_strcasecmp(error->message, "Dismissed by user") == 0;
+  return g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)
+      || g_error_matches(error, GTK_DIALOG_ERROR, GTK_DIALOG_ERROR_DISMISSED);
 }
 
 static gboolean

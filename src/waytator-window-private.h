@@ -295,6 +295,7 @@ struct _WaytatorWindow {
 GPtrArray *waytator_window_strokes(WaytatorWindow *self);
 void waytator_window_show_error(WaytatorWindow *self,
                                 const char     *message);
+gboolean waytator_window_error_is_user_dismissed(const GError *error);
 void waytator_window_begin_save_feedback(WaytatorWindow *self);
 void waytator_window_finish_save_feedback(WaytatorWindow *self);
 
