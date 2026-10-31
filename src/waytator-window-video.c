@@ -240,8 +240,7 @@ waytator_window_video_folder(void)
   return videos != NULL ? g_strdup(videos) : g_build_filename(g_get_home_dir(), "Videos", NULL);
 }
 
-//a name in folder nothing has yet, after the video it came from, NULL when every one is taken. without a
-//folder there is nothing to check, so it is the first name
+//a name in folder nothing has yet, after the video it came from, NULL when every one is taken
 static char *
 waytator_window_video_free_name(WaytatorWindow             *self,
                                 const WaytatorVideoProfile *profile,
@@ -265,9 +264,9 @@ waytator_window_video_free_name(WaytatorWindow             *self,
     g_autofree char *file_name = i == 1
                                ? g_strdup_printf("%s edited.%s", base, extension)
                                : g_strdup_printf("%s edited %d.%s", base, i, extension);
-    g_autofree char *path = folder != NULL ? g_build_filename(folder, file_name, NULL) : NULL;
+    g_autofree char *path = g_build_filename(folder, file_name, NULL);
 
-    if (path == NULL || !g_file_test(path, G_FILE_TEST_EXISTS))
+    if (!g_file_test(path, G_FILE_TEST_EXISTS))
       return g_steal_pointer(&file_name);
   }
 
@@ -544,12 +543,11 @@ waytator_window_video_ask_file(WaytatorWindowVideoChoice *choice)
   }
 
   path = g_file_get_path(folder);
-  if (path != NULL && g_file_test(path, G_FILE_TEST_IS_DIR)) {
+  if (g_file_test(path, G_FILE_TEST_IS_DIR))
     gtk_file_dialog_set_initial_folder(dialog, folder);
-    name = waytator_window_video_free_name(self, profile, path);
-  }
-  if (name == NULL)
-    name = waytator_window_video_free_name(self, profile, NULL);
+  //unlike an image's dialog this looks for a free name: exporting again after a tweak is the usual way, and
+  //accepting the suggestion shouldn't land on replacing the last export
+  name = waytator_window_video_free_name(self, profile, path);
 
   gtk_file_dialog_set_title(dialog, original != NULL ? "Export a copy" : "Export video");
   gtk_file_dialog_set_initial_name(dialog, name);
