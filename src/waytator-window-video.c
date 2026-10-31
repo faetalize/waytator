@@ -523,8 +523,8 @@ waytator_window_video_file_picked(GObject      *source_object,
   waytator_window_video_choice_free(choice);
 }
 
-//asks where a copy goes, like an image's Save a copy, starting beside the opened video with the profile's
-//extension, or in the videos folder for a piped one
+//asks where a copy goes, like an image's Save a copy, with the profile's extension, starting beside the
+//opened video or in the videos folder for a piped one, if that folder exists
 static void
 waytator_window_video_ask_file(WaytatorWindowVideoChoice *choice)
 {
