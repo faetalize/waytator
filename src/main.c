@@ -6,6 +6,7 @@
 #include "waytator-instance.h"
 #include "waytator-recording.h"
 #include "waytator-screenshot.h"
+#include "waytator-video-cache.h"
 #include "waytator-video-editor.h"
 #include "waytator-window.h"
 
@@ -773,6 +774,7 @@ app_startup(GApplication *app,
   waytator_instance_setup(app, (g_application_get_flags(app) & G_APPLICATION_IS_SERVICE) != 0);
   if (app_adopt_service)
     waytator_instance_adopt_service();
+  waytator_video_cache_sweep_copies_in_background();
 }
 
 //registering is what every launch does first, and a launch that finds waytator running fetches its actions while

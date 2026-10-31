@@ -70,6 +70,16 @@ test_video_cache = executable(
 )
 test('video-cache', test_video_cache)
 
+test_video_copy = executable(
+  'test-video-copy',
+  'test-video-copy.c',
+  files('../src/waytator-video-copy.c', '../src/waytator-video-profile.c'),
+  waytator_video_edit_sources,
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('video-copy', test_video_copy)
+
 #talks to a stand-in for the screen cast portal on a bus of its own, so it needs neither a display nor the real portal
 test_record_portal = executable(
   'test-record-portal',

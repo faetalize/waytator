@@ -3540,7 +3540,7 @@ waytator_window_save_as_action(GtkWidget  *widget,
 
   //a video asks the same questions however its export starts
   if (waytator_window_is_video(self)) {
-    waytator_window_video_save(self, NULL, NULL, FALSE, FALSE);
+    waytator_window_video_save(self, WAYTATOR_VIDEO_SAVE);
     return;
   }
 
@@ -3580,7 +3580,7 @@ waytator_window_save_image_action(GtkWidget  *widget,
   (void) parameter;
 
   if (waytator_window_is_video(self)) {
-    waytator_window_video_save(self, NULL, NULL, FALSE, FALSE);
+    waytator_window_video_save(self, WAYTATOR_VIDEO_SAVE);
     return;
   }
 
@@ -3631,7 +3631,7 @@ waytator_window_save_and_close_action(GtkWidget  *widget,
   (void) parameter;
 
   if (waytator_window_is_video(self))
-    waytator_window_video_save(self, NULL, NULL, FALSE, TRUE);
+    waytator_window_video_save(self, WAYTATOR_VIDEO_SAVE_AND_CLOSE);
   else
     waytator_window_save_then(self, WAYTATOR_AFTER_SAVE_CLOSE);
 }
@@ -3647,7 +3647,7 @@ waytator_window_save_copy_and_close_action(GtkWidget  *widget,
   (void) parameter;
 
   if (waytator_window_is_video(self))
-    waytator_window_video_save(self, NULL, NULL, TRUE, TRUE);
+    waytator_window_video_save(self, WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE);
   else
     waytator_window_save_then(self, WAYTATOR_AFTER_SAVE_COPY_CLOSE);
 }
@@ -3859,7 +3859,8 @@ waytator_window_copy_clicked(GtkButton *button,
   (void) button;
 
   if (waytator_window_is_video(self)) {
-    waytator_window_video_save(self, NULL, NULL, TRUE, waytator_window_closes_on_copy(self));
+    waytator_window_video_save(self, waytator_window_closes_on_copy(self) ? WAYTATOR_VIDEO_COPY_AND_CLOSE
+                                                                           : WAYTATOR_VIDEO_COPY);
     return;
   }
 
@@ -3876,7 +3877,7 @@ waytator_window_copy_keep_open_clicked(GtkButton *button,
   (void) button;
 
   if (waytator_window_is_video(self))
-    waytator_window_video_save(self, NULL, NULL, TRUE, FALSE);
+    waytator_window_video_save(self, WAYTATOR_VIDEO_COPY);
   else
     waytator_window_start_copy(self, FALSE);
 }
@@ -3895,7 +3896,7 @@ waytator_window_copy_keep_open_action(GtkWidget  *widget,
     return;
 
   if (waytator_window_is_video(self))
-    waytator_window_video_save(self, NULL, NULL, TRUE, FALSE);
+    waytator_window_video_save(self, WAYTATOR_VIDEO_COPY);
   else
     waytator_window_start_copy(self, FALSE);
 }

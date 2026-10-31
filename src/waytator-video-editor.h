@@ -56,6 +56,19 @@ void waytator_video_editor_export_async(WaytatorVideoEditor        *self,
                                         GFile                      *replaces,
                                         GAsyncReadyCallback         callback,
                                         gpointer                    user_data);
+//the same for a file going on the clipboard, in waytator_video_editor_export_finish too, kept in mind for
+//waytator_video_editor_reuse_copy. that file won't last, so the edit doesn't count as saved
+void waytator_video_editor_export_copy_async(WaytatorVideoEditor        *self,
+                                             const WaytatorVideoProfile *profile,
+                                             GFile                      *file,
+                                             GAsyncReadyCallback         callback,
+                                             gpointer                    user_data);
+//the file the last Copy made, when that is what exporting the edit as it is now through profile would make and
+//it still exists. NULL when it has to be exported
+GFile *waytator_video_editor_reuse_copy(WaytatorVideoEditor        *self,
+                                        const WaytatorVideoProfile *profile);
+//whether the last Copy has the edit as it is now
+gboolean waytator_video_editor_copy_is_current(WaytatorVideoEditor *self);
 gboolean waytator_video_editor_export_finish(WaytatorVideoEditor *self,
                                              GAsyncResult        *result,
                                              GError             **error);
