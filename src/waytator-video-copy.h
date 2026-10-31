@@ -16,6 +16,9 @@ WaytatorVideoCopy *waytator_video_copy_new(WaytatorVideoState         *state,
                                            GFile                      *file);
 void waytator_video_copy_free(WaytatorVideoCopy *copy);
 GFile *waytator_video_copy_get_file(const WaytatorVideoCopy *copy);
+//whether the file has the edit as it is in state
+gboolean waytator_video_copy_is_of(const WaytatorVideoCopy  *copy,
+                                   const WaytatorVideoState *state);
 //whether exporting state through profile would make this file again, and the file is still there to use instead
 gboolean waytator_video_copy_matches(const WaytatorVideoCopy    *copy,
                                      const WaytatorVideoState   *state,
@@ -38,6 +41,8 @@ typedef struct {
   //what is made goes on the clipboard
   gboolean copy;
   gboolean close;
+  //a lasting file has the edit once it is made, so it counts as saved and closing needn't warn
+  gboolean saves;
 } WaytatorVideoSavePlan;
 
 WaytatorVideoSavePlan waytator_video_save_plan(WaytatorVideoSaveRequest request);

@@ -1500,6 +1500,8 @@ typedef struct {
   guint open_serial;
   //for Copy, what to remember once it is made
   WaytatorVideoCopy *copy;
+  //Copy's file won't last, so it doesn't make the edit saved
+  gboolean saves;
 } WaytatorVideoEditorExport;
 
 static void
@@ -1544,7 +1546,7 @@ waytator_video_editor_exported(GObject      *source_object,
   if (self->edit != NULL) {
     g_autoptr(WaytatorVideoState) now = waytator_video_edit_get_state(self->edit);
 
-    if (now == export->state)
+    if (export->saves && now == export->state)
       waytator_video_edit_mark_saved(self->edit);
   }
   g_task_return_boolean(task, TRUE);
@@ -1576,6 +1578,7 @@ waytator_video_editor_start_export(WaytatorVideoEditor        *self,
   export->state = waytator_video_edit_get_state(self->edit);
   export->open_serial = self->open_serial;
   export->copy = copy ? waytator_video_copy_new(export->state, profile, file) : NULL;
+  export->saves = !copy;
   g_task_set_task_data(task, export, (GDestroyNotify) waytator_video_editor_export_free);
   self->export_cancellable = g_cancellable_new();
   label = g_strdup_printf("Exporting as %s", profile->name);
@@ -1631,9 +1634,17 @@ waytator_video_editor_reuse_copy(WaytatorVideoEditor        *self,
   file = waytator_video_copy_get_file(self->copy);
   path = g_file_get_path(file);
   waytator_video_cache_keep_copy(path);
-  //what an export would have done, a window closing on Copy would otherwise ask about edits made since
-  waytator_video_edit_mark_saved(self->edit);
   return g_object_ref(file);
+}
+
+gboolean
+waytator_video_editor_copy_is_current(WaytatorVideoEditor *self)
+{
+  g_autoptr(WaytatorVideoState) state = waytator_video_editor_state(self);
+
+  g_return_val_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self), FALSE);
+
+  return state != NULL && self->copy != NULL && waytator_video_copy_is_of(self->copy, state);
 }
 
 gboolean

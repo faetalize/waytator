@@ -99,6 +99,12 @@ test_edited(Fixture       *fixture,
 
   g_assert_true(waytator_video_edit_set_rotation(fixture->edit, 1));
   g_assert_false(matches_now(fixture, copy));
+  {
+    g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(fixture->edit);
+
+    //an edit made after the file, which closing on Copy mustn't throw away unasked
+    g_assert_false(waytator_video_copy_is_of(copy, state));
+  }
 
   //back where it was made, the same file is right again
   g_assert_true(waytator_video_edit_undo(fixture->edit));
@@ -172,7 +178,8 @@ test_file_gone(Fixture       *fixture,
   g_assert_false(matches_now(fixture, copy));
 }
 
-//saving has to reach somewhere lasting, so only Copy on its own may stay in the cache, which deletes what it holds
+//saving has to reach somewhere lasting, so only Copy on its own may stay in the cache, which deletes what it holds.
+//that file won't last, so Copy doesn't count as saving even when the window closes after it
 static void
 test_save_plans(void)
 {
@@ -180,11 +187,11 @@ test_save_plans(void)
     WaytatorVideoSaveRequest request;
     WaytatorVideoSavePlan plan;
   } plans[] = {
-    { WAYTATOR_VIDEO_SAVE, { .ask = TRUE, .copy = FALSE, .close = FALSE } },
-    { WAYTATOR_VIDEO_SAVE_AND_CLOSE, { .ask = TRUE, .copy = FALSE, .close = TRUE } },
-    { WAYTATOR_VIDEO_COPY, { .ask = FALSE, .copy = TRUE, .close = FALSE } },
-    { WAYTATOR_VIDEO_COPY_AND_CLOSE, { .ask = FALSE, .copy = TRUE, .close = TRUE } },
-    { WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE, { .ask = TRUE, .copy = TRUE, .close = TRUE } },
+    { WAYTATOR_VIDEO_SAVE, { .ask = TRUE, .copy = FALSE, .close = FALSE, .saves = TRUE } },
+    { WAYTATOR_VIDEO_SAVE_AND_CLOSE, { .ask = TRUE, .copy = FALSE, .close = TRUE, .saves = TRUE } },
+    { WAYTATOR_VIDEO_COPY, { .ask = FALSE, .copy = TRUE, .close = FALSE, .saves = FALSE } },
+    { WAYTATOR_VIDEO_COPY_AND_CLOSE, { .ask = FALSE, .copy = TRUE, .close = TRUE, .saves = FALSE } },
+    { WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE, { .ask = TRUE, .copy = TRUE, .close = TRUE, .saves = TRUE } },
   };
 
   for (guint i = 0; i < G_N_ELEMENTS(plans); i++) {
@@ -193,6 +200,7 @@ test_save_plans(void)
     g_assert_cmpint(plan.ask, ==, plans[i].plan.ask);
     g_assert_cmpint(plan.copy, ==, plans[i].plan.copy);
     g_assert_cmpint(plan.close, ==, plans[i].plan.close);
+    g_assert_cmpint(plan.saves, ==, plans[i].plan.saves);
   }
 }
 

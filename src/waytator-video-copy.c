@@ -39,11 +39,18 @@ waytator_video_copy_get_file(const WaytatorVideoCopy *copy)
 }
 
 gboolean
+waytator_video_copy_is_of(const WaytatorVideoCopy  *copy,
+                          const WaytatorVideoState *state)
+{
+  return waytator_video_state_equal(copy->state, state);
+}
+
+gboolean
 waytator_video_copy_matches(const WaytatorVideoCopy    *copy,
                             const WaytatorVideoState   *state,
                             const WaytatorVideoProfile *profile)
 {
-  return waytator_video_state_equal(copy->state, state)
+  return waytator_video_copy_is_of(copy, state)
       && waytator_video_profile_equal(copy->profile, profile)
       && g_file_query_file_type(copy->file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) == G_FILE_TYPE_REGULAR;
 }
@@ -53,15 +60,15 @@ waytator_video_save_plan(WaytatorVideoSaveRequest request)
 {
   switch (request) {
   case WAYTATOR_VIDEO_SAVE_AND_CLOSE:
-    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = FALSE, .close = TRUE };
+    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = FALSE, .close = TRUE, .saves = TRUE };
   case WAYTATOR_VIDEO_COPY:
-    return (WaytatorVideoSavePlan) { .ask = FALSE, .copy = TRUE, .close = FALSE };
+    return (WaytatorVideoSavePlan) { .ask = FALSE, .copy = TRUE, .close = FALSE, .saves = FALSE };
   case WAYTATOR_VIDEO_COPY_AND_CLOSE:
-    return (WaytatorVideoSavePlan) { .ask = FALSE, .copy = TRUE, .close = TRUE };
+    return (WaytatorVideoSavePlan) { .ask = FALSE, .copy = TRUE, .close = TRUE, .saves = FALSE };
   case WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE:
-    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = TRUE, .close = TRUE };
+    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = TRUE, .close = TRUE, .saves = TRUE };
   case WAYTATOR_VIDEO_SAVE:
   default:
-    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = FALSE, .close = FALSE };
+    return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = FALSE, .close = FALSE, .saves = TRUE };
   }
 }
