@@ -456,7 +456,8 @@ waytator_window_video_copy_again(WaytatorWindow              *self,
 }
 
 //exports through a profile to file, or with no file for Copy, to a new one in the cache or the one it already made
-//of the same edits, then does the rest of plan. replaces is the opened video when the export takes its place under another name, deleted once it is done
+//of the same edits, then does the rest of plan. replaces is the opened video when the export takes its place under
+//another name, deleted once it is done
 static void
 waytator_window_video_start(WaytatorWindow              *self,
                             const char                  *profile_id,

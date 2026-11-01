@@ -1546,7 +1546,7 @@ waytator_video_editor_exported(GObject      *source_object,
     return;
   }
 
-  //closing the video lets an export carry on, and what it made is not of whatever is open by now
+  //a cancel can arrive too late to stop the export, and what it made is not of whatever is open by now
   if (export->copy != NULL && self->edit != NULL && export->open_serial == self->open_serial) {
     g_clear_pointer(&self->copy, waytator_video_copy_free);
     self->copy = g_steal_pointer(&export->copy);
