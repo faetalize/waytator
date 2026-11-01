@@ -950,6 +950,11 @@ waytator_video_editor_close(WaytatorVideoEditor *self)
 {
   g_return_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self));
 
+  //an export lasts only as long as the video it was started from: left running it would still replace the
+  //original or take over the clipboard after the edit was thrown away
+  if (self->export_cancellable != NULL)
+    g_cancellable_cancel(self->export_cancellable);
+
   if (self->open_cancellable != NULL)
     g_cancellable_cancel(self->open_cancellable);
   g_clear_object(&self->open_cancellable);

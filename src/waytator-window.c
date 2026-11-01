@@ -5746,10 +5746,31 @@ waytator_window_init(WaytatorWindow *self)
   waytator_window_sync_state(self);
 }
 
+//every way a window goes ends up here, unlike close-request. waiting for dispose is no good: a running export holds
+//the window, so it wouldn't get there until the export was done
+static void
+waytator_window_removed(GtkApplication *app,
+                        GtkWindow      *window,
+                        gpointer        user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+
+  (void) app;
+
+  if (window != GTK_WINDOW(self))
+    return;
+
+  self->disposed = TRUE;
+  waytator_video_editor_close(WAYTATOR_VIDEO_EDITOR(self->video_editor));
+}
+
 WaytatorWindow *
 waytator_window_new(AdwApplication *app)
 {
-  return g_object_new(WAYTATOR_TYPE_WINDOW,
-                      "application", app,
-                      NULL);
+  WaytatorWindow *self = g_object_new(WAYTATOR_TYPE_WINDOW,
+                                      "application", app,
+                                      NULL);
+
+  g_signal_connect_object(app, "window-removed", G_CALLBACK(waytator_window_removed), self, G_CONNECT_DEFAULT);
+  return self;
 }

@@ -37,6 +37,7 @@ void waytator_video_editor_open_stream_async(WaytatorVideoEditor *self,
                                              GCancellable        *cancellable,
                                              GAsyncReadyCallback  callback,
                                              gpointer             user_data);
+//cancels an export still running, which lasts only as long as the video it was started from
 void waytator_video_editor_close(WaytatorVideoEditor *self);
 
 //TRUE from the moment something starts opening, so the window stays a video window while it loads
