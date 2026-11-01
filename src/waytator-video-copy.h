@@ -47,5 +47,10 @@ typedef struct {
 } WaytatorVideoSavePlan;
 
 WaytatorVideoSavePlan waytator_video_save_plan(WaytatorVideoSaveRequest request);
+//whether the window has to open the export afresh if it took the opened video's place, or the editor would read
+//the export where it expects the original and make the same edits again. a window that is closing doesn't need
+//to, which it can only be sure of once the copy has worked. asked after the export, and after a failed copy
+gboolean waytator_video_save_plan_reopens(const WaytatorVideoSavePlan *plan,
+                                          gboolean                     copy_failed);
 
 G_END_DECLS

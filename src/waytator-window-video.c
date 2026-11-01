@@ -340,6 +340,14 @@ waytator_window_video_is_opened(WaytatorWindow *self,
   return id != NULL && g_strcmp0(id, g_file_info_get_attribute_string(file_info, G_FILE_ATTRIBUTE_ID_FILE)) == 0;
 }
 
+//the export took the opened video's place, so it is opened afresh
+static void
+waytator_window_video_reopen_if_replaced(WaytatorWindowVideoSave *save)
+{
+  if (save->replaces != NULL || waytator_window_video_is_opened(save->window, save->file))
+    waytator_window_open_video(save->window, save->file);
+}
+
 static void
 waytator_window_video_copied(GObject      *source_object,
                              GAsyncResult *result,
@@ -351,8 +359,11 @@ waytator_window_video_copied(GObject      *source_object,
   (void) source_object;
 
   if (!waytator_clipboard_copy_file_finish(result, &error)) {
-    if (!save->window->disposed)
+    if (!save->window->disposed) {
+      if (waytator_video_save_plan_reopens(&save->plan, TRUE))
+        waytator_window_video_reopen_if_replaced(save);
       waytator_window_show_error(save->window, error->message);
+    }
   } else if (save->plan.close && !save->window->disposed) {
     WaytatorVideoEditor *editor = WAYTATOR_VIDEO_EDITOR(save->window->video_editor);
 
@@ -407,10 +418,8 @@ waytator_window_video_saved(GObject      *source_object,
   }
 
   waytator_window_finish_save_feedback(self);
-  //the export took the opened video's place, so it is opened afresh: the editor would otherwise read the
-  //export where it expects the original and make the same edits again
-  if (!save->plan.close && (save->replaces != NULL || waytator_window_video_is_opened(self, save->file)))
-    waytator_window_open_video(self, save->file);
+  if (waytator_video_save_plan_reopens(&save->plan, FALSE))
+    waytator_window_video_reopen_if_replaced(save);
   if (save->plan.copy) {
     waytator_clipboard_copy_file_async(save->file, waytator_window_video_copied, save);
     return;

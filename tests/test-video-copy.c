@@ -230,6 +230,24 @@ test_save_plans(void)
   }
 }
 
+//a window that was going to close stays open when the copy fails, on a video the export has replaced by then
+static void
+test_reopens(void)
+{
+  const WaytatorVideoSavePlan save = waytator_video_save_plan(WAYTATOR_VIDEO_SAVE);
+  const WaytatorVideoSavePlan save_close = waytator_video_save_plan(WAYTATOR_VIDEO_SAVE_AND_CLOSE);
+  const WaytatorVideoSavePlan save_copy_close = waytator_video_save_plan(WAYTATOR_VIDEO_SAVE_COPY_AND_CLOSE);
+
+  //once it is exported
+  g_assert_true(waytator_video_save_plan_reopens(&save, FALSE));
+  g_assert_false(waytator_video_save_plan_reopens(&save_close, FALSE));
+  g_assert_false(waytator_video_save_plan_reopens(&save_copy_close, FALSE));
+
+  //a window that stayed open has already done it
+  g_assert_false(waytator_video_save_plan_reopens(&save, TRUE));
+  g_assert_true(waytator_video_save_plan_reopens(&save_copy_close, TRUE));
+}
+
 int
 main(int    argc,
      char **argv)
@@ -245,5 +263,6 @@ main(int    argc,
   ADD("/video-copy/keep-failed", test_keep_failed);
 #undef ADD
   g_test_add_func("/video-copy/save-plans", test_save_plans);
+  g_test_add_func("/video-copy/reopens", test_reopens);
   return g_test_run();
 }

@@ -83,3 +83,10 @@ waytator_video_save_plan(WaytatorVideoSaveRequest request)
     return (WaytatorVideoSavePlan) { .ask = TRUE, .copy = FALSE, .close = FALSE, .saves = TRUE };
   }
 }
+
+gboolean
+waytator_video_save_plan_reopens(const WaytatorVideoSavePlan *plan,
+                                 gboolean                     copy_failed)
+{
+  return copy_failed ? plan->close : !plan->close;
+}
