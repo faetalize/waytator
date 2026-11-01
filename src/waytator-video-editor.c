@@ -1118,8 +1118,6 @@ waytator_video_editor_begin_open(WaytatorVideoEditor *self,
 {
   waytator_video_editor_close(self);
   waytator_video_cache_sweep();
-  //a background service can run for weeks after its startup sweep
-  waytator_video_cache_sweep_copies_in_background();
   self->open_serial++;
   self->opening = TRUE;
   self->open_cancellable = cancellable != NULL ? g_object_ref(cancellable) : g_cancellable_new();

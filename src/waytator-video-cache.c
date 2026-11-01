@@ -226,8 +226,24 @@ waytator_video_cache_sweep_copies_thread(gpointer user_data)
   return NULL;
 }
 
-void
+static void
 waytator_video_cache_sweep_copies_in_background(void)
 {
   g_thread_unref(g_thread_new("waytator-sweep-copies", waytator_video_cache_sweep_copies_thread, NULL));
+}
+
+static gboolean
+waytator_video_cache_sweep_copies_due(gpointer user_data)
+{
+  (void) user_data;
+
+  waytator_video_cache_sweep_copies_in_background();
+  return G_SOURCE_CONTINUE;
+}
+
+guint
+waytator_video_cache_keep_sweeping_copies(guint seconds)
+{
+  waytator_video_cache_sweep_copies_in_background();
+  return g_timeout_add_seconds(seconds, waytator_video_cache_sweep_copies_due, NULL);
 }

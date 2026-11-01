@@ -30,7 +30,10 @@ gboolean waytator_video_cache_keep_copy(const char *path);
 void waytator_video_cache_abandon_copy(const char *path);
 //deletes the copies that have not been made or put on the clipboard for a week
 void waytator_video_cache_sweep_copies(void);
-//the same on a thread of its own: deleting a big file can take a while, and this runs at startup
-void waytator_video_cache_sweep_copies_in_background(void);
+//the same on a thread of its own, now and then every so many seconds for as long as the main loop runs: deleting a
+//big file can take a while, and a background service can run for weeks after it started. the source can be removed
+guint waytator_video_cache_keep_sweeping_copies(guint seconds);
+//how often that is for waytator itself, so a copy goes within a day of its week being up
+#define WAYTATOR_VIDEO_CACHE_SWEEP_SECONDS (24 * 60 * 60)
 
 G_END_DECLS
