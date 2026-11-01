@@ -131,6 +131,32 @@ test_sweep_copies(void)
   g_rmdir(cache);
 }
 
+//a video opened from where its copy is kept is in use, however old its folder is
+static void
+test_held_copy(void)
+{
+  g_autofree char *old = make_copy(8);
+  g_autofree char *folder = g_path_get_dirname(old);
+  g_autofree char *copies = g_path_get_dirname(folder);
+  g_autofree char *cache = g_path_get_dirname(copies);
+  int fd = waytator_video_cache_hold_copy(old);
+
+  g_assert_cmpint(fd, >=, 0);
+  waytator_video_cache_sweep_copies();
+  g_assert_true(g_file_test(old, G_FILE_TEST_EXISTS));
+
+  //let go, it is as old as it was
+  close(fd);
+  waytator_video_cache_sweep_copies();
+  g_assert_false(g_file_test(old, G_FILE_TEST_EXISTS));
+
+  //any other video has nothing to hold
+  g_assert_cmpint(waytator_video_cache_hold_copy("/tmp/somewhere/clip.mp4"), ==, -1);
+
+  g_rmdir(copies);
+  g_rmdir(cache);
+}
+
 //a background service never starts again, so a copy can't wait for the next startup to go
 static void
 test_keeps_sweeping_copies(void)
@@ -175,6 +201,7 @@ main(int    argc,
   g_setenv("XDG_CACHE_HOME", home, TRUE);
   g_test_add_func("/video-cache/sweep", test_sweep);
   g_test_add_func("/video-cache/sweep-copies", test_sweep_copies);
+  g_test_add_func("/video-cache/held-copy", test_held_copy);
   g_test_add_func("/video-cache/keeps-sweeping-copies", test_keeps_sweeping_copies);
   status = g_test_run();
   g_rmdir(home);

@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <glib/gstdio.h>
 #include <sys/file.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -183,6 +184,25 @@ waytator_video_cache_create_copy_folder(void)
   return g_steal_pointer(&template);
 }
 
+int
+waytator_video_cache_hold_copy(const char *path)
+{
+  g_autofree char *folder = g_path_get_dirname(path);
+  g_autofree char *parent = g_path_get_dirname(folder);
+  g_autofree char *copies = waytator_video_cache_copies_folder();
+  g_autofree char *real_parent = realpath(parent, NULL);
+  g_autofree char *real_copies = realpath(copies, NULL);
+  int fd;
+
+  if (real_parent == NULL || real_copies == NULL || strcmp(real_parent, real_copies) != 0)
+    return -1;
+
+  fd = open(folder, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  if (fd >= 0)
+    flock(fd, LOCK_SH | LOCK_NB);
+  return fd;
+}
+
 gboolean
 waytator_video_cache_keep_copy(const char *path)
 {
@@ -199,7 +219,8 @@ waytator_video_cache_abandon_copy(const char *path)
   g_rmdir(folder);
 }
 
-//by age and not by a lock like the others: nothing is running that uses a copy, it is whatever has its link
+//by age rather than by the lock alone like the others: what uses a copy is mostly not running, it is whatever has
+//its link. the lock is only there for an editor that has one open
 void
 waytator_video_cache_sweep_copies(void)
 {
@@ -212,8 +233,19 @@ waytator_video_cache_sweep_copies(void)
     g_autofree char *path = g_build_filename(copies, name, NULL);
     GStatBuf info;
 
-    if (g_lstat(path, &info) == 0 && S_ISDIR(info.st_mode) && info.st_mtime < oldest)
+    int fd;
+
+    if (g_lstat(path, &info) != 0 || !S_ISDIR(info.st_mode) || info.st_mtime >= oldest)
+      continue;
+
+    fd = open(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0)
+      continue;
+
+    //one still held is open in an editor
+    if (flock(fd, LOCK_EX | LOCK_NB) == 0)
       waytator_video_cache_remove_folder(path);
+    close(fd);
   }
 }
 

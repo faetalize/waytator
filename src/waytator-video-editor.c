@@ -351,6 +351,8 @@ struct _WaytatorVideoEditor {
   GCancellable *export_cancellable;
   //what Copy last made of the open video
   WaytatorVideoCopy *copy;
+  //keeps the sweep off the open video when it is itself a copy, -1 otherwise
+  int copy_hold;
   //set while the controls are brought up to date, so their signals don't edit anything
   gboolean updating;
   //the slider being dragged, its changes undo as one until another control is used or its popover closes
@@ -992,6 +994,10 @@ waytator_video_editor_close(WaytatorVideoEditor *self)
   //the same edits on another video, or on this one once it is replaced, come out differently
   g_clear_pointer(&self->copy, waytator_video_copy_free);
   g_clear_pointer(&self->source, waytator_video_source_unref);
+  if (self->copy_hold >= 0) {
+    close(self->copy_hold);
+    self->copy_hold = -1;
+  }
   g_clear_object(&self->file);
   g_clear_pointer(&self->display_name, g_free);
 
@@ -1146,6 +1152,7 @@ waytator_video_editor_open_async(WaytatorVideoEditor *self,
   }
 
   waytator_video_editor_begin_open(self, cancellable);
+  self->copy_hold = waytator_video_cache_hold_copy(path);
   self->file = g_object_ref(file);
   self->display_name = g_file_get_basename(file);
   waytator_video_editor_open_path(self, path, g_steal_pointer(&task));
@@ -2172,6 +2179,7 @@ static void
 waytator_video_editor_init(WaytatorVideoEditor *self)
 {
   self->spool_fd = -1;
+  self->copy_hold = -1;
   gtk_widget_init_template(GTK_WIDGET(self));
 
   {
