@@ -19,10 +19,11 @@ GFile *waytator_video_copy_get_file(const WaytatorVideoCopy *copy);
 //whether the file has the edit as it is in state
 gboolean waytator_video_copy_is_of(const WaytatorVideoCopy  *copy,
                                    const WaytatorVideoState *state);
-//whether exporting state through profile would make this file again, and the file is still there to use instead
-gboolean waytator_video_copy_matches(const WaytatorVideoCopy    *copy,
-                                     const WaytatorVideoState   *state,
-                                     const WaytatorVideoProfile *profile);
+//the file, with as long to go as a new one, when exporting state through profile would make it again and it is
+//still there to use instead. NULL when it has to be exported
+GFile *waytator_video_copy_reuse(const WaytatorVideoCopy    *copy,
+                                 const WaytatorVideoState   *state,
+                                 const WaytatorVideoProfile *profile);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(WaytatorVideoCopy, waytator_video_copy_free)
 

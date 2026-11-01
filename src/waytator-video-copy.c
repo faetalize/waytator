@@ -1,5 +1,7 @@
 #include "waytator-video-copy.h"
 
+#include "waytator-video-cache.h"
+
 struct _WaytatorVideoCopy {
   WaytatorVideoState *state;
   //a copy of its own, the settings can change the one it came from
@@ -45,14 +47,23 @@ waytator_video_copy_is_of(const WaytatorVideoCopy  *copy,
   return waytator_video_state_equal(copy->state, state);
 }
 
-gboolean
-waytator_video_copy_matches(const WaytatorVideoCopy    *copy,
-                            const WaytatorVideoState   *state,
-                            const WaytatorVideoProfile *profile)
+GFile *
+waytator_video_copy_reuse(const WaytatorVideoCopy    *copy,
+                          const WaytatorVideoState   *state,
+                          const WaytatorVideoProfile *profile)
 {
-  return waytator_video_copy_is_of(copy, state)
-      && waytator_video_profile_equal(copy->profile, profile)
-      && g_file_query_file_type(copy->file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) == G_FILE_TYPE_REGULAR;
+  g_autofree char *path = g_file_get_path(copy->file);
+
+  if (!waytator_video_copy_is_of(copy, state) || !waytator_video_profile_equal(copy->profile, profile))
+    return NULL;
+
+  //the date comes before looking for the file: a sweep after it leaves the file alone, and if one got in first
+  //this finds out, where the other way round the clipboard could get a link to nothing
+  if (!waytator_video_cache_keep_copy(path)
+      || g_file_query_file_type(copy->file, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) != G_FILE_TYPE_REGULAR)
+    return NULL;
+
+  return g_object_ref(copy->file);
 }
 
 WaytatorVideoSavePlan

@@ -183,12 +183,12 @@ waytator_video_cache_create_copy_folder(void)
   return g_steal_pointer(&template);
 }
 
-void
+gboolean
 waytator_video_cache_keep_copy(const char *path)
 {
   g_autofree char *folder = g_path_get_dirname(path);
 
-  g_utime(folder, NULL);
+  return g_utime(folder, NULL) == 0;
 }
 
 void

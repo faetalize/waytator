@@ -73,7 +73,7 @@ test('video-cache', test_video_cache)
 test_video_copy = executable(
   'test-video-copy',
   'test-video-copy.c',
-  files('../src/waytator-video-copy.c', '../src/waytator-video-profile.c'),
+  files('../src/waytator-video-cache.c', '../src/waytator-video-copy.c', '../src/waytator-video-profile.c'),
   waytator_video_edit_sources,
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep],

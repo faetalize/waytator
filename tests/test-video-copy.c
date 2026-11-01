@@ -1,5 +1,6 @@
 //Copy uses the file it made when that is what an export would make again, and exports when it isn't
 #include <glib/gstdio.h>
+#include <unistd.h>
 
 #include "waytator-video-copy.h"
 
@@ -73,8 +74,9 @@ matches_now(Fixture           *fixture,
             WaytatorVideoCopy *copy)
 {
   g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(fixture->edit);
+  g_autoptr(GFile) file = waytator_video_copy_reuse(copy, state, fixture->profile);
 
-  return waytator_video_copy_matches(copy, state, fixture->profile);
+  return file != NULL;
 }
 
 static void
@@ -178,6 +180,30 @@ test_file_gone(Fixture       *fixture,
   g_assert_false(matches_now(fixture, copy));
 }
 
+//a file whose week can't be started over isn't safe to hand out, a sweep could take it right after. /etc stands in
+//for a copy's folder that can't be touched: the only way to be sure the file stays is for that to have worked
+static void
+test_keep_failed(Fixture       *fixture,
+                 gconstpointer  data)
+{
+  g_autoptr(GFile) outside = g_file_new_for_path("/etc/passwd");
+  g_autoptr(WaytatorVideoState) state = waytator_video_edit_get_state(fixture->edit);
+  g_autoptr(WaytatorVideoCopy) copy = waytator_video_copy_new(state, fixture->profile, outside);
+  g_autoptr(GFile) file = NULL;
+  GStatBuf info;
+
+  (void) data;
+
+  g_assert_cmpint(g_stat("/etc", &info), ==, 0);
+  if (info.st_uid == geteuid() || geteuid() == 0 || g_access("/etc", W_OK) == 0) {
+    g_test_skip("/etc can be touched here");
+    return;
+  }
+
+  file = waytator_video_copy_reuse(copy, state, fixture->profile);
+  g_assert_null(file);
+}
+
 //saving has to reach somewhere lasting, so only Copy on its own may stay in the cache, which deletes what it holds.
 //that file won't last, so Copy doesn't count as saving even when the window closes after it
 static void
@@ -216,6 +242,7 @@ main(int    argc,
   ADD("/video-copy/same-edit-by-another-route", test_same_edit_by_another_route);
   ADD("/video-copy/profile", test_profile);
   ADD("/video-copy/file-gone", test_file_gone);
+  ADD("/video-copy/keep-failed", test_keep_failed);
 #undef ADD
   g_test_add_func("/video-copy/save-plans", test_save_plans);
   return g_test_run();

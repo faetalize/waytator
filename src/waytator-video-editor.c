@@ -1628,18 +1628,13 @@ waytator_video_editor_reuse_copy(WaytatorVideoEditor        *self,
                                  const WaytatorVideoProfile *profile)
 {
   g_autoptr(WaytatorVideoState) state = waytator_video_editor_state(self);
-  GFile *file;
-  g_autofree char *path = NULL;
 
   g_return_val_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self), NULL);
 
-  if (state == NULL || self->copy == NULL || !waytator_video_copy_matches(self->copy, state, profile))
+  if (state == NULL || self->copy == NULL)
     return NULL;
 
-  file = waytator_video_copy_get_file(self->copy);
-  path = g_file_get_path(file);
-  waytator_video_cache_keep_copy(path);
-  return g_object_ref(file);
+  return waytator_video_copy_reuse(self->copy, state, profile);
 }
 
 gboolean

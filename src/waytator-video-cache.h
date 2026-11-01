@@ -23,8 +23,9 @@ void waytator_video_cache_sweep(void);
 //keep a clean name whatever else was copied. on disk rather than in the runtime folder, an export can be bigger
 //than memory. NULL with errno set when it can't. it stays after this waytator is gone, see the sweep below
 char *waytator_video_cache_create_copy_folder(void);
-//the copy at path was put on the clipboard again, so it has as long to go as a new one
-void waytator_video_cache_keep_copy(const char *path);
+//the copy at path is going on the clipboard again, so it has as long to go as a new one. FALSE when that didn't
+//work, so a sweep could still delete it
+gboolean waytator_video_cache_keep_copy(const char *path);
 //the export to path didn't get made, so nothing is using its folder. a folder with anything in it is left alone
 void waytator_video_cache_abandon_copy(const char *path);
 //deletes the copies that have not been made or put on the clipboard for a week
