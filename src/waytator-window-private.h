@@ -5,6 +5,7 @@
 #include "waytator-document.h"
 #include "waytator-settings.h"
 #include "waytator-types.h"
+#include "waytator-video-copy.h"
 #include "waytator-window.h"
 
 //how far the floating controls have folded to fit the window, see waytator-chrome-layout.c
@@ -314,11 +315,8 @@ gboolean waytator_window_open_video(WaytatorWindow *self,
 gboolean waytator_window_video_close_request(WaytatorWindow *self);
 void waytator_window_update_video_save_menu(WaytatorWindow *self);
 void waytator_window_update_video_save_controls(WaytatorWindow *self);
-void waytator_window_video_save(WaytatorWindow *self,
-                                const char     *profile_id,
-                                GFile          *file,
-                                gboolean        copy,
-                                gboolean        close);
+void waytator_window_video_save(WaytatorWindow          *self,
+                                WaytatorVideoSaveRequest request);
 AdwPreferencesPage *waytator_window_new_videos_page(WaytatorWindow *self);
 void waytator_window_update_ocr_overlay(WaytatorWindow *self);
 void waytator_window_maybe_start_ocr(WaytatorWindow *self);

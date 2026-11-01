@@ -29,6 +29,20 @@ waytator_video_profile_free(WaytatorVideoProfile *profile)
   g_free(profile);
 }
 
+gboolean
+waytator_video_profile_equal(const WaytatorVideoProfile *first,
+                             const WaytatorVideoProfile *second)
+{
+  return first->codec == second->codec
+      && first->encoder == second->encoder
+      && first->quality == second->quality
+      && first->size_limit == second->size_limit
+      && first->max_size == second->max_size
+      && first->max_rate == second->max_rate
+      && first->sound == second->sound
+      && first->sound_bitrate == second->sound_bitrate;
+}
+
 const char *
 waytator_video_profile_get_extension(const WaytatorVideoProfile *profile)
 {

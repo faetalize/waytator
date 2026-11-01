@@ -165,7 +165,7 @@ waytator_video_state_finish(WaytatorVideoState *state)
   waytator_video_state_layout(state);
 }
 
-static gboolean
+gboolean
 waytator_video_state_equal(const WaytatorVideoState *first,
                            const WaytatorVideoState *second)
 {

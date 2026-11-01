@@ -10,6 +10,7 @@
 
 #include "waytator-video-audio.h"
 #include "waytator-video-cache.h"
+#include "waytator-video-copy.h"
 #include "waytator-video-export.h"
 #include "waytator-video-player.h"
 #include "waytator-video-proxy.h"
@@ -348,6 +349,10 @@ struct _WaytatorVideoEditor {
   WaytatorVideoProxy *proxy;
   gboolean cropping;
   GCancellable *export_cancellable;
+  //what Copy last made of the open video
+  WaytatorVideoCopy *copy;
+  //keeps the sweep off the open video when it is itself a copy, -1 otherwise
+  int copy_hold;
   //set while the controls are brought up to date, so their signals don't edit anything
   gboolean updating;
   //the slider being dragged, its changes undo as one until another control is used or its popover closes
@@ -947,6 +952,11 @@ waytator_video_editor_close(WaytatorVideoEditor *self)
 {
   g_return_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self));
 
+  //an export lasts only as long as the video it was started from: left running it would still replace the
+  //original or take over the clipboard after the edit was thrown away
+  if (self->export_cancellable != NULL)
+    g_cancellable_cancel(self->export_cancellable);
+
   if (self->open_cancellable != NULL)
     g_cancellable_cancel(self->open_cancellable);
   g_clear_object(&self->open_cancellable);
@@ -981,7 +991,13 @@ waytator_video_editor_close(WaytatorVideoEditor *self)
     g_clear_object(&self->proxy);
   }
   gtk_widget_set_visible(GTK_WIDGET(self->optimize_label), FALSE);
+  //the same edits on another video, or on this one once it is replaced, come out differently
+  g_clear_pointer(&self->copy, waytator_video_copy_free);
   g_clear_pointer(&self->source, waytator_video_source_unref);
+  if (self->copy_hold >= 0) {
+    close(self->copy_hold);
+    self->copy_hold = -1;
+  }
   g_clear_object(&self->file);
   g_clear_pointer(&self->display_name, g_free);
 
@@ -1136,6 +1152,7 @@ waytator_video_editor_open_async(WaytatorVideoEditor *self,
   }
 
   waytator_video_editor_begin_open(self, cancellable);
+  self->copy_hold = waytator_video_cache_hold_copy(path);
   self->file = g_object_ref(file);
   self->display_name = g_file_get_basename(file);
   waytator_video_editor_open_path(self, path, g_steal_pointer(&task));
@@ -1488,6 +1505,23 @@ waytator_video_editor_export_progress(double   fraction,
   gtk_progress_bar_set_fraction(self->export_progress, fraction);
 }
 
+typedef struct {
+  WaytatorVideoState *state;
+  guint open_serial;
+  //for Copy, what to remember once it is made
+  WaytatorVideoCopy *copy;
+  //Copy's file won't last, so it doesn't make the edit saved
+  gboolean saves;
+} WaytatorVideoEditorExport;
+
+static void
+waytator_video_editor_export_free(WaytatorVideoEditorExport *export)
+{
+  waytator_video_state_unref(export->state);
+  g_clear_pointer(&export->copy, waytator_video_copy_free);
+  g_free(export);
+}
+
 static void
 waytator_video_editor_exported(GObject      *source_object,
                                GAsyncResult *result,
@@ -1495,7 +1529,7 @@ waytator_video_editor_exported(GObject      *source_object,
 {
   g_autoptr(GTask) task = user_data;
   WaytatorVideoEditor *self = g_task_get_source_object(task);
-  WaytatorVideoState *state = g_task_get_task_data(task);
+  WaytatorVideoEditorExport *export = g_task_get_task_data(task);
   g_autoptr(GError) error = NULL;
 
   (void) source_object;
@@ -1503,31 +1537,43 @@ waytator_video_editor_exported(GObject      *source_object,
   g_clear_object(&self->export_cancellable);
   gtk_widget_set_visible(self->export_bar, FALSE);
   if (!waytator_video_export_finish(result, &error)) {
+    if (export->copy != NULL) {
+      g_autofree char *path = g_file_get_path(waytator_video_copy_get_file(export->copy));
+
+      waytator_video_cache_abandon_copy(path);
+    }
     g_task_return_error(task, g_steal_pointer(&error));
     return;
+  }
+
+  //a cancel can arrive too late to stop the export, and what it made is not of whatever is open by now
+  if (export->copy != NULL && self->edit != NULL && export->open_serial == self->open_serial) {
+    g_clear_pointer(&self->copy, waytator_video_copy_free);
+    self->copy = g_steal_pointer(&export->copy);
   }
 
   //what was saved is the edit as it was when saving started, a change made meanwhile stays unsaved
   if (self->edit != NULL) {
     g_autoptr(WaytatorVideoState) now = waytator_video_edit_get_state(self->edit);
 
-    if (now == state)
+    if (export->saves && now == export->state)
       waytator_video_edit_mark_saved(self->edit);
   }
   g_task_return_boolean(task, TRUE);
 }
 
-void
-waytator_video_editor_export_async(WaytatorVideoEditor        *self,
+static void
+waytator_video_editor_start_export(WaytatorVideoEditor        *self,
                                    const WaytatorVideoProfile *profile,
                                    GFile                      *file,
                                    GFile                      *replaces,
+                                   gboolean                    copy,
                                    GAsyncReadyCallback         callback,
                                    gpointer                    user_data)
 {
   g_autoptr(GTask) task = NULL;
   g_autofree char *label = NULL;
-  WaytatorVideoState *state;
+  WaytatorVideoEditorExport *export;
 
   g_return_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self));
 
@@ -1538,15 +1584,19 @@ waytator_video_editor_export_async(WaytatorVideoEditor        *self,
     return;
   }
 
-  state = waytator_video_edit_get_state(self->edit);
-  g_task_set_task_data(task, state, (GDestroyNotify) waytator_video_state_unref);
+  export = g_new0(WaytatorVideoEditorExport, 1);
+  export->state = waytator_video_edit_get_state(self->edit);
+  export->open_serial = self->open_serial;
+  export->copy = copy ? waytator_video_copy_new(export->state, profile, file) : NULL;
+  export->saves = !copy;
+  g_task_set_task_data(task, export, (GDestroyNotify) waytator_video_editor_export_free);
   self->export_cancellable = g_cancellable_new();
   label = g_strdup_printf("Exporting as %s", profile->name);
   gtk_label_set_text(self->export_label, label);
   gtk_progress_bar_set_fraction(self->export_progress, 0.0);
   gtk_widget_set_visible(self->export_bar, TRUE);
   waytator_video_export_async(self->source,
-                              state,
+                              export->state,
                               profile,
                               file,
                               replaces,
@@ -1555,6 +1605,51 @@ waytator_video_editor_export_async(WaytatorVideoEditor        *self,
                               self,
                               waytator_video_editor_exported,
                               g_steal_pointer(&task));
+}
+
+void
+waytator_video_editor_export_async(WaytatorVideoEditor        *self,
+                                   const WaytatorVideoProfile *profile,
+                                   GFile                      *file,
+                                   GFile                      *replaces,
+                                   GAsyncReadyCallback         callback,
+                                   gpointer                    user_data)
+{
+  waytator_video_editor_start_export(self, profile, file, replaces, FALSE, callback, user_data);
+}
+
+void
+waytator_video_editor_export_copy_async(WaytatorVideoEditor        *self,
+                                        const WaytatorVideoProfile *profile,
+                                        GFile                      *file,
+                                        GAsyncReadyCallback         callback,
+                                        gpointer                    user_data)
+{
+  waytator_video_editor_start_export(self, profile, file, NULL, TRUE, callback, user_data);
+}
+
+GFile *
+waytator_video_editor_reuse_copy(WaytatorVideoEditor        *self,
+                                 const WaytatorVideoProfile *profile)
+{
+  g_autoptr(WaytatorVideoState) state = waytator_video_editor_state(self);
+
+  g_return_val_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self), NULL);
+
+  if (state == NULL || self->copy == NULL)
+    return NULL;
+
+  return waytator_video_copy_reuse(self->copy, state, profile);
+}
+
+gboolean
+waytator_video_editor_copy_is_current(WaytatorVideoEditor *self)
+{
+  g_autoptr(WaytatorVideoState) state = waytator_video_editor_state(self);
+
+  g_return_val_if_fail(WAYTATOR_IS_VIDEO_EDITOR(self), FALSE);
+
+  return state != NULL && self->copy != NULL && waytator_video_copy_is_of(self->copy, state);
 }
 
 gboolean
@@ -2084,6 +2179,7 @@ static void
 waytator_video_editor_init(WaytatorVideoEditor *self)
 {
   self->spool_fd = -1;
+  self->copy_hold = -1;
   gtk_widget_init_template(GTK_WIDGET(self));
 
   {

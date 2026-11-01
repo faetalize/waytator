@@ -7,8 +7,15 @@
 #include <fcntl.h>
 #include <glib/gstdio.h>
 #include <sys/file.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
+#include <utime.h>
+
+//long enough that a clipboard manager's history still has something to paste, the clipboard letting go of a
+//file says nothing about whether it is still wanted
+#define WAYTATOR_VIDEO_CACHE_COPY_DAYS 7
 
 static const char *const waytator_video_cache_prefixes[] = { "piped-", "optimized-", "gif-", "saving-" };
 
@@ -157,4 +164,118 @@ waytator_video_cache_sweep(void)
   }
 
   g_once_init_leave(&swept, 1);
+}
+
+static char *
+waytator_video_cache_copies_folder(void)
+{
+  return g_build_filename(g_get_user_cache_dir(), "waytator", "copies", NULL);
+}
+
+char *
+waytator_video_cache_create_copy_folder(void)
+{
+  g_autofree char *folder = waytator_video_cache_copies_folder();
+  g_autofree char *template = g_build_filename(folder, "XXXXXX", NULL);
+
+  if (g_mkdir_with_parents(folder, 0700) != 0 || g_mkdtemp_full(template, 0700) == NULL)
+    return NULL;
+
+  return g_steal_pointer(&template);
+}
+
+int
+waytator_video_cache_hold_copy(const char *path)
+{
+  g_autofree char *folder = g_path_get_dirname(path);
+  g_autofree char *parent = g_path_get_dirname(folder);
+  g_autofree char *copies = waytator_video_cache_copies_folder();
+  g_autofree char *real_parent = realpath(parent, NULL);
+  g_autofree char *real_copies = realpath(copies, NULL);
+  int fd;
+
+  if (real_parent == NULL || real_copies == NULL || strcmp(real_parent, real_copies) != 0)
+    return -1;
+
+  fd = open(folder, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  if (fd >= 0)
+    flock(fd, LOCK_SH | LOCK_NB);
+  return fd;
+}
+
+gboolean
+waytator_video_cache_keep_copy(const char *path)
+{
+  g_autofree char *folder = g_path_get_dirname(path);
+
+  return g_utime(folder, NULL) == 0;
+}
+
+void
+waytator_video_cache_abandon_copy(const char *path)
+{
+  g_autofree char *folder = g_path_get_dirname(path);
+
+  g_rmdir(folder);
+}
+
+//by age rather than by the lock alone like the others: what uses a copy is mostly not running, it is whatever has
+//its link. the lock is only there for an editor that has one open
+void
+waytator_video_cache_sweep_copies(void)
+{
+  g_autofree char *copies = waytator_video_cache_copies_folder();
+  g_autoptr(GDir) dir = g_dir_open(copies, 0, NULL);
+  const time_t oldest = time(NULL) - WAYTATOR_VIDEO_CACHE_COPY_DAYS * 24 * 60 * 60;
+  const char *name;
+
+  while (dir != NULL && (name = g_dir_read_name(dir)) != NULL) {
+    g_autofree char *path = g_build_filename(copies, name, NULL);
+    GStatBuf info;
+
+    int fd;
+
+    if (g_lstat(path, &info) != 0 || !S_ISDIR(info.st_mode) || info.st_mtime >= oldest)
+      continue;
+
+    fd = open(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (fd < 0)
+      continue;
+
+    //one still held is open in an editor
+    if (flock(fd, LOCK_EX | LOCK_NB) == 0)
+      waytator_video_cache_remove_folder(path);
+    close(fd);
+  }
+}
+
+static gpointer
+waytator_video_cache_sweep_copies_thread(gpointer user_data)
+{
+  (void) user_data;
+
+  waytator_video_cache_sweep_copies();
+  return NULL;
+}
+
+static void
+waytator_video_cache_sweep_copies_in_background(void)
+{
+  g_thread_unref(g_thread_new("waytator-sweep-copies", waytator_video_cache_sweep_copies_thread, NULL));
+}
+
+static gboolean
+waytator_video_cache_sweep_copies_due(gpointer user_data)
+{
+  (void) user_data;
+
+  waytator_video_cache_sweep_copies_in_background();
+  return G_SOURCE_CONTINUE;
+}
+
+guint
+waytator_video_cache_keep_sweeping_copies(guint seconds)
+{
+  waytator_video_cache_sweep_copies_in_background();
+  return g_timeout_add_seconds(seconds, waytator_video_cache_sweep_copies_due, NULL);
 }

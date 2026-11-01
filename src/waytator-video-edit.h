@@ -104,6 +104,10 @@ void waytator_video_state_get_output_size(const WaytatorVideoState *state,
                                           int                      *width,
                                           int                      *height);
 gboolean waytator_video_state_has_audio(const WaytatorVideoState *state);
+//whether two versions of an edit come out the same, however they got there. only means something for the same
+//video, it looks at the edits and not at what they were made to
+gboolean waytator_video_state_equal(const WaytatorVideoState *first,
+                                    const WaytatorVideoState *second);
 
 gint64 waytator_video_state_get_duration(const WaytatorVideoState *state);
 gint64 waytator_video_state_get_segment_start(const WaytatorVideoState *state,
