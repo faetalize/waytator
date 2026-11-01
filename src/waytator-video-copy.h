@@ -53,4 +53,17 @@ WaytatorVideoSavePlan waytator_video_save_plan(WaytatorVideoSaveRequest request)
 gboolean waytator_video_save_plan_reopens(const WaytatorVideoSavePlan *plan,
                                           gboolean                     copy_failed);
 
+//what to ask before an open video closes. no body means the heading says it all
+typedef struct {
+  const char *heading;
+  const char *body;
+  const char *keep;
+  const char *close;
+} WaytatorVideoCloseQuestion;
+
+//FALSE when closing loses nothing, so there is nothing to ask
+gboolean waytator_video_close_question(gboolean                    exporting,
+                                       gboolean                    unsaved,
+                                       WaytatorVideoCloseQuestion *question);
+
 G_END_DECLS

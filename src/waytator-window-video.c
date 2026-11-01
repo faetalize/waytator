@@ -187,20 +187,24 @@ waytator_window_video_discard_response(AdwAlertDialog *dialog,
   gtk_window_close(GTK_WINDOW(self));
 }
 
-//asks before an edited video is thrown away. TRUE keeps the window open for now
+//asks before an edited video or a running export is thrown away. TRUE keeps the window open for now
 gboolean
 waytator_window_video_close_request(WaytatorWindow *self)
 {
+  WaytatorVideoEditor *editor = WAYTATOR_VIDEO_EDITOR(self->video_editor);
+  WaytatorVideoCloseQuestion question;
   AdwDialog *dialog;
 
   if (!waytator_window_is_video(self)
-      || !waytator_video_editor_has_unsaved_changes(WAYTATOR_VIDEO_EDITOR(self->video_editor)))
+      || !waytator_video_close_question(waytator_video_editor_is_exporting(editor),
+                                        waytator_video_editor_has_unsaved_changes(editor),
+                                        &question))
     return FALSE;
 
-  dialog = adw_alert_dialog_new("Discard the edit?", NULL);
+  dialog = adw_alert_dialog_new(question.heading, question.body);
   adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog),
-                                 "cancel", "_Keep Editing",
-                                 "discard", "_Discard",
+                                 "cancel", question.keep,
+                                 "discard", question.close,
                                  NULL);
   adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "discard", ADW_RESPONSE_DESTRUCTIVE);
   adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "cancel");

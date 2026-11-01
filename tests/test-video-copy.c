@@ -248,6 +248,34 @@ test_reopens(void)
   g_assert_true(waytator_video_save_plan_reopens(&save_copy_close, TRUE));
 }
 
+//closing stops a running export, so that gets asked about even with nothing unsaved. the heading is about closing
+//there, as that is what was asked for, with the body saying what goes with it
+static void
+test_close_question(void)
+{
+  WaytatorVideoCloseQuestion question;
+
+  g_assert_false(waytator_video_close_question(FALSE, FALSE, &question));
+
+  g_assert_true(waytator_video_close_question(FALSE, TRUE, &question));
+  g_assert_cmpstr(question.heading, ==, "Discard the edit?");
+  g_assert_null(question.body);
+  g_assert_cmpstr(question.keep, ==, "_Keep Editing");
+  g_assert_cmpstr(question.close, ==, "_Discard");
+
+  g_assert_true(waytator_video_close_question(TRUE, FALSE, &question));
+  g_assert_cmpstr(question.heading, ==, "Close this video?");
+  g_assert_cmpstr(question.body, ==, "The export will stop.");
+  g_assert_cmpstr(question.keep, ==, "_Keep Exporting");
+  g_assert_cmpstr(question.close, ==, "_Close");
+
+  g_assert_true(waytator_video_close_question(TRUE, TRUE, &question));
+  g_assert_cmpstr(question.heading, ==, "Close this video?");
+  g_assert_cmpstr(question.body, ==, "The export will stop and your edit will be lost.");
+  g_assert_cmpstr(question.keep, ==, "_Keep Exporting");
+  g_assert_cmpstr(question.close, ==, "_Close");
+}
+
 int
 main(int    argc,
      char **argv)
@@ -264,5 +292,6 @@ main(int    argc,
 #undef ADD
   g_test_add_func("/video-copy/save-plans", test_save_plans);
   g_test_add_func("/video-copy/reopens", test_reopens);
+  g_test_add_func("/video-copy/close-question", test_close_question);
   return g_test_run();
 }
