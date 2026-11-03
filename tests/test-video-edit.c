@@ -402,6 +402,50 @@ test_group(void)
   g_assert_false(waytator_video_edit_has_unsaved_changes(edit));
 }
 
+//a saving export locks the edit, as the editor reopens the video it replaces and a change made meanwhile would
+//be lost. every way of changing it is refused, undo and redo too, and works again once it is unlocked
+static void
+test_locked(void)
+{
+  g_autoptr(WaytatorVideoEdit) edit = make_edit();
+  g_autoptr(WaytatorVideoState) before = NULL;
+  g_autoptr(WaytatorVideoState) after = NULL;
+  const WaytatorVideoCrop crop = { 100, 50, 800, 402 };
+  const WaytatorVideoSegment values = { .speed = 2.0 };
+  guint changes = 0;
+
+  //something to undo and something to redo
+  g_assert_true(waytator_video_edit_split(edit, MS(500)));
+  g_assert_true(waytator_video_edit_split(edit, MS(700)));
+  g_assert_true(waytator_video_edit_undo(edit));
+  before = waytator_video_edit_get_state(edit);
+  g_signal_connect_swapped(edit, "changed", G_CALLBACK(g_atomic_int_inc), &changes);
+
+  waytator_video_edit_set_locked(edit, TRUE);
+  g_assert_false(waytator_video_edit_can_undo(edit));
+  g_assert_false(waytator_video_edit_can_redo(edit));
+  g_assert_false(waytator_video_edit_redo(edit));
+  g_assert_false(waytator_video_edit_split(edit, MS(300)));
+  g_assert_false(waytator_video_edit_remove(edit, MS(100), MS(200)));
+  g_assert_false(waytator_video_edit_move(edit, 0, 1, 2));
+  g_assert_false(waytator_video_edit_trim_start(edit, 0, MS(200)));
+  g_assert_false(waytator_video_edit_trim_end(edit, 0, MS(300)));
+  g_assert_false(waytator_video_edit_join(edit, 1));
+  g_assert_false(waytator_video_edit_set(edit, 0, MS(500), &values, WAYTATOR_VIDEO_FIELD_SPEED));
+  g_assert_false(waytator_video_edit_set_crop(edit, &crop));
+  g_assert_false(waytator_video_edit_set_rotation(edit, 1));
+  g_assert_false(waytator_video_edit_undo(edit));
+  after = waytator_video_edit_get_state(edit);
+  g_assert_true(after == before);
+  g_assert_cmpuint(changes, ==, 0);
+
+  waytator_video_edit_set_locked(edit, FALSE);
+  g_assert_true(waytator_video_edit_can_redo(edit));
+  g_assert_true(waytator_video_edit_split(edit, MS(300)));
+  g_assert_true(waytator_video_edit_undo(edit));
+  g_assert_cmpuint(changes, ==, 2);
+}
+
 //frames at 60 a second land on rounded microseconds, and so does the timeline's grid
 static void
 test_speed_rounding(void)
@@ -629,6 +673,7 @@ main(int   argc,
   g_test_add_func("/video-edit/trim-into-gap", test_trim_into_gap);
   g_test_add_func("/video-edit/trim-stops-at-used", test_trim_stops_at_used);
   g_test_add_func("/video-edit/group", test_group);
+  g_test_add_func("/video-edit/locked", test_locked);
   g_test_add_func("/video-edit/move-edge", test_move_edge);
   g_test_add_func("/video-edit/crop-rotation", test_crop_rotation);
   g_test_add_func("/video-edit/uneven-frames", test_uneven_frames);
