@@ -2,18 +2,22 @@
 Type=Application
 Version=1.0
 Name=Waytator
-Comment=Screenshot annotator and lightweight image editor
+Comment=Take screenshots and recordings, and edit images and videos
 Exec=waytator %U
 Icon=dev.faetalize.waytator
 Terminal=false
 Categories=Graphics;
 StartupNotify=true
-Actions=capture-area;capture-screen;
+Actions=screenshot-area;screenshot-screen;record;
 
-[Desktop Action capture-area]
-Name=Capture Area
+[Desktop Action screenshot-area]
+Name=Screenshot Area
 Exec=waytator --screenshot area
 
-[Desktop Action capture-screen]
-Name=Capture Screen
+[Desktop Action screenshot-screen]
+Name=Screenshot Screen
 Exec=waytator --screenshot screen
+
+[Desktop Action record]
+Name=Record
+Exec=waytator --record
