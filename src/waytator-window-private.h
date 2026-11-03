@@ -274,6 +274,8 @@ struct _WaytatorWindow {
   GdkModifierType angle_snap_modifiers;
   gboolean allow_highlighter_overlap;
   gboolean auto_copy_latest_change;
+  //a new window starts with the tool and tool settings the last one closed with
+  gboolean remember_last_tool;
   double window_background_opacity;
   GdkRGBA default_primary_color;
   GdkRGBA default_highlighter_color;

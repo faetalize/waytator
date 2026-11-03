@@ -127,6 +127,8 @@ Add `--name "Screenshot.png"` to name a piped image.
 
 Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts.
 
+To start each time with the tool you last used, and its colour and size, turn on Remember last tool in Preferences.
+
 ### Editing videos
 
 Open a screen recording or any other video to edit it, then copy or save it:
