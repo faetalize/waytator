@@ -5,6 +5,7 @@
 #include "waytator-capture-overlay.h"
 #include "waytator-export.h"
 #include "waytator-instance.h"
+#include "waytator-last-tool.h"
 #include "waytator-ocr.h"
 #include "waytator-passthrough.h"
 #include "waytator-record-audio.h"
@@ -65,6 +66,34 @@ waytator_window_apply_default_tool_colors(WaytatorWindow *self)
   self->tool_colors[WAYTATOR_TOOL_MARKER] = self->default_highlighter_color;
   self->tool_colors[WAYTATOR_TOOL_BLUR] = (GdkRGBA){0.0, 0.0, 0.0, 1.0};
   self->tool_colors[WAYTATOR_TOOL_ERASER] = (GdkRGBA){1.0, 1.0, 1.0, 1.0};
+}
+
+static void
+waytator_window_get_last_tool(WaytatorWindow   *self,
+                              WaytatorLastTool *last_tool)
+{
+  last_tool->tool = self->active_tool;
+  memcpy(last_tool->widths, self->tool_widths, sizeof(last_tool->widths));
+  memcpy(last_tool->colors, self->tool_colors, sizeof(last_tool->colors));
+  memcpy(last_tool->fill_colors, self->tool_fill_colors, sizeof(last_tool->fill_colors));
+  last_tool->blur_type = self->blur_type;
+}
+
+//only before the window is built, the tool buttons catch up with it in waytator_window_init
+static void
+waytator_window_restore_last_tool(WaytatorWindow *self)
+{
+  WaytatorLastTool last_tool;
+
+  waytator_window_get_last_tool(self, &last_tool);
+  if (!waytator_last_tool_load(&last_tool))
+    return;
+
+  self->active_tool = last_tool.tool;
+  memcpy(self->tool_widths, last_tool.widths, sizeof(last_tool.widths));
+  memcpy(self->tool_colors, last_tool.colors, sizeof(last_tool.colors));
+  memcpy(self->tool_fill_colors, last_tool.fill_colors, sizeof(last_tool.fill_colors));
+  self->blur_type = last_tool.blur_type;
 }
 
 static void
@@ -643,6 +672,12 @@ waytator_window_load_preferences(WaytatorWindow *self)
                                                            "auto_copy_latest_change",
                                                            NULL);
 
+  if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "remember_last_tool", NULL))
+    self->remember_last_tool = g_key_file_get_boolean(key_file,
+                                                      WAYTATOR_SETTINGS_GROUP,
+                                                      "remember_last_tool",
+                                                      NULL);
+
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "close_on_copy", NULL))
     self->close_on_copy = g_key_file_get_boolean(key_file,
                                                  WAYTATOR_SETTINGS_GROUP,
@@ -776,8 +811,12 @@ waytator_window_save_preferences(WaytatorWindow *self)
   g_autoptr(GError) error = NULL;
 
   //the video profiles are kept in the file by the preferences that edit them
-  if (g_key_file_load_from_file(previous, path, G_KEY_FILE_NONE, NULL))
+  if (g_key_file_load_from_file(previous, path, G_KEY_FILE_NONE, NULL)) {
     waytator_video_profiles_carry_over(previous, key_file);
+    //switching it off forgets the tool, so switching it back on doesn't bring back an old one
+    if (self->remember_last_tool)
+      waytator_last_tool_carry_over(previous, key_file);
+  }
   g_key_file_set_integer(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "eraser_style",
@@ -799,6 +838,10 @@ waytator_window_save_preferences(WaytatorWindow *self)
                          WAYTATOR_SETTINGS_GROUP,
                          "allow_highlighter_overlap",
                          self->allow_highlighter_overlap);
+  g_key_file_set_boolean(key_file,
+                         WAYTATOR_SETTINGS_GROUP,
+                         "remember_last_tool",
+                         self->remember_last_tool);
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "close_on_copy",
@@ -970,6 +1013,17 @@ waytator_window_auto_copy_latest_change_changed(AdwSwitchRow   *row,
   (void) pspec;
 
   self->auto_copy_latest_change = adw_switch_row_get_active(row);
+  waytator_window_save_preferences(self);
+}
+
+static void
+waytator_window_remember_last_tool_changed(AdwSwitchRow   *row,
+                                           GParamSpec     *pspec,
+                                           WaytatorWindow *self)
+{
+  (void) pspec;
+
+  self->remember_last_tool = adw_switch_row_get_active(row);
   waytator_window_save_preferences(self);
 }
 
@@ -1933,6 +1987,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   AdwSwitchRow *floating_controls_blur_row;
   AdwSwitchRow *auto_copy_latest_change_row;
   AdwSwitchRow *close_on_copy_row;
+  AdwSwitchRow *remember_last_tool_row;
   AdwSwitchRow *highlighter_overlap_row;
   AdwComboRow *angle_snap_modifier_row;
   AdwActionRow *opacity_row;
@@ -1975,6 +2030,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   floating_controls_blur_row = ADW_SWITCH_ROW(adw_switch_row_new());
   auto_copy_latest_change_row = ADW_SWITCH_ROW(adw_switch_row_new());
   close_on_copy_row = ADW_SWITCH_ROW(adw_switch_row_new());
+  remember_last_tool_row = ADW_SWITCH_ROW(adw_switch_row_new());
   highlighter_overlap_row = ADW_SWITCH_ROW(adw_switch_row_new());
   angle_snap_modifier_row = ADW_COMBO_ROW(adw_combo_row_new());
   opacity_row = ADW_ACTION_ROW(adw_action_row_new());
@@ -2085,6 +2141,9 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_action_row_set_subtitle(ADW_ACTION_ROW(close_on_copy_row),
                               "Copying closes the app and adds a “Copy without closing” button");
   adw_switch_row_set_active(close_on_copy_row, self->close_on_copy);
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(remember_last_tool_row), "Remember last tool");
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(remember_last_tool_row), "Also preserves tool settings");
+  adw_switch_row_set_active(remember_last_tool_row, self->remember_last_tool);
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(highlighter_overlap_row), "Allow highlighter strokes to overlap");
   adw_switch_row_set_active(highlighter_overlap_row, self->allow_highlighter_overlap);
   gtk_color_dialog_set_with_alpha(default_fill_color_dialog, TRUE);
@@ -2111,6 +2170,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_preferences_group_add(group, GTK_WIDGET(highlighter_overlap_row));
   adw_preferences_group_add(group, GTK_WIDGET(auto_copy_latest_change_row));
   adw_preferences_group_add(group, GTK_WIDGET(close_on_copy_row));
+  adw_preferences_group_add(group, GTK_WIDGET(remember_last_tool_row));
   adw_preferences_group_add(group, GTK_WIDGET(default_primary_color_row));
   adw_preferences_group_add(group, GTK_WIDGET(default_highlighter_color_row));
   adw_preferences_group_add(group, GTK_WIDGET(default_fill_color_row));
@@ -2174,6 +2234,10 @@ waytator_window_show_preferences(WaytatorWindow *self)
   g_signal_connect(close_on_copy_row,
                    "notify::active",
                    G_CALLBACK(waytator_window_close_on_copy_changed),
+                   self);
+  g_signal_connect(remember_last_tool_row,
+                   "notify::active",
+                   G_CALLBACK(waytator_window_remember_last_tool_changed),
                    self);
   g_signal_connect(highlighter_overlap_row,
                    "notify::active",
@@ -5292,6 +5356,7 @@ waytator_window_init_state(WaytatorWindow *self)
   self->angle_snap_modifiers = GDK_SHIFT_MASK;
   self->allow_highlighter_overlap = TRUE;
   self->auto_copy_latest_change = FALSE;
+  self->remember_last_tool = FALSE;
   self->default_primary_color = (GdkRGBA){0.96, 0.2, 0.28, 1.0};
   self->default_highlighter_color = (GdkRGBA){1.0, 0.91, 0.2, 1.0};
   self->default_fill_color = (GdkRGBA){0.96, 0.2, 0.28, 0.0};
@@ -5310,6 +5375,8 @@ waytator_window_init_state(WaytatorWindow *self)
     self->tool_widths[i] = waytator_tool_width(i);
 
   waytator_window_apply_default_tool_colors(self);
+  if (self->remember_last_tool)
+    waytator_window_restore_last_tool(self);
 }
 
 static void
@@ -5741,6 +5808,9 @@ waytator_window_init(WaytatorWindow *self)
   g_signal_connect(self->ocr_panel_close_button, "clicked", G_CALLBACK(waytator_window_ocr_panel_close_clicked), self);
   g_signal_connect(self->ocr_panel_bottom_sheet, "notify::open", G_CALLBACK(waytator_window_ocr_panel_open_changed), self);
 
+  //the template starts on the brush, a remembered tool takes over from it here
+  waytator_window_select_tool(self, self->active_tool);
+  waytator_window_sync_active_tool_colors(self);
   waytator_window_update_size_controls(self);
   waytator_window_update_tool_ui(self);
   waytator_window_sync_state(self);
@@ -5759,6 +5829,14 @@ waytator_window_removed(GtkApplication *app,
 
   if (window != GTK_WINDOW(self))
     return;
+
+  //a window without a picture had no tools to change, it would only overwrite one that did
+  if (self->remember_last_tool && self->texture != NULL && !waytator_window_is_video(self)) {
+    WaytatorLastTool last_tool;
+
+    waytator_window_get_last_tool(self, &last_tool);
+    waytator_last_tool_save(&last_tool);
+  }
 
   self->disposed = TRUE;
   waytator_video_editor_close(WAYTATOR_VIDEO_EDITOR(self->video_editor));

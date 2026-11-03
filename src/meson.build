@@ -31,6 +31,8 @@ waytator_sources = files(
   'waytator-export.h',
   'waytator-instance.c',
   'waytator-instance.h',
+  'waytator-last-tool.c',
+  'waytator-last-tool.h',
   'waytator-notification.c',
   'waytator-notification.h',
   'waytator-ocr.c',
