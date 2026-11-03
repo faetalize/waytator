@@ -29,6 +29,7 @@ struct _WaytatorVideoEdit {
   guint next_id;
   guint group_depth;
   gboolean group_recorded;
+  gboolean locked;
 };
 
 G_DEFINE_FINAL_TYPE(WaytatorVideoEdit, waytator_video_edit, G_TYPE_OBJECT)
@@ -575,13 +576,13 @@ waytator_video_edit_get_state(WaytatorVideoEdit *self)
   return waytator_video_state_ref(self->state);
 }
 
-//takes the new state, and only keeps it when it changes something
+//takes the new state, and only keeps it when it changes something and the edit is not locked
 static gboolean
 waytator_video_edit_commit(WaytatorVideoEdit  *self,
                            WaytatorVideoState *state)
 {
   waytator_video_state_finish(state);
-  if (waytator_video_state_identical(state, self->state)) {
+  if (self->locked || waytator_video_state_identical(state, self->state)) {
     waytator_video_state_unref(state);
     return FALSE;
   }
@@ -1088,19 +1089,19 @@ waytator_video_edit_end_group(WaytatorVideoEdit *self)
 gboolean
 waytator_video_edit_can_undo(WaytatorVideoEdit *self)
 {
-  return !g_queue_is_empty(self->undo_history);
+  return !self->locked && !g_queue_is_empty(self->undo_history);
 }
 
 gboolean
 waytator_video_edit_can_redo(WaytatorVideoEdit *self)
 {
-  return !g_queue_is_empty(self->redo_history);
+  return !self->locked && !g_queue_is_empty(self->redo_history);
 }
 
 gboolean
 waytator_video_edit_undo(WaytatorVideoEdit *self)
 {
-  if (g_queue_is_empty(self->undo_history))
+  if (self->locked || g_queue_is_empty(self->undo_history))
     return FALSE;
 
   g_queue_push_head(self->redo_history, self->state);
@@ -1113,7 +1114,7 @@ waytator_video_edit_undo(WaytatorVideoEdit *self)
 gboolean
 waytator_video_edit_redo(WaytatorVideoEdit *self)
 {
-  if (g_queue_is_empty(self->redo_history))
+  if (self->locked || g_queue_is_empty(self->redo_history))
     return FALSE;
 
   g_queue_push_head(self->undo_history, self->state);
@@ -1121,6 +1122,19 @@ waytator_video_edit_redo(WaytatorVideoEdit *self)
   self->group_recorded = FALSE;
   g_signal_emit(self, waytator_video_edit_signals[SIGNAL_CHANGED], 0);
   return TRUE;
+}
+
+void
+waytator_video_edit_set_locked(WaytatorVideoEdit *self,
+                               gboolean           locked)
+{
+  self->locked = locked;
+}
+
+gboolean
+waytator_video_edit_is_locked(WaytatorVideoEdit *self)
+{
+  return self->locked;
 }
 
 gboolean

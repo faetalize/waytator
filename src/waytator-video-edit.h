@@ -218,6 +218,12 @@ gboolean waytator_video_edit_can_redo(WaytatorVideoEdit *self);
 gboolean waytator_video_edit_undo(WaytatorVideoEdit *self);
 gboolean waytator_video_edit_redo(WaytatorVideoEdit *self);
 
+//a locked edit takes no changes, undo and redo included, for while an export is writing the video it was
+//opened from and an edit made meanwhile would be thrown away
+void waytator_video_edit_set_locked(WaytatorVideoEdit *self,
+                                    gboolean           locked);
+gboolean waytator_video_edit_is_locked(WaytatorVideoEdit *self);
+
 //whether the edit differs from the video as it was opened or last exported
 gboolean waytator_video_edit_has_unsaved_changes(WaytatorVideoEdit *self);
 void waytator_video_edit_mark_saved(WaytatorVideoEdit *self);

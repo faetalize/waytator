@@ -1954,6 +1954,13 @@ waytator_video_timeline_size_allocate(GtkWidget *widget,
   waytator_video_timeline_queue_thumbnails(self);
 }
 
+//a locked edit takes no trims or moves, so its edges aren't handles and its blocks can't be picked up
+static gboolean
+waytator_video_timeline_editable(WaytatorVideoTimeline *self)
+{
+  return self->edit != NULL && !waytator_video_edit_is_locked(self->edit);
+}
+
 static void
 waytator_video_timeline_hit(WaytatorVideoTimeline *self,
                             double                 x,
@@ -1998,7 +2005,7 @@ waytator_video_timeline_hit(WaytatorVideoTimeline *self,
 
   //the edges either side of the block under the pointer, kept to a quarter of a thin block so it can still be
   //picked up by its middle
-  for (guint edge = index; edge <= index + 1 && edge <= blocks->len; edge++) {
+  for (guint edge = index; waytator_video_timeline_editable(self) && edge <= index + 1 && edge <= blocks->len; edge++) {
     const double distance = x - waytator_video_timeline_x(self, waytator_video_timeline_edge_time(blocks, edge));
     const guint side = distance < 0 ? edge - 1 : edge;
     double zone = touch ? WAYTATOR_TIMELINE_EDGE_ZONE * 1.5 : WAYTATOR_TIMELINE_EDGE_ZONE;
@@ -2167,7 +2174,8 @@ waytator_video_timeline_touch_held(gpointer user_data)
   WaytatorVideoTimeline *self = user_data;
 
   self->drag.hold_source = 0;
-  if (self->drag.mode == WAYTATOR_TIMELINE_DRAG_PRESS && self->drag.hit.kind == WAYTATOR_TIMELINE_HIT_BLOCK) {
+  if (self->drag.mode == WAYTATOR_TIMELINE_DRAG_PRESS && self->drag.hit.kind == WAYTATOR_TIMELINE_HIT_BLOCK
+      && waytator_video_timeline_editable(self)) {
     waytator_video_timeline_begin_move(self);
     waytator_video_timeline_drag_apply(self);
   }
@@ -2441,7 +2449,7 @@ waytator_video_timeline_motion(WaytatorVideoTimeline *self,
     g_clear_handle_id(&self->drag.hold_source, g_source_remove);
     if (self->drag.touch)
       self->drag.mode = WAYTATOR_TIMELINE_DRAG_PAN;
-    else if (self->drag.hit.kind == WAYTATOR_TIMELINE_HIT_BLOCK)
+    else if (self->drag.hit.kind == WAYTATOR_TIMELINE_HIT_BLOCK && waytator_video_timeline_editable(self))
       waytator_video_timeline_begin_move(self);
     else if (self->drag.hit.rail != WAYTATOR_TIMELINE_RAIL_OBJECTS)
       self->drag.mode = WAYTATOR_TIMELINE_DRAG_RANGE;

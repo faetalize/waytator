@@ -920,6 +920,12 @@ waytator_video_editor_proxy_progress(GObject    *object,
   gtk_widget_set_visible(GTK_WIDGET(self->optimize_label), progress < 1.0);
 }
 
+static gboolean
+waytator_video_editor_locked(WaytatorVideoEditor *self)
+{
+  return self->edit != NULL && waytator_video_edit_is_locked(self->edit);
+}
+
 static void
 waytator_video_editor_set_loading(WaytatorVideoEditor *self,
                                   const char          *message)
@@ -928,7 +934,7 @@ waytator_video_editor_set_loading(WaytatorVideoEditor *self,
     gtk_label_set_text(self->loading_label, message);
   gtk_widget_set_visible(self->loading_box, message != NULL);
   gtk_widget_set_sensitive(self->transport_group, message == NULL);
-  gtk_widget_set_sensitive(self->tools_group, message == NULL);
+  gtk_widget_set_sensitive(self->tools_group, message == NULL && !waytator_video_editor_locked(self));
   gtk_widget_set_sensitive(self->zoom_group, message == NULL);
 }
 
@@ -936,7 +942,7 @@ static void
 waytator_video_editor_set_cropping(WaytatorVideoEditor *self,
                                    gboolean             cropping)
 {
-  cropping = cropping && self->edit != NULL;
+  cropping = cropping && self->edit != NULL && !waytator_video_edit_is_locked(self->edit);
   if (self->cropping == cropping)
     return;
 
@@ -945,6 +951,21 @@ waytator_video_editor_set_cropping(WaytatorVideoEditor *self,
   gtk_widget_set_visible(self->crop_status, cropping);
   gtk_toggle_button_set_active(self->transform_button, cropping);
   g_object_notify_by_pspec(G_OBJECT(self), waytator_video_editor_props[PROP_CROPPING]);
+}
+
+//while a saving export runs: when it replaces the opened video, the editor opens that again and an edit made
+//meanwhile would be thrown away. playback and the timeline's selection stay, only the edit can't change
+static void
+waytator_video_editor_set_locked(WaytatorVideoEditor *self,
+                                 gboolean             locked)
+{
+  waytator_video_editor_stop_adjusting(self);
+  if (locked)
+    waytator_video_editor_set_cropping(self, FALSE);
+  waytator_video_edit_set_locked(self->edit, locked);
+  gtk_widget_set_sensitive(self->tools_group, !locked);
+  //for undo and redo, which the lock turns off
+  g_signal_emit(self, waytator_video_editor_signals[SIGNAL_CHANGED], 0);
 }
 
 void
@@ -1536,6 +1557,8 @@ waytator_video_editor_exported(GObject      *source_object,
 
   g_clear_object(&self->export_cancellable);
   gtk_widget_set_visible(self->export_bar, FALSE);
+  if (export->saves && self->edit != NULL && export->open_serial == self->open_serial)
+    waytator_video_editor_set_locked(self, FALSE);
   if (!waytator_video_export_finish(result, &error)) {
     if (export->copy != NULL) {
       g_autofree char *path = g_file_get_path(waytator_video_copy_get_file(export->copy));
@@ -1590,6 +1613,9 @@ waytator_video_editor_start_export(WaytatorVideoEditor        *self,
   export->copy = copy ? waytator_video_copy_new(export->state, profile, file) : NULL;
   export->saves = !copy;
   g_task_set_task_data(task, export, (GDestroyNotify) waytator_video_editor_export_free);
+  //Copy never replaces the opened video, so editing can carry on through it
+  if (export->saves)
+    waytator_video_editor_set_locked(self, TRUE);
   self->export_cancellable = g_cancellable_new();
   label = g_strdup_printf("Exporting as %s", profile->name);
   gtk_label_set_text(self->export_label, label);
