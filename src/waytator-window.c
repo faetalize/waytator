@@ -3397,6 +3397,7 @@ waytator_window_save_export_ready(GObject      *source_object,
     self->save_feedback_timeout_id = 0;
     self->after_save = WAYTATOR_AFTER_SAVE_NONE;
     g_clear_pointer(&self->saved_path, g_free);
+    waytator_document_finish_save(self->document, FALSE);
     //an empty file waytator made to hold the name, not one that was there before
     if (self->adopt_file_reserved)
       g_file_delete(self->adopt_file, NULL, NULL);
@@ -3409,7 +3410,7 @@ waytator_window_save_export_ready(GObject      *source_object,
     return;
   }
 
-  waytator_window_mark_saved(self);
+  waytator_document_finish_save(self->document, TRUE);
   self->never_saved = FALSE;
   //the tick goes up first, so taking on the new file does not put the plain icon back in between
   waytator_window_finish_save_feedback(self);
@@ -3449,6 +3450,7 @@ waytator_window_save_to_file(WaytatorWindow *self,
     self->adopt_file = g_object_ref(file);
 
   waytator_window_set_saved_path(self, file);
+  waytator_document_begin_save(self->document);
   waytator_window_begin_save_feedback(self);
   task = g_task_new(self, NULL, waytator_window_save_export_ready, g_object_ref(self));
   g_task_set_task_data(task, request, (GDestroyNotify) waytator_export_request_free);
@@ -3505,6 +3507,7 @@ waytator_window_save_overwrite(WaytatorWindow *self)
   }
 
   waytator_window_set_saved_path(self, self->current_file);
+  waytator_document_begin_save(self->document);
   waytator_window_begin_save_feedback(self);
   task = g_task_new(self, NULL, waytator_window_save_export_ready, g_object_ref(self));
   g_task_set_task_data(task, request, (GDestroyNotify) waytator_export_request_free);

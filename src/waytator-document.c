@@ -19,6 +19,8 @@ struct _WaytatorDocument {
   int image_height;
   gsize image_stride;
   WaytatorDocumentSnapshot *saved_state;
+  //what the running save is writing, it only becomes saved_state once the file is written
+  WaytatorDocumentSnapshot *saving_state;
   GQueue *undo_history;
   GQueue *redo_history;
 };
@@ -212,6 +214,7 @@ waytator_document_free(WaytatorDocument *document)
   g_clear_pointer(&document->image_pixels, g_bytes_unref);
   g_clear_pointer(&document->strokes, g_ptr_array_unref);
   waytator_document_snapshot_free(document->saved_state);
+  waytator_document_snapshot_free(document->saving_state);
   g_clear_pointer(&document->undo_history, g_queue_free);
   g_clear_pointer(&document->redo_history, g_queue_free);
   g_free(document);
@@ -274,6 +277,29 @@ waytator_document_mark_saved(WaytatorDocument *document)
 {
   waytator_document_snapshot_free(document->saved_state);
   document->saved_state = waytator_document_snapshot_from_document(document);
+}
+
+//taken when the save starts, since the document can still be drawn on while the file is written
+void
+waytator_document_begin_save(WaytatorDocument *document)
+{
+  waytator_document_snapshot_free(document->saving_state);
+  document->saving_state = waytator_document_snapshot_from_document(document);
+}
+
+void
+waytator_document_finish_save(WaytatorDocument *document,
+                              gboolean          saved)
+{
+  WaytatorDocumentSnapshot *saving_state = g_steal_pointer(&document->saving_state);
+
+  if (!saved || saving_state == NULL) {
+    waytator_document_snapshot_free(saving_state);
+    return;
+  }
+
+  waytator_document_snapshot_free(document->saved_state);
+  document->saved_state = saving_state;
 }
 
 gboolean

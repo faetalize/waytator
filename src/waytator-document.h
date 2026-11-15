@@ -20,6 +20,9 @@ void waytator_document_set_image(WaytatorDocument *document,
                                  gsize             stride);
 gboolean waytator_document_has_unsaved_changes(WaytatorDocument *document);
 void waytator_document_mark_saved(WaytatorDocument *document);
+void waytator_document_begin_save(WaytatorDocument *document);
+void waytator_document_finish_save(WaytatorDocument *document,
+                                   gboolean          saved);
 
 gboolean waytator_document_can_undo(WaytatorDocument *document);
 gboolean waytator_document_can_redo(WaytatorDocument *document);
