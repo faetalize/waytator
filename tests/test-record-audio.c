@@ -1,6 +1,11 @@
 //the capture of a recording's sound against a pipewire of the test's own, with a null output to play to and
 //a microphone that hears what it plays. nothing here opens a stream on the desktop's pipewire, and the test
 //skips itself without pipewire and wireplumber to run one
+
+//kill is POSIX, which strict c11 leaves out. glibc only gives it through the _REENTRANT that -pthread sets, and
+//musl ignores that
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <glib/gstdio.h>
 #include <gio/gio.h>
