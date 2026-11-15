@@ -170,6 +170,15 @@ test_last_tool = executable(
 )
 test('last-tool', test_last_tool)
 
+test_document = executable(
+  'test-document',
+  'test-document.c',
+  files('../src/waytator-document.c', '../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('document', test_document)
+
 #records a screen of a stand-in portal and a PipeWire daemon of the test's own and decodes the files, skipping without
 #pipewire or VA-API. the wait for the first picture is shortened so the case where none comes is quick
 test_record_recorder = executable(
