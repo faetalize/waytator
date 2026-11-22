@@ -437,7 +437,8 @@ waytator_recorder_pick_paths(const char *folder,
                              GError    **error)
 {
   g_autoptr(GDateTime) now = g_date_time_new_now_local();
-  g_autofree char *stem = g_date_time_format(now, "Screencast from %Y-%m-%d %H-%M-%S");
+  // Translators: Filename stem; preserve the date/time directives and avoid slashes.
+  g_autofree char *stem = g_date_time_format(now, _("Screencast from %Y-%m-%d %H-%M-%S"));
 
   for (int attempt = 1; attempt <= WAYTATOR_RECORDER_MAX_NAMES; attempt++) {
     g_autofree char *name = attempt == 1 ? g_strdup(stem) : g_strdup_printf("%s %d", stem, attempt);

@@ -18,6 +18,7 @@ src/waytator-recorder.c
 src/waytator-recording-bar.c
 src/waytator-recording.c
 src/waytator-screenshot.c
+src/waytator-settings.c
 src/waytator-video-audio-output.c
 src/waytator-video-audio.c
 src/waytator-video-copy.c

@@ -2,27 +2,32 @@
 
 #include "waytator-types.h"
 
+#include <glib/gi18n.h>
+
 static char *
 waytator_settings_default_save_dir(void)
 {
   const char *pictures = g_get_user_special_dir(G_USER_DIRECTORY_PICTURES);
+  // Translators: A single folder name; do not use slashes.
+  const char *folder = C_("default save folder", "Screenshots");
 
   if (pictures != NULL)
-    return g_build_filename(pictures, "Screenshots", NULL);
+    return g_build_filename(pictures, folder, NULL);
 
-  return g_build_filename(g_get_home_dir(), "Pictures", "Screenshots", NULL);
+  return g_build_filename(g_get_home_dir(), "Pictures", folder, NULL);
 }
 
-//where GNOME keeps the screencasts it records, so both end up in one place
 static char *
 waytator_settings_default_recording_dir(void)
 {
   const char *videos = g_get_user_special_dir(G_USER_DIRECTORY_VIDEOS);
+  // Translators: A single folder name; do not use slashes.
+  const char *folder = C_("default save folder", "Screencasts");
 
   if (videos != NULL)
-    return g_build_filename(videos, "Screencasts", NULL);
+    return g_build_filename(videos, folder, NULL);
 
-  return g_build_filename(g_get_home_dir(), "Videos", "Screencasts", NULL);
+  return g_build_filename(g_get_home_dir(), "Videos", folder, NULL);
 }
 
 char *

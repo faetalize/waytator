@@ -88,7 +88,10 @@ waytator_screenshot_make_name(void)
 {
   g_autoptr(GDateTime) now = g_date_time_new_now_local();
 
-  return g_date_time_format(now, "Screenshot from %Y-%m-%d %H-%M-%S.png");
+  // Translators: Filename stem; preserve the date/time directives and avoid slashes.
+  g_autofree char *stem = g_date_time_format(now, _("Screenshot from %Y-%m-%d %H-%M-%S"));
+
+  return g_strconcat(stem, ".png", NULL);
 }
 
 //on disk, all that is left is its notification, which a newer version can take over from

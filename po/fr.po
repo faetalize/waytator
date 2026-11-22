@@ -87,13 +87,13 @@ msgstr ""
 "désactivée dans\n"
 "                                          les préférences\n"
 "  --record [area|screen|window]           Enregistre une zone par défaut. "
-"Relancez\n"
+"Relancer\n"
 "                                          la commande pour arrêter. Ouvre "
 "l’éditeur\n"
 "                                          sauf si cette option est "
 "désactivée dans\n"
 "                                          les préférences\n"
-"  --screen NAME                           Avec --screenshot ou --record : "
+"  --screen NOM                            Avec --screenshot ou --record : "
 "utilise cet\n"
 "                                          écran, par ex. DP-1. Non pris en "
 "charge\n"
@@ -108,7 +108,7 @@ msgstr ""
 "  --gapplication-service                  Lance l’application en tant que "
 "service\n"
 "                                          en arrière-plan\n"
-"  --delay SECONDS                         Avec --screenshot : attend ce "
+"  --delay SECONDES                        Avec --screenshot : attend ce "
 "nombre entier\n"
 "                                          de secondes (300 au maximum). Avec "
 "--record :\n"
@@ -117,17 +117,17 @@ msgstr ""
 "                                          avant l’enregistrement\n"
 "  --close-on-copy, --no-close-on-copy     Remplace la préférence « Fermer "
 "après la copie »\n"
-"  --close-window-shortcut SHORTCUT        Remplace un raccourci pour ce "
+"  --close-window-shortcut RACCOURCI       Remplace un raccourci pour ce "
 "lancement\n"
 "  --copy-shortcut SHORTCUT\n"
-"  --copy-without-closing-shortcut SHORTCUT\n"
-"  --save-shortcut SHORTCUT\n"
-"  --save-and-close-shortcut SHORTCUT\n"
-"  --save-copy-and-close-shortcut SHORTCUT\n"
-"  --screenshot-area-shortcut SHORTCUT\n"
-"  --screenshot-screen-shortcut SHORTCUT\n"
+"  --copy-without-closing-shortcut RACCOURCI\n"
+"  --save-shortcut RACCOURCI\n"
+"  --save-and-close-shortcut RACCOURCI\n"
+"  --save-copy-and-close-shortcut RACCOURCI\n"
+"  --screenshot-area-shortcut RACCOURCI\n"
+"  --screenshot-screen-shortcut RACCOURCI\n"
 "\n"
-"SHORTCUT désigne une touche ou des modificateurs et une touche reliés par "
+"RACCOURCI désigne une touche ou des modificateurs et une touche reliés par "
 "« + »,\n"
 "par exemple \"s\", \"F5\", \"escape\", \"ctrl+s\" ou \"ctrl+shift+s\". Il "
 "peut aussi valoir\n"
@@ -153,13 +153,13 @@ msgstr "Raccourci non valide pour %s : %s\n"
 #: src/main.c:476
 #, c-format
 msgid "Unknown screenshot mode \"%s\", use area or screen\n"
-msgstr "Mode de capture d’écran « %s » inconnu ; utilisez area ou screen\n"
+msgstr "Mode de capture d’écran « %s » inconnu, utilisez area ou screen\n"
 
 #: src/main.c:502
 #, c-format
 msgid "Unknown recording mode \"%s\", use area, screen or window\n"
 msgstr ""
-"Mode d’enregistrement « %s » inconnu ; utilisez area, screen ou window\n"
+"Mode d’enregistrement « %s » inconnu, utilisez area, screen ou window\n"
 
 #: src/main.c:519
 msgid "Missing value for --delay\n"
@@ -168,9 +168,7 @@ msgstr "Valeur manquante pour --delay\n"
 #: src/main.c:527
 #, c-format
 msgid "--delay takes a whole number of seconds from 0 to %d, not \"%s\"\n"
-msgstr ""
-"--delay attend un nombre entier de secondes compris entre 0 et %d, et non "
-"« %s »\n"
+msgstr "--delay attend un nombre entier de secondes compris entre 0 et %d, et non « %s »\n"
 
 #: src/main.c:540
 msgid "Missing value for --screen\n"
@@ -205,7 +203,7 @@ msgstr "--screen n’est pas pris en charge sous GNOME\n"
 #: src/main.c:613
 #, c-format
 msgid "--screen captures a whole screen, remove \"%s\" from your command\n"
-msgstr "--screen capture un écran entier ; retirez « %s » de votre commande\n"
+msgstr "--screen capture un écran entier, retirez « %s » de votre commande\n"
 
 #: src/main.c:624
 msgid "--delay only works with --screenshot or --record\n"
@@ -247,7 +245,7 @@ msgid ""
 "afterward; use Undo to revert it."
 msgstr ""
 "Pour des raisons de performances, le flou sera intégré à l’image. Il ne "
-"pourra plus être effacé ; utilisez Annuler pour revenir en arrière."
+"pourra plus être effacé ; Cliquez sur « Annuler » pour revenir en arrière."
 
 #: src/waytator-canvas-layout.c:40
 #, c-format
@@ -281,7 +279,7 @@ msgstr "Masquer le curseur de taille"
 
 #: src/waytator-canvas-state.c:277 src/ui/window.ui:709
 msgid "Show size slider"
-msgstr "Afficher le curseur de réglage de la taille"
+msgstr "Afficher le curseur de taille"
 
 #: src/waytator-capture-overlay.c:174
 #, c-format
@@ -349,31 +347,21 @@ msgstr "Annuler (Échap)"
 #: src/waytator-capture.c:138
 #, c-format
 msgid "Could not allocate a %dx%d image for the screen capture: %s"
-msgstr ""
-"Impossible d’allouer une image de %d × %d pixels pour la capture d’écran : %s"
+msgstr "Impossible d’allouer une image de %d × %d pixels pour la capture d’écran : %s"
 
 #: src/waytator-capture.c:423
-msgid ""
-"The compositor did not offer a shared memory buffer for the screen capture"
-msgstr ""
-"Le compositeur n’a pas fourni de tampon en mémoire partagée pour la capture "
-"d’écran"
+msgid "The compositor did not offer a shared memory buffer for the screen capture"
+msgstr "Le compositeur n’a pas fourni de tampon en mémoire partagée pour la capture d’écran"
 
 #: src/waytator-capture.c:431
 #, c-format
-msgid ""
-"The compositor offered the screen capture in an unsupported pixel format "
-"(0x%08x)"
-msgstr ""
-"Le compositeur a fourni la capture d’écran dans un format de pixels non pris "
-"en charge (0x%08x)"
+msgid "The compositor offered the screen capture in an unsupported pixel format (0x%08x)"
+msgstr "Le compositeur a fourni la capture d’écran dans un format de pixels non pris en charge (0x%08x)"
 
 #: src/waytator-capture.c:443
 #, c-format
 msgid "The compositor offered an invalid %ux%u screen capture buffer"
-msgstr ""
-"Le compositeur a fourni un tampon de capture d’écran de dimensions non "
-"valides (%u × %u)"
+msgstr "Le compositeur a fourni un tampon de capture d’écran de dimensions non valides (%u × %u)"
 
 #: src/waytator-capture.c:458
 #, c-format
@@ -426,8 +414,7 @@ msgstr "Le compositeur n’a signalé aucun écran à capturer"
 
 #: src/waytator-capture.c:1353
 msgid "Could not load the image from the screenshot portal: "
-msgstr ""
-"Impossible de charger l’image fournie par le portail de capture d’écran : "
+msgstr "Impossible de charger l’image fournie par le portail de capture d’écran : "
 
 #: src/waytator-capture.c:1391
 msgid "Could not load the screenshot: "
@@ -435,9 +422,7 @@ msgstr "Impossible de charger la capture d’écran : "
 
 #: src/waytator-capture.c:1484
 msgid "Waytator needs a one-time permission to take screenshots."
-msgstr ""
-"Waytator a besoin d’une autorisation unique pour prendre des captures "
-"d’écran."
+msgstr "Waytator a besoin d’une autorisation unique pour prendre des captures d’écran."
 
 #: src/waytator-capture.c:1490
 msgid "The screenshot portal could not take a screenshot."
@@ -496,7 +481,7 @@ msgstr "Copier sans fermer"
 
 #: src/waytator-chrome-layout.c:356 src/ui/window.ui:9
 msgid "Open file"
-msgstr "Ouvrir un fichier"
+msgstr "Ouvrir le fichier"
 
 #: src/waytator-chrome-layout.c:357 src/ui/window.ui:13
 msgid "Open containing folder"
@@ -591,7 +576,7 @@ msgid ""
 "Tesseract is required for OCR. Install the `tesseract` binary to use this "
 "tool."
 msgstr ""
-"La reconnaissance de texte nécessite Tesseract. Installez l’exécutable "
+"La reconnaissance de texte nécessite Tesseract. Installez le paquet "
 "« tesseract » pour utiliser cet outil."
 
 #: src/waytator-record-audio.c:214 src/waytator-record-audio.c:233
@@ -1451,6 +1436,16 @@ msgstr "Erreur à l’ouverture de la vidéo : %s\n"
 msgid "Video from %Y-%m-%d %H-%M-%S"
 msgstr "Vidéo du %Y-%m-%d à %H-%M-%S"
 
+#. Translators: Filename stem; preserve the date/time directives and avoid slashes.
+#: src/waytator-screenshot.c:92
+msgid "Screenshot from %Y-%m-%d %H-%M-%S"
+msgstr "Capture du %Y-%m-%d à %H-%M-%S"
+
+#. Translators: Filename stem; preserve the date/time directives and avoid slashes.
+#: src/waytator-recorder.c:441
+msgid "Screencast from %Y-%m-%d %H-%M-%S"
+msgstr "Enregistrement du %Y-%m-%d à %H-%M-%S"
+
 #: src/waytator-window-video.c:273
 #, c-format
 msgid "%s edited.%s"
@@ -1932,6 +1927,18 @@ msgstr "75 %"
 msgid "Screenshots"
 msgstr "Captures d’écran"
 
+#. Translators: A single folder name; do not use slashes.
+#: src/waytator-settings.c:12
+msgctxt "default save folder"
+msgid "Screenshots"
+msgstr "Captures d’écran"
+
+#. Translators: A single folder name; do not use slashes.
+#: src/waytator-settings.c:25
+msgctxt "default save folder"
+msgid "Screencasts"
+msgstr "Enregistrements d’écran"
+
 #: src/waytator-window.c:1919
 msgid ""
 "On GNOME, screenshots are taken with GNOME's screenshot tool, which saves "
@@ -2249,7 +2256,7 @@ msgstr "Supprimer la sélection (Suppr)"
 
 #: src/ui/video-editor.ui:383
 msgid "Change pitch with speed"
-msgstr "Faire varier la hauteur avec la vitesse"
+msgstr "Faire varier la hauteur du son avec la vitesse"
 
 #: src/ui/video-editor.ui:406
 msgid "Flip horizontally"
