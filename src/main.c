@@ -650,7 +650,7 @@ app_command_line(GApplication            *app,
 
   //no window at all here, one only appears if the notification is used to ask for it,
   //or when the screenshot would otherwise end up nowhere
-  if (notify || !app_capture_opens_editor(FALSE)) {
+  if (screenshot && (notify || !app_capture_opens_editor(FALSE))) {
     waytator_screenshot_capture_background(app,
                                            capture_mode,
                                            capture_screen,
