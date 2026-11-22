@@ -1,5 +1,7 @@
 #include "waytator-video-source.h"
 
+#include <glib/gi18n.h>
+
 #include <drm_fourcc.h>
 #include <gio/gio.h>
 #include <gtk/gtk.h>
@@ -119,7 +121,7 @@ waytator_video_error_code(int av_error)
 static void
 waytator_video_set_av_error(GError    **error,
                             int         av_error,
-                            const char *what,
+                            const char *format,
                             const char *path)
 {
   g_autofree char *name = g_filename_display_basename(path);
@@ -127,8 +129,7 @@ waytator_video_set_av_error(GError    **error,
   g_set_error(error,
               G_IO_ERROR,
               waytator_video_error_code(av_error),
-              "%s %s: %s",
-              what,
+              format,
               name,
               av_err2str(av_error));
 }
@@ -306,7 +307,7 @@ waytator_video_read_packets(AVFormatContext *format,
     g_set_error(error,
                 G_IO_ERROR,
                 waytator_video_error_code(ret),
-                "Could not read the video: %s",
+                _("Could not read the video: %s"),
                 av_err2str(ret));
     return NULL;
   }
@@ -355,7 +356,7 @@ waytator_video_source_index(WaytatorVideoSource *source,
   if (infos->len == 0) {
     g_autofree char *name = g_filename_display_basename(source->path);
 
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "%s has no frames in it", name);
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, _("%s has no frames in it"), name);
     return FALSE;
   }
 
@@ -429,17 +430,17 @@ waytator_video_source_open(const char   *path,
 
   ret = avformat_open_input(&format, path, NULL, NULL);
   if (ret == AVERROR_INVALIDDATA) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "%s is not a video", name);
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, _("%s is not a video"), name);
     return NULL;
   }
   if (ret < 0) {
-    waytator_video_set_av_error(error, ret, "Could not open", path);
+    waytator_video_set_av_error(error, ret, _("Could not open %s: %s"), path);
     return NULL;
   }
 
   ret = avformat_find_stream_info(format, NULL);
   if (ret < 0) {
-    waytator_video_set_av_error(error, ret, "Could not read", path);
+    waytator_video_set_av_error(error, ret, _("Could not read %s: %s"), path);
     avformat_close_input(&format);
     return NULL;
   }
@@ -448,7 +449,7 @@ waytator_video_source_open(const char   *path,
   source->path = g_strdup(path);
   source->stream_index = waytator_video_find_stream(format);
   if (source->stream_index < 0) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "%s is not a video", name);
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, _("%s is not a video"), name);
     avformat_close_input(&format);
     return NULL;
   }
@@ -459,14 +460,14 @@ waytator_video_source_open(const char   *path,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_NOT_SUPPORTED,
-                "%s is %s video, which can't be decoded here",
+                _("%s is %s video, which can't be decoded here"),
                 name,
                 source->codec_name);
     avformat_close_input(&format);
     return NULL;
   }
   if (stream->codecpar->width <= 0 || stream->codecpar->height <= 0) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "%s has no picture size", name);
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, _("%s has no picture size"), name);
     avformat_close_input(&format);
     return NULL;
   }
@@ -1228,7 +1229,7 @@ waytator_video_decoder_hand_out(WaytatorVideoDecoder *decoder,
 
   memory = waytator_video_av_frame_download(frame->av_frame);
   if (memory == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not copy frame %u off the GPU", frame->index);
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not copy frame %u off the GPU"), frame->index);
     waytator_video_frame_unref(frame);
     return NULL;
   }
@@ -1309,7 +1310,7 @@ waytator_video_decoder_open_codec(WaytatorVideoDecoder *decoder,
   decoder->hardware = FALSE;
   decoder->hardware_works = FALSE;
   if (codec == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, "There is no decoder for %s", source->codec_name);
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, _("There is no decoder for %s"), source->codec_name);
     return FALSE;
   }
 
@@ -1333,7 +1334,7 @@ waytator_video_decoder_open_codec(WaytatorVideoDecoder *decoder,
   if (ret < 0 && hardware)
     return waytator_video_decoder_open_codec(decoder, FALSE, error);
   if (ret < 0) {
-    waytator_video_set_av_error(error, ret, "Could not decode", source->path);
+    waytator_video_set_av_error(error, ret, _("Could not decode %s: %s"), source->path);
     avcodec_free_context(&decoder->codec);
     return FALSE;
   }
@@ -1357,7 +1358,7 @@ waytator_video_decoder_open_input(WaytatorVideoDecoder *decoder,
 
   ret = avformat_open_input(&decoder->format, source->path, NULL, NULL);
   if (ret < 0) {
-    waytator_video_set_av_error(error, ret, "Could not open", source->path);
+    waytator_video_set_av_error(error, ret, _("Could not open %s: %s"), source->path);
     return FALSE;
   }
 
@@ -1365,12 +1366,12 @@ waytator_video_decoder_open_input(WaytatorVideoDecoder *decoder,
   if ((decoder->format->ctx_flags & AVFMTCTX_NOHEADER) || (int) decoder->format->nb_streams <= source->stream_index) {
     ret = avformat_find_stream_info(decoder->format, NULL);
     if (ret < 0) {
-      waytator_video_set_av_error(error, ret, "Could not read", source->path);
+      waytator_video_set_av_error(error, ret, _("Could not read %s: %s"), source->path);
       return FALSE;
     }
   }
   if ((int) decoder->format->nb_streams <= source->stream_index) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "The video changed since it was opened");
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, _("The video changed since it was opened"));
     return FALSE;
   }
 
@@ -1541,7 +1542,7 @@ waytator_video_decoder_receive(WaytatorVideoDecoder *decoder,
     if (ret == AVERROR_INVALIDDATA && !(decoder->hardware && !decoder->hardware_works))
       continue;
     if (ret != AVERROR(EAGAIN)) {
-      waytator_video_set_av_error(error, ret, "Could not decode", decoder->source->path);
+      waytator_video_set_av_error(error, ret, _("Could not decode %s: %s"), decoder->source->path);
       return -1;
     }
 
@@ -1566,7 +1567,7 @@ waytator_video_decoder_receive(WaytatorVideoDecoder *decoder,
     av_packet_unref(decoder->packet);
     decoder->have_packet = FALSE;
     if (ret < 0 && (ret != AVERROR_INVALIDDATA || (decoder->hardware && !decoder->hardware_works))) {
-      waytator_video_set_av_error(error, ret, "Could not decode", decoder->source->path);
+      waytator_video_set_av_error(error, ret, _("Could not decode %s: %s"), decoder->source->path);
       return -1;
     }
   }
@@ -1584,7 +1585,7 @@ waytator_video_decoder_take(WaytatorVideoDecoder *decoder,
   if (decoder->hardware && !decoder->hardware_works) {
     if (decoded->format != AV_PIX_FMT_VAAPI) {
       av_frame_unref(decoded);
-      g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, "The GPU can't decode %s", decoder->source->codec_name);
+      g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, _("The GPU can't decode %s"), decoder->source->codec_name);
       return NULL;
     }
     decoder->hardware_works = TRUE;
@@ -1661,7 +1662,7 @@ waytator_video_decoder_decode_to(WaytatorVideoDecoder *decoder,
     return g_steal_pointer(&before);
 
   name = g_filename_display_basename(decoder->source->path);
-  g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "Could not decode frame %u of %s", target, name);
+  g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, _("Could not decode frame %u of %s"), target, name);
   return NULL;
 }
 
@@ -1750,7 +1751,7 @@ waytator_video_decoder_decode_keyframe(WaytatorVideoDecoder *decoder,
     if (ret == AVERROR_EOF || (ret == AVERROR(EAGAIN) && decoder->draining))
       break;
     if (ret != AVERROR(EAGAIN) && ret != AVERROR_INVALIDDATA) {
-      waytator_video_set_av_error(error, ret, "Could not decode", decoder->source->path);
+      waytator_video_set_av_error(error, ret, _("Could not decode %s: %s"), decoder->source->path);
       break;
     }
     if (ret == AVERROR_INVALIDDATA)
@@ -1777,7 +1778,7 @@ waytator_video_decoder_decode_keyframe(WaytatorVideoDecoder *decoder,
     av_packet_unref(decoder->packet);
     decoder->have_packet = FALSE;
     if (ret < 0 && (ret != AVERROR_INVALIDDATA || (decoder->hardware && !decoder->hardware_works))) {
-      waytator_video_set_av_error(error, ret, "Could not decode", decoder->source->path);
+      waytator_video_set_av_error(error, ret, _("Could not decode %s: %s"), decoder->source->path);
       break;
     }
   }

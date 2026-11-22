@@ -1,5 +1,7 @@
 #include "waytator-record-portal.h"
 
+#include <glib/gi18n.h>
+
 #include <errno.h>
 #include <gio/gunixfdlist.h>
 #include <glib/gstdio.h>
@@ -372,7 +374,7 @@ waytator_record_portal_attempt_handle_session_closed(GDBusConnection *connection
   waytator_record_portal_attempt_abort(attempt,
                                        g_error_new(G_IO_ERROR,
                                                    G_IO_ERROR_CANCELLED,
-                                                   "The screen recording was ended by the desktop"));
+                                                   _("The screen recording was ended by the desktop")));
 }
 
 static void
@@ -432,7 +434,7 @@ waytator_record_portal_attempt_handle_timeout(gpointer user_data)
   waytator_record_portal_attempt_abort(user_data,
                                        g_error_new(G_IO_ERROR,
                                                    G_IO_ERROR_TIMED_OUT,
-                                                   "The screen recording portal did not answer in time"));
+                                                   _("The screen recording portal did not answer in time")));
   return G_SOURCE_REMOVE;
 }
 
@@ -469,7 +471,7 @@ waytator_record_portal_attempt_open_remote_ready(GObject      *source_object,
     g_variant_get(reply, "(h)", &index);
     fd = g_unix_fd_list_get(fd_list, index, &error);
   } else if (reply != NULL) {
-    g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, "The portal did not hand over a connection");
+    g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA, _("The portal did not hand over a connection"));
   }
 
   //the answer came after the recording was given up on, so nobody is waiting for the connection
@@ -482,7 +484,7 @@ waytator_record_portal_attempt_open_remote_ready(GObject      *source_object,
 
   if (fd < 0) {
     g_dbus_error_strip_remote_error(error);
-    g_prefix_error(&error, "Could not open the screen recording: ");
+    g_prefix_error(&error, _("Could not open the screen recording: "));
     waytator_record_portal_attempt_abort(attempt, g_steal_pointer(&error));
     waytator_record_portal_attempt_unref(attempt);
     return;
@@ -573,7 +575,7 @@ waytator_record_portal_attempt_started(WaytatorRecordPortalAttempt *attempt,
     waytator_record_portal_attempt_abort(attempt,
                                          g_error_new(G_IO_ERROR,
                                                      G_IO_ERROR_FAILED,
-                                                     "The screen recording portal did not give anything to record"));
+                                                     _("The screen recording portal did not give anything to record")));
     return;
   }
 
@@ -588,7 +590,7 @@ waytator_record_portal_attempt_started(WaytatorRecordPortalAttempt *attempt,
     waytator_record_portal_attempt_abort(attempt,
                                          g_error_new(WAYTATOR_RECORD_PORTAL_ERROR,
                                                      WAYTATOR_RECORD_PORTAL_ERROR_WRONG_SCREEN,
-                                                     "The portal picked a different screen from the one chosen"));
+                                                     _("The portal picked a different screen from the one chosen")));
     return;
   }
 
@@ -670,7 +672,7 @@ waytator_record_portal_attempt_created(WaytatorRecordPortalAttempt *attempt,
     waytator_record_portal_attempt_abort(attempt,
                                          g_error_new(G_IO_ERROR,
                                                      G_IO_ERROR_INVALID_DATA,
-                                                     "The screen recording portal did not say which session it made"));
+                                                     _("The screen recording portal did not say which session it made")));
     return;
   }
 
@@ -710,7 +712,7 @@ waytator_record_portal_attempt_handle_response(GDBusConnection *connection,
     waytator_record_portal_attempt_abort(attempt,
                                          g_error_new(G_IO_ERROR,
                                                      G_IO_ERROR_INVALID_DATA,
-                                                     "The screen recording portal sent a response that makes no sense"));
+                                                     _("The screen recording portal sent a response that makes no sense")));
     return;
   }
 
@@ -720,7 +722,7 @@ waytator_record_portal_attempt_handle_response(GDBusConnection *connection,
     waytator_record_portal_attempt_abort(attempt,
                                          g_error_new(G_IO_ERROR,
                                                      G_IO_ERROR_CANCELLED,
-                                                     "The screen recording was cancelled"));
+                                                     _("The screen recording was cancelled")));
     return;
   }
 
@@ -728,7 +730,7 @@ waytator_record_portal_attempt_handle_response(GDBusConnection *connection,
     waytator_record_portal_attempt_abort(attempt,
                                          g_error_new(G_IO_ERROR,
                                                      G_IO_ERROR_FAILED,
-                                                     "The screen recording portal could not start the recording"));
+                                                     _("The screen recording portal could not start the recording")));
     return;
   }
 
@@ -776,7 +778,7 @@ waytator_record_portal_attempt_call_ready(GObject      *source_object,
   reply = g_dbus_connection_call_finish(G_DBUS_CONNECTION(source_object), result, &error);
   if (reply == NULL) {
     g_dbus_error_strip_remote_error(error);
-    g_prefix_error(&error, "Could not ask the screen recording portal: ");
+    g_prefix_error(&error, _("Could not ask the screen recording portal: "));
 
     //the request never came to be, so there is none to close
     attempt->request_pending = FALSE;
@@ -858,8 +860,8 @@ waytator_record_portal_attempt_unsupported(WaytatorRecordPortalAttempt *attempt)
   waytator_record_portal_attempt_abort(attempt,
                                        g_error_new_literal(WAYTATOR_RECORD_PORTAL_ERROR,
                                                            WAYTATOR_RECORD_PORTAL_ERROR_UNSUPPORTED,
-                                                           screen ? "This desktop can't record the screen"
-                                                                  : "This desktop can't record a single window"));
+                                                           screen ? _("This desktop can't record the screen")
+                                                                  : _("This desktop can't record a single window")));
 }
 
 static void
@@ -890,7 +892,7 @@ waytator_record_portal_attempt_properties_ready(GObject      *source_object,
       waytator_record_portal_attempt_unsupported(attempt);
     } else {
       g_dbus_error_strip_remote_error(error);
-      g_prefix_error(&error, "Could not reach the screen recording portal: ");
+      g_prefix_error(&error, _("Could not reach the screen recording portal: "));
       waytator_record_portal_attempt_abort(attempt, g_steal_pointer(&error));
     }
     waytator_record_portal_attempt_unref(attempt);
@@ -931,7 +933,7 @@ waytator_record_portal_attempt_bus_ready(GObject      *source_object,
 
   if (attempt->connection == NULL) {
     g_dbus_error_strip_remote_error(error);
-    g_prefix_error(&error, "Could not reach the screen recording portal: ");
+    g_prefix_error(&error, _("Could not reach the screen recording portal: "));
     waytator_record_portal_attempt_abort(attempt, g_steal_pointer(&error));
     waytator_record_portal_attempt_unref(attempt);
     return;

@@ -1,6 +1,8 @@
 //memfd_create
 #define _GNU_SOURCE
 
+#include <glib/gi18n.h>
+
 #include "waytator-capture.h"
 
 #include <errno.h>
@@ -133,7 +135,7 @@ waytator_capture_surface_new(int      width,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_FAILED,
-                "Could not allocate a %dx%d image for the screen capture: %s",
+                _("Could not allocate a %dx%d image for the screen capture: %s"),
                 width,
                 height,
                 cairo_status_to_string(cairo_surface_status(surface)));
@@ -418,7 +420,7 @@ waytator_capture_frame_create_buffer(WaytatorCaptureFrame *frame,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_NOT_SUPPORTED,
-                "The compositor did not offer a shared memory buffer for the screen capture");
+                _("The compositor did not offer a shared memory buffer for the screen capture"));
     return FALSE;
   }
 
@@ -426,7 +428,7 @@ waytator_capture_frame_create_buffer(WaytatorCaptureFrame *frame,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_NOT_SUPPORTED,
-                "The compositor offered the screen capture in an unsupported pixel format (0x%08x)",
+                _("The compositor offered the screen capture in an unsupported pixel format (0x%08x)"),
                 frame->format);
     return FALSE;
   }
@@ -438,7 +440,7 @@ waytator_capture_frame_create_buffer(WaytatorCaptureFrame *frame,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_INVALID_DATA,
-                "The compositor offered an invalid %ux%u screen capture buffer",
+                _("The compositor offered an invalid %ux%u screen capture buffer"),
                 frame->width,
                 frame->height);
     return FALSE;
@@ -453,7 +455,7 @@ waytator_capture_frame_create_buffer(WaytatorCaptureFrame *frame,
     g_set_error(error,
                 G_IO_ERROR,
                 g_io_error_from_errno(saved_errno),
-                "Could not allocate the screen capture buffer: %s",
+                _("Could not allocate the screen capture buffer: %s"),
                 g_strerror(saved_errno));
     return FALSE;
   }
@@ -466,7 +468,7 @@ waytator_capture_frame_create_buffer(WaytatorCaptureFrame *frame,
     g_set_error(error,
                 G_IO_ERROR,
                 g_io_error_from_errno(saved_errno),
-                "Could not map the screen capture buffer: %s",
+                _("Could not map the screen capture buffer: %s"),
                 g_strerror(saved_errno));
     return FALSE;
   }
@@ -564,8 +566,8 @@ waytator_capture_frame_handle_failed(void                            *data,
   waytator_capture_frame_finish(frame,
                                 g_error_new(G_IO_ERROR,
                                             G_IO_ERROR_FAILED,
-                                            "The compositor could not capture %s",
-                                            name != NULL ? name : "one of the screens"));
+                                            _("The compositor could not capture %s"),
+                                            name != NULL ? name : _("one of the screens")));
 }
 
 static void
@@ -842,7 +844,7 @@ waytator_capture_screencopy_set_connection_error(WaytatorCaptureScreencopy *scre
   g_set_error(error,
               G_IO_ERROR,
               G_IO_ERROR_FAILED,
-              "Lost the connection to the Wayland compositor: %s",
+              _("Lost the connection to the Wayland compositor: %s"),
               g_strerror(display_error != 0 ? display_error : EPIPE));
 }
 
@@ -898,7 +900,7 @@ waytator_capture_screencopy_dispatch(WaytatorCaptureScreencopy *screencopy,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_TIMED_OUT,
-                "The compositor did not deliver the screen capture in time");
+                _("The compositor did not deliver the screen capture in time"));
     return FALSE;
   }
 
@@ -909,7 +911,7 @@ waytator_capture_screencopy_dispatch(WaytatorCaptureScreencopy *screencopy,
     g_set_error(error,
                 G_IO_ERROR,
                 g_io_error_from_errno(saved_errno),
-                "Could not wait for the Wayland compositor: %s",
+                _("Could not wait for the Wayland compositor: %s"),
                 g_strerror(saved_errno));
     return FALSE;
   }
@@ -936,7 +938,7 @@ waytator_capture_frame_to_output(WaytatorCaptureFrame *frame,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_FAILED,
-                "The compositor finished the screen capture without copying anything");
+                _("The compositor finished the screen capture without copying anything"));
     return NULL;
   }
 
@@ -1008,7 +1010,7 @@ waytator_capture_screencopy_run(GCancellable *cancellable,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_NOT_SUPPORTED,
-                "Could not connect to a Wayland compositor");
+                _("Could not connect to a Wayland compositor"));
     goto out;
   }
 
@@ -1023,7 +1025,7 @@ waytator_capture_screencopy_run(GCancellable *cancellable,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_NOT_SUPPORTED,
-                "The compositor does not support the wlr-screencopy protocol");
+                _("The compositor does not support the wlr-screencopy protocol"));
     goto out;
   }
 
@@ -1031,7 +1033,7 @@ waytator_capture_screencopy_run(GCancellable *cancellable,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_NOT_FOUND,
-                "The compositor did not announce any screens to capture");
+                _("The compositor did not announce any screens to capture"));
     goto out;
   }
 
@@ -1348,7 +1350,7 @@ waytator_capture_portal_load_thread(GTask        *task,
     g_file_delete(file, NULL, NULL);
 
   if (texture == NULL) {
-    g_prefix_error(&error, "Could not load the image from the screenshot portal: ");
+    g_prefix_error(&error, _("Could not load the image from the screenshot portal: "));
     g_task_return_error(task, g_steal_pointer(&error));
     return;
   }
@@ -1386,7 +1388,7 @@ waytator_capture_portal_load_shot_thread(GTask        *task,
   shot->texture = gdk_texture_new_from_file(shot->file, &error);
   if (shot->texture == NULL) {
     waytator_capture_shot_free(shot);
-    g_prefix_error(&error, "Could not load the screenshot: ");
+    g_prefix_error(&error, _("Could not load the screenshot: "));
     g_task_return_error(task, g_steal_pointer(&error));
     return;
   }
@@ -1479,13 +1481,13 @@ waytator_capture_portal_permission_looked_up(GObject      *source_object,
                                      NULL,
                                      g_error_new_literal(G_IO_ERROR,
                                                          G_IO_ERROR_PERMISSION_DENIED,
-                                                         "Waytator needs a one-time permission to take screenshots."));
+                                                         _("Waytator needs a one-time permission to take screenshots.")));
   else
     waytator_capture_portal_complete(portal,
                                      NULL,
                                      g_error_new_literal(G_IO_ERROR,
                                                          G_IO_ERROR_FAILED,
-                                                         "The screenshot portal could not take a screenshot."));
+                                                         _("The screenshot portal could not take a screenshot.")));
 
   waytator_capture_portal_unref(portal);
 }
@@ -1520,7 +1522,7 @@ waytator_capture_allow_async(GAsyncReadyCallback callback,
   const char *yes[] = { "yes", NULL };
 
   if (connection == NULL || waytator_capture_app_id() == NULL) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, "There is no session bus to ask on");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, _("There is no session bus to ask on"));
     g_object_unref(task);
     return;
   }
@@ -1585,7 +1587,7 @@ waytator_capture_portal_handle_response(GDBusConnection *connection,
                                      NULL,
                                      g_error_new(G_IO_ERROR,
                                                  G_IO_ERROR_INVALID_DATA,
-                                                 "The screenshot portal sent a response that makes no sense"));
+                                                 _("The screenshot portal sent a response that makes no sense")));
     return;
   }
 
@@ -1597,7 +1599,7 @@ waytator_capture_portal_handle_response(GDBusConnection *connection,
                                      NULL,
                                      g_error_new(G_IO_ERROR,
                                                  G_IO_ERROR_CANCELLED,
-                                                 "The screenshot was cancelled"));
+                                                 _("The screenshot was cancelled")));
     return;
   }
 
@@ -1623,7 +1625,7 @@ waytator_capture_portal_handle_response(GDBusConnection *connection,
                                      NULL,
                                      g_error_new(G_IO_ERROR,
                                                  G_IO_ERROR_INVALID_DATA,
-                                                 "The screenshot portal did not say where it put the screenshot"));
+                                                 _("The screenshot portal did not say where it put the screenshot")));
     return;
   }
 
@@ -1699,7 +1701,7 @@ waytator_capture_portal_handle_timeout(gpointer user_data)
   waytator_capture_portal_abandon(user_data,
                                   g_error_new(G_IO_ERROR,
                                               G_IO_ERROR_TIMED_OUT,
-                                              "The screenshot portal did not answer in time"));
+                                              _("The screenshot portal did not answer in time")));
   return G_SOURCE_REMOVE;
 }
 
@@ -1716,7 +1718,7 @@ waytator_capture_portal_call_ready(GObject      *source_object,
   reply = g_dbus_connection_call_finish(G_DBUS_CONNECTION(source_object), result, &error);
   if (reply == NULL) {
     g_dbus_error_strip_remote_error(error);
-    g_prefix_error(&error, "Could not ask the screenshot portal for a screenshot: ");
+    g_prefix_error(&error, _("Could not ask the screenshot portal for a screenshot: "));
     waytator_capture_portal_complete(portal, NULL, g_steal_pointer(&error));
   } else if (!portal->completed && !portal->responded) {
     g_variant_get(reply, "(&o)", &handle);
@@ -1751,7 +1753,7 @@ waytator_capture_portal_bus_ready(GObject      *source_object,
   portal->connection = g_bus_get_finish(result, &error);
   if (portal->connection == NULL) {
     g_dbus_error_strip_remote_error(error);
-    g_prefix_error(&error, "Could not reach the screenshot portal: ");
+    g_prefix_error(&error, _("Could not reach the screenshot portal: "));
     waytator_capture_portal_complete(portal, NULL, g_steal_pointer(&error));
     waytator_capture_portal_unref(portal);
     return;

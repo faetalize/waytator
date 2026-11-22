@@ -1,5 +1,7 @@
 #include "waytator-export.h"
 
+#include <glib/gi18n.h>
+
 #include "waytator-render.h"
 
 static const char *
@@ -108,7 +110,7 @@ waytator_export_request_new(GdkTexture              *texture,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_FAILED,
-                "Could not render the current image");
+                _("Could not render the current image"));
     return NULL;
   }
 
@@ -208,7 +210,7 @@ waytator_export_run_task(GTask        *task,
       g_task_return_new_error(task,
                               G_IO_ERROR,
                               G_IO_ERROR_FAILED,
-                              "Could not encode the current image");
+                              _("Could not encode the current image"));
       return;
     }
 
@@ -226,7 +228,7 @@ waytator_export_run_task(GTask        *task,
       g_task_return_new_error(task,
                               G_IO_ERROR,
                               G_IO_ERROR_FAILED,
-                              "Could not prepare the current image for export");
+                              _("Could not prepare the current image for export"));
       return;
     }
 
@@ -261,7 +263,7 @@ waytator_export_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_NOT_SUPPORTED,
-                            "Saving to non-local files is not supported yet");
+                            _("Saving to non-local files is not supported yet"));
     return;
   }
 
@@ -272,7 +274,7 @@ waytator_export_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_FAILED,
-                            "Could not encode the current image");
+                            _("Could not encode the current image"));
     return;
   }
 
@@ -284,7 +286,7 @@ waytator_export_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_FAILED,
-                            "Could not prepare the current image for export");
+                            _("Could not prepare the current image for export"));
     return;
   }
 

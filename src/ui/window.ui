@@ -6,11 +6,11 @@
   <menu id="file_menu_model">
     <section>
       <item>
-        <attribute name="label">Open file</attribute>
+        <attribute name="label" translatable="yes">Open file</attribute>
         <attribute name="action">win.open-current-file</attribute>
       </item>
       <item>
-        <attribute name="label">Open containing folder</attribute>
+        <attribute name="label" translatable="yes">Open containing folder</attribute>
         <attribute name="action">win.open-containing-folder</attribute>
       </item>
     </section>
@@ -65,7 +65,7 @@
 
                             <child>
                               <object class="GtkLabel">
-                                <property name="label">Screenshot</property>
+                                <property name="label" translatable="yes">Screenshot</property>
                                 <property name="xalign">0</property>
                                 <property name="hexpand">True</property>
                               </object>
@@ -101,7 +101,7 @@
 
                             <child>
                               <object class="GtkLabel">
-                                <property name="label">Record</property>
+                                <property name="label" translatable="yes">Record</property>
                                 <property name="xalign">0</property>
                                 <property name="hexpand">True</property>
                               </object>
@@ -133,7 +133,7 @@
 
                             <child>
                               <object class="GtkLabel">
-                                <property name="label">Open</property>
+                                <property name="label" translatable="yes">Open</property>
                                 <property name="xalign">0</property>
                                 <property name="hexpand">True</property>
                               </object>
@@ -259,7 +259,7 @@
                             <child>
                               <object class="GtkButton" id="open_label_button">
                                 <property name="action-name">win.open</property>
-                                <property name="label">Open</property>
+                                <property name="label" translatable="yes">Open</property>
                                 <style>
                                   <class name="overlay-button"/>
                                 </style>
@@ -269,7 +269,7 @@
                             <child>
                               <object class="GtkMenuButton" id="open_menu_button">
                                 <property name="icon-name">open-menu-symbolic</property>
-                                <property name="tooltip-text">Open, screenshot or record</property>
+                                <property name="tooltip-text" translatable="yes">Open, screenshot or record</property>
                                 <property name="visible">False</property>
                                 <style>
                                   <class name="open-menu-button"/>
@@ -299,7 +299,7 @@
                             <child>
                               <object class="GtkButton" id="record_button">
                                 <property name="action-name">win.record-area</property>
-                                <property name="tooltip-text">Record</property>
+                                <property name="tooltip-text" translatable="yes">Record</property>
                                 <style>
                                   <class name="overlay-button"/>
                                   <class name="record-button"/>
@@ -340,7 +340,7 @@
 
                             <child>
                               <object class="GtkButton" id="undo_button">
-                                <property name="tooltip-text">Undo</property>
+                                <property name="tooltip-text" translatable="yes">Undo</property>
                                 <property name="sensitive">False</property>
                                 <property name="icon-name">edit-undo-symbolic</property>
                               </object>
@@ -348,7 +348,7 @@
 
                             <child>
                               <object class="GtkButton" id="redo_button">
-                                <property name="tooltip-text">Redo</property>
+                                <property name="tooltip-text" translatable="yes">Redo</property>
                                 <property name="sensitive">False</property>
                                 <property name="icon-name">edit-redo-symbolic</property>
                               </object>
@@ -399,7 +399,7 @@
 
                             <child>
                               <object class="GtkButton" id="save_as_button">
-                                <property name="tooltip-text">Save</property>
+                                <property name="tooltip-text" translatable="yes">Save</property>
                                 <property name="icon-name">document-save-symbolic</property>
                                 <property name="sensitive">False</property>
                                 <property name="visible">False</property>
@@ -408,7 +408,7 @@
 
                             <child>
                           <object class="GtkMenuButton" id="save_button">
-                            <property name="tooltip-text">Save</property>
+                            <property name="tooltip-text" translatable="yes">Save</property>
                             <property name="sensitive">False</property>
                             <property name="direction">down</property>
                             <property name="child">
@@ -443,7 +443,7 @@
 
                             <child>
                               <object class="GtkButton" id="copy_button">
-                                <property name="tooltip-text">Copy</property>
+                                <property name="tooltip-text" translatable="yes">Copy</property>
                                 <property name="sensitive">False</property>
                                 <property name="child">
                                   <object class="GtkStack" id="copy_icon_stack">
@@ -468,7 +468,7 @@
 
                             <child>
                               <object class="GtkButton" id="copy_keep_open_button">
-                                <property name="tooltip-text">Copy without closing</property>
+                                <property name="tooltip-text" translatable="yes">Copy without closing</property>
                                 <property name="sensitive">False</property>
                                 <property name="visible">False</property>
                                 <property name="child">
@@ -505,7 +505,7 @@
                             <child>
                               <object class="GtkMenuButton" id="app_menu_button">
                                 <property name="always-show-arrow">False</property>
-                                <property name="tooltip-text">More</property>
+                                <property name="tooltip-text" translatable="yes">More</property>
                                 <property name="child">
                                   <object class="GtkImage">
                                     <property name="icon-name">view-more-symbolic</property>
@@ -588,7 +588,7 @@
                             <child>
                               <object class="GtkColorDialogButton" id="color_button">
                                 <property name="valign">center</property>
-                                <property name="tooltip-text">Stroke color</property>
+                                <property name="tooltip-text" translatable="yes">Stroke color</property>
                                 <property name="dialog">
                                   <object class="GtkColorDialog"/>
                                 </property>
@@ -598,7 +598,7 @@
                             <child>
                               <object class="GtkColorDialogButton" id="fill_color_button">
                                 <property name="valign">center</property>
-                                <property name="tooltip-text">Fill color</property>
+                                <property name="tooltip-text" translatable="yes">Fill color</property>
                                 <property name="dialog">
                                   <object class="GtkColorDialog">
                                     <property name="with-alpha">True</property>
@@ -666,7 +666,7 @@
                                 <child>
                                   <object class="GtkBox" id="size_value_box">
                                     <property name="spacing">3</property>
-                                    <property name="tooltip-text">Drag to change, click to type</property>
+                                    <property name="tooltip-text" translatable="yes">Drag to change, click to type</property>
                                     <style>
                                       <class name="size-value"/>
                                     </style>
@@ -706,7 +706,7 @@
                                   <object class="GtkToggleButton" id="size_drawer_button">
                                     <property name="icon-name">waytator-chevron-up-symbolic</property>
                                     <property name="focus-on-click">False</property>
-                                    <property name="tooltip-text">Show size slider</property>
+                                    <property name="tooltip-text" translatable="yes">Show size slider</property>
                                     <style>
                                       <class name="flat"/>
                                     </style>
@@ -720,7 +720,7 @@
                                 <property name="valign">center</property>
                                 <child>
                                   <object class="GtkLabel">
-                                    <property name="label">Drag to crop</property>
+                                    <property name="label" translatable="yes">Drag to crop</property>
                                     <style>
                                       <class name="crop-hint"/>
                                     </style>
@@ -728,7 +728,7 @@
                                 </child>
                                 <child>
                                   <object class="GtkButton" id="rotate_counter_clockwise_button">
-                                    <property name="tooltip-text">Rotate counter clockwise (Shift+Ctrl+R)</property>
+                                    <property name="tooltip-text" translatable="yes">Rotate counter clockwise (Shift+Ctrl+R)</property>
                                     <property name="icon-name">waytator-rotate-counter-clockwise-symbolic</property>
                                     <property name="action-name">win.rotate-counter-clockwise</property>
                                     <style>
@@ -739,7 +739,7 @@
 
                                 <child>
                                   <object class="GtkButton" id="flip_horizontal_button">
-                                    <property name="tooltip-text">Flip horizontal (Shift+Ctrl+H)</property>
+                                    <property name="tooltip-text" translatable="yes">Flip horizontal (Shift+Ctrl+H)</property>
                                     <property name="icon-name">object-flip-horizontal-symbolic</property>
                                     <property name="action-name">win.flip-horizontal</property>
                                     <style>
@@ -750,7 +750,7 @@
 
                                 <child>
                                   <object class="GtkButton" id="flip_vertical_button">
-                                    <property name="tooltip-text">Flip vertical (Shift+Ctrl+V)</property>
+                                    <property name="tooltip-text" translatable="yes">Flip vertical (Shift+Ctrl+V)</property>
                                     <property name="icon-name">object-flip-vertical-symbolic</property>
                                     <property name="action-name">win.flip-vertical</property>
                                     <style>
@@ -789,7 +789,7 @@
 
                         <child>
                           <object class="GtkToggleButton" id="ocr_panel_toggle_button">
-                            <property name="tooltip-text">Show OCR text panel</property>
+                            <property name="tooltip-text" translatable="yes">Show OCR text panel</property>
                             <property name="label">OCR</property>
                             <style>
                               <class name="overlay-button"/>
@@ -814,7 +814,7 @@
                         <child>
                           <object class="GtkToggleButton" id="pan_tool_button">
                             <property name="group">brush_tool_button</property>
-                            <property name="tooltip-text">Pan</property>
+                            <property name="tooltip-text" translatable="yes">Pan</property>
                             <property name="icon-name">waytator-pan-symbolic</property>
                             <style>
                               <class name="flat"/>
@@ -825,7 +825,7 @@
                         <child>
                           <object class="GtkToggleButton" id="crop_tool_button">
                             <property name="group">brush_tool_button</property>
-                            <property name="tooltip-text">Transform</property>
+                            <property name="tooltip-text" translatable="yes">Transform</property>
                             <property name="icon-name">waytator-crop-symbolic</property>
                             <style>
                               <class name="flat"/>
@@ -835,7 +835,7 @@
 
                         <child>
                           <object class="GtkToggleButton" id="brush_tool_button">
-                            <property name="tooltip-text">Brush</property>
+                            <property name="tooltip-text" translatable="yes">Brush</property>
                             <property name="active">True</property>
                             <property name="icon-name">waytator-pencil-symbolic</property>
                             <style>
@@ -847,7 +847,7 @@
                         <child>
                           <object class="GtkToggleButton" id="highlighter_tool_button">
                             <property name="group">brush_tool_button</property>
-                            <property name="tooltip-text">Highlighter</property>
+                            <property name="tooltip-text" translatable="yes">Highlighter</property>
                             <property name="icon-name">waytator-highlight-symbolic</property>
                             <style>
                               <class name="flat"/>
@@ -858,7 +858,7 @@
                         <child>
                           <object class="GtkToggleButton" id="eraser_tool_button">
                             <property name="group">brush_tool_button</property>
-                            <property name="tooltip-text">Eraser</property>
+                            <property name="tooltip-text" translatable="yes">Eraser</property>
                             <property name="icon-name">waytator-eraser-symbolic</property>
                             <style>
                               <class name="flat"/>
@@ -868,7 +868,7 @@
 
                         <child>
                           <object class="GtkMenuButton" id="shapes_tool_button">
-                            <property name="tooltip-text">Shapes</property>
+                            <property name="tooltip-text" translatable="yes">Shapes</property>
                             <property name="icon-name">waytator-shapes-symbolic</property>
                             <property name="popover">
                               <object class="GtkPopover" id="shapes_popover">
@@ -887,7 +887,7 @@
                                     <child>
                                       <object class="GtkToggleButton" id="rectangle_tool_button">
                                         <property name="group">brush_tool_button</property>
-                                        <property name="tooltip-text">Rectangle</property>
+                                        <property name="tooltip-text" translatable="yes">Rectangle</property>
                                         <property name="width-request">40</property>
                                         <property name="height-request">40</property>
                                         <style>
@@ -909,7 +909,7 @@
                                     <child>
                                       <object class="GtkToggleButton" id="circle_tool_button">
                                         <property name="group">brush_tool_button</property>
-                                        <property name="tooltip-text">Circle</property>
+                                        <property name="tooltip-text" translatable="yes">Circle</property>
                                         <property name="width-request">40</property>
                                         <property name="height-request">40</property>
                                         <style>
@@ -931,7 +931,7 @@
                                     <child>
                                       <object class="GtkToggleButton" id="line_tool_button">
                                         <property name="group">brush_tool_button</property>
-                                        <property name="tooltip-text">Line</property>
+                                        <property name="tooltip-text" translatable="yes">Line</property>
                                         <property name="width-request">40</property>
                                         <property name="height-request">40</property>
                                         <style>
@@ -953,7 +953,7 @@
                                     <child>
                                       <object class="GtkToggleButton" id="arrow_tool_button">
                                         <property name="group">brush_tool_button</property>
-                                        <property name="tooltip-text">Arrow</property>
+                                        <property name="tooltip-text" translatable="yes">Arrow</property>
                                         <property name="width-request">40</property>
                                         <property name="height-request">40</property>
                                         <style>
@@ -981,7 +981,7 @@
                         <child>
                           <object class="GtkToggleButton" id="ocr_tool_button">
                             <property name="group">brush_tool_button</property>
-                            <property name="tooltip-text">Recognize text</property>
+                            <property name="tooltip-text" translatable="yes">Recognize text</property>
                             <property name="icon-name">waytator-scanner-symbolic</property>
                             <style>
                               <class name="flat"/>
@@ -992,7 +992,7 @@
                         <child>
                           <object class="GtkToggleButton" id="text_tool_button">
                             <property name="group">brush_tool_button</property>
-                            <property name="tooltip-text">Text</property>
+                            <property name="tooltip-text" translatable="yes">Text</property>
                             <property name="icon-name">waytator-text-symbolic</property>
                             <style>
                               <class name="flat"/>
@@ -1003,7 +1003,7 @@
                         <child>
                           <object class="GtkToggleButton" id="blur_tool_button">
                             <property name="group">brush_tool_button</property>
-                            <property name="tooltip-text">Blur</property>
+                            <property name="tooltip-text" translatable="yes">Blur</property>
                             <property name="icon-name">waytator-blur-symbolic</property>
                             <style>
                               <class name="flat"/>
@@ -1045,22 +1045,22 @@
                                 <child>
                                   <object class="GtkButton">
                                     <property name="action-name">win.zoom-out</property>
-                                    <property name="tooltip-text">Zoom out</property>
+                                    <property name="tooltip-text" translatable="yes">Zoom out</property>
                                     <property name="icon-name">zoom-out-symbolic</property>
                                   </object>
                                 </child>
                                 <child>
                                   <object class="GtkButton">
                                     <property name="action-name">win.zoom-in</property>
-                                    <property name="tooltip-text">Zoom in</property>
+                                    <property name="tooltip-text" translatable="yes">Zoom in</property>
                                     <property name="icon-name">zoom-in-symbolic</property>
                                   </object>
                                 </child>
                                 <child>
                                   <object class="GtkButton" id="zoom_drawer_fit_button">
                                     <property name="action-name">win.zoom-fit</property>
-                                    <property name="tooltip-text">Fit image to window</property>
-                                    <property name="label">Fit</property>
+                                    <property name="tooltip-text" translatable="yes">Fit image to window</property>
+                                    <property name="label" translatable="yes">Fit</property>
                                     <style>
                                       <class name="zoom-fit"/>
                                     </style>
@@ -1078,7 +1078,7 @@
                             <child>
                               <object class="GtkButton" id="zoom_out_button">
                                 <property name="action-name">win.zoom-out</property>
-                                <property name="tooltip-text">Zoom out</property>
+                                <property name="tooltip-text" translatable="yes">Zoom out</property>
                                 <property name="icon-name">zoom-out-symbolic</property>
                               </object>
                             </child>
@@ -1086,7 +1086,7 @@
                             <child>
                               <object class="GtkButton" id="zoom_level_button">
                                 <property name="action-name">win.zoom-actual-size</property>
-                                <property name="tooltip-text">Reset zoom to 100%</property>
+                                <property name="tooltip-text" translatable="yes">Reset zoom to 100%</property>
                                 <style>
                                   <class name="zoom-level"/>
                                 </style>
@@ -1105,7 +1105,7 @@
                             <child>
                               <object class="GtkButton" id="zoom_in_button">
                                 <property name="action-name">win.zoom-in</property>
-                                <property name="tooltip-text">Zoom in</property>
+                                <property name="tooltip-text" translatable="yes">Zoom in</property>
                                 <property name="icon-name">zoom-in-symbolic</property>
                               </object>
                             </child>
@@ -1113,8 +1113,8 @@
                             <child>
                               <object class="GtkButton" id="fit_zoom_button">
                                 <property name="action-name">win.zoom-fit</property>
-                                <property name="tooltip-text">Fit image to window</property>
-                                <property name="label">Fit</property>
+                                <property name="tooltip-text" translatable="yes">Fit image to window</property>
+                                <property name="label" translatable="yes">Fit</property>
                                 <style>
                                   <class name="zoom-fit"/>
                                 </style>
@@ -1126,7 +1126,7 @@
                                 <property name="visible">False</property>
                                 <property name="icon-name">waytator-chevron-up-symbolic</property>
                                 <property name="focus-on-click">False</property>
-                                <property name="tooltip-text">Show zoom controls</property>
+                                <property name="tooltip-text" translatable="yes">Show zoom controls</property>
                                 <style>
                                   <class name="zoom-drawer-toggle"/>
                                 </style>
@@ -1190,7 +1190,7 @@
                 <property name="end-widget">
                   <object class="GtkButton" id="ocr_panel_close_button">
                     <property name="icon-name">pan-down-symbolic</property>
-                    <property name="tooltip-text">Hide OCR panel</property>
+                    <property name="tooltip-text" translatable="yes">Hide OCR panel</property>
                     <style>
                       <class name="flat"/>
                       <class name="ocr-panel-close"/>

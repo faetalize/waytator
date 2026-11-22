@@ -1,6 +1,8 @@
 //the pipewire headers use locale_t, which strict c11 leaves out
 #define _GNU_SOURCE
 
+#include <glib/gi18n.h>
+
 #include "waytator-record-audio.h"
 
 #include <errno.h>
@@ -209,7 +211,7 @@ waytator_record_audio_add_stream(WaytatorRecordAudio *audio,
   stream->what = what;
   stream->stream = pw_stream_new(audio->core, node_description, properties);
   if (stream->stream == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not record the %s: %s", what, g_strerror(errno));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not record the %s: %s"), what, g_strerror(errno));
     return FALSE;
   }
   audio->n_streams++;
@@ -228,7 +230,7 @@ waytator_record_audio_add_stream(WaytatorRecordAudio *audio,
                           params,
                           G_N_ELEMENTS(params));
   if (ret < 0) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not record the %s: %s", what, g_strerror(-ret));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not record the %s: %s"), what, g_strerror(-ret));
     return FALSE;
   }
 
@@ -262,7 +264,7 @@ waytator_record_audio_new(WaytatorRecordAudioSources sources,
 
   audio->loop = pw_thread_loop_new("waytator-record", NULL);
   if (audio->loop == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not start PipeWire: %s", g_strerror(errno));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not start PipeWire: %s"), g_strerror(errno));
     return NULL;
   }
 
@@ -274,16 +276,16 @@ waytator_record_audio_new(WaytatorRecordAudioSources sources,
     const int code = errno;
 
     pw_thread_loop_unlock(audio->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, "Could not reach PipeWire: %s", g_strerror(code));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, _("Could not reach PipeWire: %s"), g_strerror(code));
     return NULL;
   }
   pw_core_add_listener(audio->core, &audio->core_listener, &waytator_record_audio_core_events, audio);
 
   if (sources & WAYTATOR_RECORD_AUDIO_SYSTEM) {
     if (!waytator_record_audio_add_stream(audio,
-                                          "system sound",
+                                          _("system sound"),
                                           "waytator-recording-system",
-                                          "Waytator recording (system sound)",
+                                          _("Waytator recording (system sound)"),
                                           TRUE,
                                           NULL,
                                           error)) {
@@ -294,9 +296,9 @@ waytator_record_audio_new(WaytatorRecordAudioSources sources,
   if (sources & WAYTATOR_RECORD_AUDIO_MICROPHONE) {
     audio->microphone_source = audio->n_streams;
     if (!waytator_record_audio_add_stream(audio,
-                                          "microphone",
+                                          _("microphone"),
                                           "waytator-recording-microphone",
-                                          "Waytator recording (microphone)",
+                                          _("Waytator recording (microphone)"),
                                           FALSE,
                                           microphone,
                                           error)) {
@@ -310,7 +312,7 @@ waytator_record_audio_new(WaytatorRecordAudioSources sources,
     const int code = errno;
 
     pw_thread_loop_unlock(audio->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not start PipeWire: %s", g_strerror(code));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not start PipeWire: %s"), g_strerror(code));
     return NULL;
   }
   pw_loop_update_timer(pw_thread_loop_get_loop(audio->loop), audio->timer, &interval, &interval, false);
@@ -318,7 +320,7 @@ waytator_record_audio_new(WaytatorRecordAudioSources sources,
   ret = pw_thread_loop_start(audio->loop);
   pw_thread_loop_unlock(audio->loop);
   if (ret < 0) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not start PipeWire: %s", g_strerror(-ret));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not start PipeWire: %s"), g_strerror(-ret));
     return NULL;
   }
 
@@ -496,7 +498,7 @@ waytator_record_audio_list_microphones(GError **error)
 
   list.loop = pw_main_loop_new(NULL);
   if (list.loop == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not start PipeWire: %s", g_strerror(errno));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not start PipeWire: %s"), g_strerror(errno));
     return NULL;
   }
 
@@ -507,7 +509,7 @@ waytator_record_audio_list_microphones(GError **error)
 
     g_clear_pointer(&context, pw_context_destroy);
     pw_main_loop_destroy(list.loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, "Could not reach PipeWire: %s", g_strerror(code));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, _("Could not reach PipeWire: %s"), g_strerror(code));
     return NULL;
   }
 
@@ -535,7 +537,7 @@ waytator_record_audio_list_microphones(GError **error)
     g_set_error(error,
                 G_IO_ERROR,
                 list.result == -ETIMEDOUT ? G_IO_ERROR_TIMED_OUT : G_IO_ERROR_NOT_CONNECTED,
-                "Could not reach PipeWire: %s",
+                _("Could not reach PipeWire: %s"),
                 g_strerror(-list.result));
     return NULL;
   }

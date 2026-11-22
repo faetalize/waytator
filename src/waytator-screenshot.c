@@ -1,5 +1,7 @@
 #include "waytator-screenshot.h"
 
+#include <glib/gi18n.h>
+
 #include "waytator-capture-overlay.h"
 #include "waytator-countdown.h"
 #include "waytator-export.h"
@@ -142,15 +144,15 @@ waytator_screenshot_describe_save_error(const char   *save_dir,
 
   if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_PERMISSION_DENIED)
       || g_error_matches(error, G_IO_ERROR, G_IO_ERROR_READ_ONLY))
-    return g_strdup_printf("Waytator is not allowed to write to %s.", folder);
+    return g_strdup_printf(_("Waytator is not allowed to write to %s."), folder);
 
   if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_NO_SPACE))
-    return g_strdup_printf("There is no space left to save to %s.", folder);
+    return g_strdup_printf(_("There is no space left to save to %s."), folder);
 
   if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_NOT_DIRECTORY))
-    return g_strdup_printf("%s is not a folder.", folder);
+    return g_strdup_printf(_("%s is not a folder."), folder);
 
-  return g_strdup_printf("Could not save to %s: %s.", folder, error->message);
+  return g_strdup_printf(_("Could not save to %s: %s."), folder, error->message);
 }
 
 //the name is only as precise as a second, two captures inside one get a counter
@@ -212,7 +214,7 @@ waytator_screenshot_create_file(const char *save_dir,
     }
   }
 
-  g_set_error(error, G_IO_ERROR, G_IO_ERROR_EXISTS, "too many screenshots share the name %s", name);
+  g_set_error(error, G_IO_ERROR, G_IO_ERROR_EXISTS, _("too many screenshots share the name %s"), name);
   return NULL;
 }
 
@@ -441,7 +443,7 @@ waytator_screenshot_allowed(GObject      *source_object,
   (void) source_object;
 
   if (!waytator_capture_allow_finish(result, &error)) {
-    g_prefix_error(&error, "Could not allow screenshots: ");
+    g_prefix_error(&error, _("Could not allow screenshots: "));
     waytator_screenshot_failed(shot, error);
     return;
   }
@@ -510,24 +512,24 @@ waytator_screenshot_notification_body(WaytatorScreenshot *shot)
 {
   //GNOME's own notification already says where it went
   if (shot->by_gnome)
-    return g_strdup("Choose Edit to annotate it in Waytator.");
+    return g_strdup(_("Choose Edit to annotate it in Waytator."));
 
   if (shot->save_error != NULL)
     return shot->copied
-         ? g_strdup_printf("%s It was copied to the clipboard.", shot->save_error)
-         : g_strdup_printf("%s Choose Edit to keep it.", shot->save_error);
+         ? g_strdup_printf(_("%s It was copied to the clipboard."), shot->save_error)
+         : g_strdup_printf(_("%s Choose Edit to keep it."), shot->save_error);
 
   if (shot->file != NULL) {
     g_autofree char *folder = waytator_screenshot_display_path(shot->settings.screenshot_save_dir);
 
     return shot->copied
-         ? g_strdup_printf("Saved to %s and copied to the clipboard.", folder)
-         : g_strdup_printf("Saved to %s.", folder);
+         ? g_strdup_printf(_("Saved to %s and copied to the clipboard."), folder)
+         : g_strdup_printf(_("Saved to %s."), folder);
   }
 
   return shot->copied
-       ? g_strdup("Copied to the clipboard.")
-       : g_strdup("Due to your settings, this screenshot is neither saved nor copied. Choose Edit to keep it.");
+       ? g_strdup(_("Copied to the clipboard."))
+       : g_strdup(_("Due to your settings, this screenshot is neither saved nor copied. Choose Edit to keep it."));
 }
 
 static void
@@ -536,8 +538,8 @@ waytator_screenshot_notify(WaytatorScreenshot *shot)
   g_autofree char *body = waytator_screenshot_notification_body(shot);
   g_autofree char *path = shot->file != NULL ? g_file_get_path(shot->file) : NULL;
   //clicking the notification itself does the same as Edit
-  const char *const actions_with_file[] = { "default", "Edit", "open", "Open", "edit", "Edit", NULL };
-  const char *const actions_without_file[] = { "default", "Edit", "edit", "Edit", NULL };
+  const char *const actions_with_file[] = { "default", _("Edit"), "open", C_("notification action", "Open"), "edit", _("Edit"), NULL };
+  const char *const actions_without_file[] = { "default", _("Edit"), "edit", _("Edit"), NULL };
 
   //without a session bus there is nobody to notify, the editor is what is left
   if (shot->notification == NULL) {
@@ -547,7 +549,7 @@ waytator_screenshot_notify(WaytatorScreenshot *shot)
   }
 
   waytator_notification_show(shot->notification,
-                             shot->save_error != NULL ? "Screenshot not saved" : "Screenshot taken",
+                             shot->save_error != NULL ? _("Screenshot not saved") : _("Screenshot taken"),
                              body,
                              shot->file != NULL ? actions_with_file : actions_without_file,
                              path);
@@ -602,16 +604,16 @@ waytator_screenshot_captured(WaytatorScreenshot *shot,
 static void
 waytator_screenshot_ask_permission(WaytatorScreenshot *shot)
 {
-  const char *const actions[] = { "default", "Allow", "allow", "Allow", NULL };
+  const char *const actions[] = { "default", _("Allow"), "allow", _("Allow"), NULL };
 
   waytator_screenshot_set_capturing(shot, FALSE);
   waytator_window_restore_all(shot->hidden);
   shot->asking_permission = TRUE;
 
   waytator_notification_show(shot->notification,
-                             "Allow Screenshots?",
-                             "Waytator needs a one-time permission to take screenshots. "
-                             "Choose Allow and the screenshot is taken again.",
+                             _("Allow Screenshots?"),
+                             _("Waytator needs a one-time permission to take screenshots. "
+                             "Choose Allow and the screenshot is taken again."),
                              actions,
                              NULL);
 }
@@ -626,9 +628,9 @@ waytator_screenshot_failed(WaytatorScreenshot *shot,
     return;
   }
 
-  g_printerr("Could not take a screenshot: %s\n", error->message);
+  g_printerr(_("Could not take a screenshot: %s\n"), error->message);
   if (shot->notification != NULL)
-    waytator_notification_post(shot->notification, "Screenshot failed", error->message);
+    waytator_notification_post(shot->notification, _("Screenshot failed"), error->message);
   waytator_screenshot_free(shot);
 }
 
@@ -699,7 +701,7 @@ waytator_screenshot_outputs_ready(GObject      *source_object,
   g_set_error_literal(&error,
                       G_IO_ERROR,
                       G_IO_ERROR_FAILED,
-                      "Could not match the capture to a screen");
+                      _("Could not match the capture to a screen"));
   waytator_screenshot_failed(shot, error);
 }
 

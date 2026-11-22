@@ -1,5 +1,7 @@
 #include "waytator-instance.h"
 
+#include <glib/gi18n.h>
+
 #include <gtk/gtk.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -420,7 +422,7 @@ waytator_instance_finish(void)
 
   binary = waytator_instance_resolve_launch_name();
   if (binary == NULL || !waytator_instance_spawn_service(binary, NULL))
-    g_printerr("Could not start the background service again\n");
+    g_printerr(_("Could not start the background service again\n"));
 }
 
 void
@@ -462,7 +464,7 @@ waytator_instance_restart(GFile   *file,
   const char *argv[] = { instance.newer_binary, "--gapplication-replace", path, NULL };
 
   if (!waytator_instance_can_restart()) {
-    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_BUSY, "Waytator can't restart right now");
+    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_BUSY, _("Waytator can't restart right now"));
     return FALSE;
   }
 

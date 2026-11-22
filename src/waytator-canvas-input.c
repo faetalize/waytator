@@ -2,6 +2,7 @@
 
 #include "waytator-stroke.h"
 
+#include <glib/gi18n.h>
 #include <math.h>
 
 #define WAYTATOR_TOUCH_TAP_MAX_DISTANCE 24.0
@@ -62,16 +63,16 @@ waytator_window_blur_warning_response(GObject      *source_object,
 static void
 waytator_window_show_blur_warning(WaytatorWindow *self)
 {
-  const char *buttons[] = { "Cancel", "Apply Blur", NULL };
+  const char *buttons[] = { _("Cancel"), _("Apply Blur"), NULL };
   g_autoptr(GtkAlertDialog) dialog = NULL;
 
   if (self->blur_commit_warning_showing)
     return;
 
   self->blur_commit_warning_showing = TRUE;
-  dialog = gtk_alert_dialog_new("Apply blur?");
+  dialog = gtk_alert_dialog_new("%s", _("Apply blur?"));
   gtk_alert_dialog_set_detail(dialog,
-                              "For performance, blur will be merged into the image. It cannot be erased afterward; use Undo to revert it.");
+                              _("For performance, blur will be merged into the image. It cannot be erased afterward; use Undo to revert it."));
   gtk_alert_dialog_set_buttons(dialog, buttons);
   gtk_alert_dialog_set_cancel_button(dialog, 0);
   gtk_alert_dialog_set_default_button(dialog, 1);

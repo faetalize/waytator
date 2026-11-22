@@ -1,5 +1,7 @@
 #include "waytator-video-profile.h"
 
+#include <glib/gi18n.h>
+
 #include "waytator-types.h"
 
 #define WAYTATOR_VIDEO_PROFILE_GROUP_PREFIX "video-profile "
@@ -69,13 +71,13 @@ waytator_video_profile_describe(const WaytatorVideoProfile *profile)
     g_string_append_printf(text, "%s, %s", extension, codecs[profile->codec]);
 
   if (profile->size_limit > 0)
-    g_string_append_printf(text, ", under %g MB", profile->size_limit);
+    g_string_append_printf(text, _(", under %g MB"), profile->size_limit);
   if (profile->max_size > 0)
-    g_string_append_printf(text, ", up to %dp", profile->max_size);
+    g_string_append_printf(text, _(", up to %dp"), profile->max_size);
   else
-    g_string_append(text, ", full size");
+    g_string_append(text, _(", full size"));
   if (profile->max_rate > 0)
-    g_string_append_printf(text, ", %g fps", profile->max_rate);
+    g_string_append_printf(text, _(", %g fps"), profile->max_rate);
 
   return g_string_free(g_steal_pointer(&text), FALSE);
 }
@@ -113,17 +115,17 @@ waytator_video_profiles_new_defaults(void)
   WaytatorVideoProfile *small;
 
   //plays everywhere, from chat apps to phones
-  g_ptr_array_add(profiles, waytator_video_profile_new("share", "Share",
+  g_ptr_array_add(profiles, waytator_video_profile_new("share", _("Share"),
                                                        WAYTATOR_VIDEO_CODEC_H264, 70, 0, 1080, 60,
                                                        WAYTATOR_VIDEO_SOUND_AAC, 128));
   //fits a common chat upload limit. the cpu encoder gets more out of every megabyte than the gpu one
-  small = waytator_video_profile_new("small", "Small",
+  small = waytator_video_profile_new("small", _("Small"),
                                      WAYTATOR_VIDEO_CODEC_H264, 70, 10, 1080, 30,
                                      WAYTATOR_VIDEO_SOUND_AAC, 96);
   small->encoder = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
   g_ptr_array_add(profiles, small);
   //for keeping, as it was recorded
-  g_ptr_array_add(profiles, waytator_video_profile_new("high-quality", "High quality",
+  g_ptr_array_add(profiles, waytator_video_profile_new("high-quality", _("High quality"),
                                                        WAYTATOR_VIDEO_CODEC_AV1, 85, 0, 0, 0,
                                                        WAYTATOR_VIDEO_SOUND_OPUS, 160));
   g_ptr_array_add(profiles, waytator_video_profile_new("gif", "GIF",

@@ -3,6 +3,8 @@
 
 #include "waytator-video-audio.h"
 
+#include <glib/gi18n.h>
+
 #include <gio/gio.h>
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
@@ -283,7 +285,7 @@ waytator_video_audio_output_new(GError **error)
 
   output->loop = pw_thread_loop_new("waytator-audio", NULL);
   if (output->loop == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't start PipeWire: %s", g_strerror(errno));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't start PipeWire: %s"), g_strerror(errno));
     return NULL;
   }
 
@@ -295,7 +297,7 @@ waytator_video_audio_output_new(GError **error)
     const int code = errno;
 
     pw_thread_loop_unlock(output->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, "Couldn't reach PipeWire: %s", g_strerror(code));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, _("Couldn't reach PipeWire: %s"), g_strerror(code));
     return NULL;
   }
   pw_core_add_listener(output->core, &output->core_listener, &waytator_video_audio_output_core_events, output);
@@ -311,7 +313,7 @@ waytator_video_audio_output_new(GError **error)
     const int code = errno;
 
     pw_thread_loop_unlock(output->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't make a PipeWire stream: %s", g_strerror(code));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't make a PipeWire stream: %s"), g_strerror(code));
     return NULL;
   }
   pw_stream_add_listener(output->stream,
@@ -332,14 +334,14 @@ waytator_video_audio_output_new(GError **error)
                           G_N_ELEMENTS(params));
   if (ret < 0) {
     pw_thread_loop_unlock(output->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't connect to PipeWire: %s", g_strerror(-ret));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't connect to PipeWire: %s"), g_strerror(-ret));
     return NULL;
   }
 
   ret = pw_thread_loop_start(output->loop);
   pw_thread_loop_unlock(output->loop);
   if (ret < 0) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't start PipeWire: %s", g_strerror(-ret));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't start PipeWire: %s"), g_strerror(-ret));
     return NULL;
   }
 

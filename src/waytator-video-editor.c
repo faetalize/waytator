@@ -1,5 +1,7 @@
 #include "waytator-video-editor.h"
 
+#include <glib/gi18n.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <glib/gstdio.h>
@@ -577,8 +579,10 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
   if (selection) {
     g_autofree char *total = waytator_video_format_time(length, length);
     g_autofree char *text = spans->len > 1
-                          ? g_strdup_printf("%u pieces, %s selected", spans->len, total)
-                          : g_strdup_printf("%s selected", total);
+                          ? g_strdup_printf(ngettext("%u piece, %s selected",
+                                                     "%u pieces, %s selected", spans->len),
+                                            spans->len, total)
+                          : g_strdup_printf(_("%s selected"), total);
 
     gtk_label_set_text(self->scope_label, text);
   } else {
@@ -595,38 +599,38 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
     gtk_actionable_set_action_name(GTK_ACTIONABLE(self->split_button), "video.join");
     gtk_widget_action_set_enabled(GTK_WIDGET(self), "video.join", can_join);
     gtk_widget_set_tooltip_text(GTK_WIDGET(self->split_button),
-                                can_join ? "Join the two pieces"
+                                can_join ? _("Join the two pieces")
                                          : waytator_video_state_edge_continues(state, join)
-                                         ? "These two are one piece already, only a setting changes between them"
-                                         : "These two can't be joined, the second doesn't carry on from where the first ends");
+                                         ? _("These two are one piece already, only a setting changes between them")
+                                         : _("These two can't be joined, the second doesn't carry on from where the first ends"));
   } else {
     gtk_button_set_icon_name(self->split_button, "edit-cut-symbolic");
     gtk_actionable_set_action_name(GTK_ACTIONABLE(self->split_button), "video.split");
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->split_button), "Split at the playhead (S)");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->split_button), _("Split at the playhead (S)"));
   }
 
   gtk_toggle_button_set_active(self->flip_horizontal_button, all_flipped_horizontal);
   gtk_toggle_button_set_active(self->flip_vertical_button, all_flipped_vertical);
 
   //the speed: the button only shows that it is changed, its popover says to what
-  gtk_label_set_text(self->speed_heading, selection ? "Speed of the selection" : "Speed of the whole video");
+  gtk_label_set_text(self->speed_heading, selection ? _("Speed of the selection") : _("Speed of the whole video"));
   gtk_switch_set_active(self->pitch_follows_switch, all_follow);
   gtk_widget_set_sensitive(GTK_WIDGET(self->pitch_follows_switch), has_audio);
   waytator_video_editor_set_changed(self->speed_button, speed_changed);
   if (same_speed) {
     g_autofree char *speed = waytator_video_format_factor(reference->speed);
-    g_autofree char *tooltip = g_strdup_printf("Speed, %s", speed);
+    g_autofree char *tooltip = g_strdup_printf(_("Speed, %s"), speed);
 
     gtk_label_set_text(self->speed_value, speed);
     gtk_range_set_value(self->speed_scale, log2(reference->speed));
-    gtk_widget_set_tooltip_text(self->speed_button, speed_changed ? tooltip : "Speed");
+    gtk_widget_set_tooltip_text(self->speed_button, speed_changed ? tooltip : _("Speed"));
   } else {
-    gtk_label_set_text(self->speed_value, "Mixed");
-    gtk_widget_set_tooltip_text(self->speed_button, "Speed, mixed");
+    gtk_label_set_text(self->speed_value, _("Mixed"));
+    gtk_widget_set_tooltip_text(self->speed_button, _("Speed, mixed"));
   }
 
   //the sound: how loud, its pitch and whether it plays at all, in one place
-  gtk_label_set_text(self->sound_heading, selection ? "Sound of the selection" : "Sound of the whole video");
+  gtk_label_set_text(self->sound_heading, selection ? _("Sound of the selection") : _("Sound of the whole video"));
   gtk_switch_set_active(self->mute_switch, all_muted);
   gtk_widget_set_sensitive(GTK_WIDGET(self->sound_button), has_audio);
   gtk_widget_set_sensitive(GTK_WIDGET(self->volume_scale), !all_muted);
@@ -638,15 +642,15 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
     gtk_label_set_text(self->volume_value, volume);
     gtk_range_set_value(self->volume_scale, reference->volume);
   } else {
-    gtk_label_set_text(self->volume_value, "Mixed");
+    gtk_label_set_text(self->volume_value, _("Mixed"));
   }
   if (same_pitch) {
-    g_autofree char *pitch = waytator_video_format_signed(reference->pitch, "st");
+    g_autofree char *pitch = waytator_video_format_signed(reference->pitch, _("st"));
 
     gtk_label_set_text(self->pitch_value, pitch);
     gtk_range_set_value(self->pitch_scale, reference->pitch);
   } else {
-    gtk_label_set_text(self->pitch_value, "Mixed");
+    gtk_label_set_text(self->pitch_value, _("Mixed"));
   }
 
   if (!has_audio)
@@ -661,20 +665,19 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
     icon = "audio-volume-high-symbolic";
   gtk_menu_button_set_icon_name(self->sound_button, icon);
   if (!has_audio) {
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "This video has no sound");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), _("This video has no sound"));
   } else if (all_muted) {
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "Sound, muted");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), _("Sound, muted"));
   } else if (sound_changed) {
-    g_autofree char *volume = same_volume ? waytator_video_format_signed(reference->volume, "dB") : g_strdup("mixed");
-    g_autofree char *pitch = same_pitch ? waytator_video_format_signed(reference->pitch, "st") : g_strdup("mixed");
-    g_autofree char *tooltip = g_strdup_printf("Sound, volume %s, pitch %s%s",
-                                               volume,
-                                               pitch,
-                                               any_muted ? ", partly muted" : "");
+    g_autofree char *volume = same_volume ? waytator_video_format_signed(reference->volume, "dB") : g_strdup(_("mixed"));
+    g_autofree char *pitch = same_pitch ? waytator_video_format_signed(reference->pitch, _("st")) : g_strdup(_("mixed"));
+    g_autofree char *tooltip = g_strdup_printf(any_muted ? _("Sound, volume %s, pitch %s, partly muted")
+                                                       : _("Sound, volume %s, pitch %s"),
+                                               volume, pitch);
 
     gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), tooltip);
   } else {
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), "Sound (M)");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->sound_button), _("Sound (M)"));
   }
 
   //the whole video's crop and turn
@@ -689,7 +692,7 @@ waytator_video_editor_update_controls(WaytatorVideoEditor *self)
                                     crop.x != 0 || crop.y != 0
                                     || crop.width != waytator_video_state_get_source_width(state)
                                     || crop.height != waytator_video_state_get_source_height(state));
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->transform_button), "Crop the whole video (C)");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->transform_button), _("Crop the whole video (C)"));
   waytator_video_editor_set_changed(self->rotate_button, waytator_video_state_get_rotation(state) != 0);
 
   self->updating = FALSE;
@@ -808,7 +811,7 @@ waytator_video_editor_playing_changed(GObject    *object,
 
   gtk_button_set_icon_name(self->play_button,
                            playing ? "media-playback-pause-symbolic" : "media-playback-start-symbolic");
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->play_button), playing ? "Pause (Space)" : "Play (Space)");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->play_button), playing ? _("Pause (Space)") : _("Play (Space)"));
   waytator_video_timeline_set_following(self->timeline, playing);
 }
 
@@ -912,7 +915,7 @@ waytator_video_editor_proxy_progress(GObject    *object,
 {
   WaytatorVideoEditor *self = WAYTATOR_VIDEO_EDITOR(user_data);
   const double progress = waytator_video_proxy_get_progress(WAYTATOR_VIDEO_PROXY(object));
-  g_autofree char *text = g_strdup_printf("Optimizing %d%%", (int) floor(progress * 100.0));
+  g_autofree char *text = g_strdup_printf(_("Optimizing %d%%"), (int) floor(progress * 100.0));
 
   (void) pspec;
 
@@ -1110,7 +1113,7 @@ waytator_video_editor_source_opened(GObject      *source_object,
   //a close or another open since has moved the editor on, and this one is no longer wanted
   if (GPOINTER_TO_UINT(g_task_get_task_data(task)) != self->open_serial || !self->opening) {
     g_clear_pointer(&source, waytator_video_source_unref);
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_CANCELLED, "Opening another video instead");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_CANCELLED, _("Opening another video instead"));
     return;
   }
   if (source == NULL) {
@@ -1130,7 +1133,7 @@ waytator_video_editor_open_path(WaytatorVideoEditor *self,
                                 const char          *path,
                                 GTask               *task)
 {
-  waytator_video_editor_set_loading(self, "Opening video…");
+  waytator_video_editor_set_loading(self, _("Opening video…"));
   g_task_set_task_data(task, GUINT_TO_POINTER(self->open_serial), NULL);
   waytator_video_source_open_async(path,
                                    self->open_cancellable,
@@ -1168,7 +1171,7 @@ waytator_video_editor_open_async(WaytatorVideoEditor *self,
 
   path = g_file_get_path(file);
   if (path == NULL) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, "Only videos on this computer can be opened");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, _("Only videos on this computer can be opened"));
     return;
   }
 
@@ -1205,7 +1208,7 @@ waytator_video_editor_spooled(GObject      *source_object,
     return;
   }
   if (GPOINTER_TO_UINT(g_task_get_task_data(task)) != self->open_serial || !self->opening) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_CANCELLED, "Opening another video instead");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_CANCELLED, _("Opening another video instead"));
     return;
   }
 
@@ -1233,7 +1236,7 @@ waytator_video_editor_open_stream_async(WaytatorVideoEditor *self,
   task = g_task_new(self, cancellable, callback, user_data);
   g_task_set_source_tag(task, waytator_video_editor_open_stream_async);
   waytator_video_editor_begin_open(self, cancellable);
-  self->display_name = g_strdup(display_name != NULL ? display_name : "Video");
+  self->display_name = g_strdup(display_name != NULL ? display_name : _("Video"));
 
   //the cache folder rather than the temporary one, which is often memory, and a recording can be long
   self->spool_fd = waytator_video_cache_create("piped-", &self->spool_path);
@@ -1243,7 +1246,7 @@ waytator_video_editor_open_stream_async(WaytatorVideoEditor *self,
 
     waytator_video_editor_close(self);
     g_task_return_new_error(task, G_IO_ERROR, g_io_error_from_errno(saved_errno),
-                            "Could not make room for the video in %s: %s", folder, g_strerror(saved_errno));
+                            _("Could not make room for the video in %s: %s"), folder, g_strerror(saved_errno));
     return;
   }
 
@@ -1256,7 +1259,7 @@ waytator_video_editor_open_stream_async(WaytatorVideoEditor *self,
   }
 
   g_task_set_task_data(task, GUINT_TO_POINTER(self->open_serial), NULL);
-  waytator_video_editor_set_loading(self, "Receiving video…");
+  waytator_video_editor_set_loading(self, _("Receiving video…"));
   g_output_stream_splice_async(output,
                                stream,
                                G_OUTPUT_STREAM_SPLICE_CLOSE_TARGET,
@@ -1603,7 +1606,7 @@ waytator_video_editor_start_export(WaytatorVideoEditor        *self,
   task = g_task_new(self, NULL, callback, user_data);
   g_task_set_source_tag(task, waytator_video_editor_export_async);
   if (self->edit == NULL || self->export_cancellable != NULL) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_BUSY, "The video is already being exported");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_BUSY, _("The video is already being exported"));
     return;
   }
 
@@ -1617,7 +1620,7 @@ waytator_video_editor_start_export(WaytatorVideoEditor        *self,
   if (export->saves)
     waytator_video_editor_set_locked(self, TRUE);
   self->export_cancellable = g_cancellable_new();
-  label = g_strdup_printf("Exporting as %s", profile->name);
+  label = g_strdup_printf(_("Exporting as %s"), profile->name);
   gtk_label_set_text(self->export_label, label);
   gtk_progress_bar_set_fraction(self->export_progress, 0.0);
   gtk_widget_set_visible(self->export_bar, TRUE);

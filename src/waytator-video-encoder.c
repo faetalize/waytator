@@ -1,5 +1,7 @@
 #include "waytator-video-encoder.h"
 
+#include <glib/gi18n.h>
+
 #include <libavutil/hwcontext.h>
 #include <libavutil/opt.h>
 #include <math.h>
@@ -161,7 +163,7 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
     g_autofree char *wanted = g_strjoinv(", ", (char **) names);
 
     g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-                "This system's FFmpeg can't encode this profile's video, it needs one of: %s",
+                _("This system's FFmpeg can't encode this profile's video, it needs one of: %s"),
                 wanted);
     return FALSE;
   }
@@ -240,6 +242,6 @@ waytator_video_encoder_fail(GError    **error,
   char message[AV_ERROR_MAX_STRING_SIZE] = "";
 
   av_strerror(code, message, sizeof message);
-  g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "%s: %s", what, message);
+  g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("%s: %s"), what, message);
   return FALSE;
 }

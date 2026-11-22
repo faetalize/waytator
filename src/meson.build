@@ -1,5 +1,6 @@
 waytator_conf = configuration_data()
 waytator_conf.set_quoted('WAYTATOR_VERSION', meson.project_version())
+waytator_conf.set_quoted('WAYTATOR_LOCALEDIR', get_option('prefix') / get_option('localedir'))
 
 #the edit model has no gtk in it, so the tests build it on its own
 waytator_video_edit_sources = files(

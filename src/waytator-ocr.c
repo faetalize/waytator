@@ -1,5 +1,6 @@
 #include "waytator-ocr.h"
 
+#include <glib/gi18n.h>
 #include <unistd.h>
 
 WaytatorOcrLine *
@@ -185,7 +186,7 @@ waytator_ocr_parse_tsv(const char  *tsv,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_NOT_FOUND,
-                "No selectable text was detected in the current image");
+                _("No selectable text was detected in the current image"));
     return FALSE;
   }
 
@@ -240,7 +241,7 @@ waytator_ocr_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_FAILED,
-                            "Could not prepare the current image for OCR");
+                            _("Could not prepare the current image for OCR"));
     return;
   }
   cairo_surface_destroy(surface);
@@ -261,7 +262,7 @@ waytator_ocr_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_NOT_FOUND,
-                            "Tesseract is required for OCR. Install the `tesseract` binary to use this tool.");
+                            _("Tesseract is required for OCR. Install the `tesseract` binary to use this tool."));
     return;
   }
 
