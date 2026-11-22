@@ -569,6 +569,18 @@ waytator_record_writer_region(const WaytatorRecordWriterOptions *options,
     *height = valid_height;
   }
 
+  //an area that starts on an odd pixel needs a crop of its own on the gpu in the picture's own colours, and a gpu
+  //that can't give those back (Intel Xe has no bgr0 output) fails the whole recording on it. starting one pixel
+  //earlier keeps both offsets even, and is all that is needed to leave that crop out
+  if ((*x & 1) != 0 && *x > left) {
+    (*x)--;
+    (*width)++;
+  }
+  if ((*y & 1) != 0 && *y > top) {
+    (*y)--;
+    (*height)++;
+  }
+
   *width = waytator_record_writer_even(*width);
   *height = waytator_record_writer_even(*height);
   *x = MAX(MIN(*x, frame->width - *width), 0);
