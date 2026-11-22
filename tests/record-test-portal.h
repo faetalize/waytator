@@ -28,6 +28,16 @@ typedef struct {
   int width;
   int height;
   const char *token;
+  //a pass the portal remembers a screen by, NULL for none. going in with it skips the dialog and gives that
+  //screen, wherever it is by now, as the GNOME portal does: it knows a screen by make, model and serial number,
+  //not by the connector it is on
+  const char *remembered_token;
+  int remembered_x;
+  int remembered_y;
+  int remembered_width;
+  int remembered_height;
+  //what Start answers with when no remembered pass went in and it gets to the dialog. 0 leaves it to start_code
+  guint32 dialog_code;
   //what it was asked
   guint creates;
   guint starts;
