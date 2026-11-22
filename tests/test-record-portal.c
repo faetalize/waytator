@@ -276,29 +276,33 @@ test_wrong_screen(void)
   mock_reset();
   token_put("DP-2", "old");
 
-  //the user picked the screen next to it in the portal's dialog
+  //the pass gave the screen next to it, and then the user picked that one in the portal's dialog too. the
+  //dialog comes up once and not over and over
   mock.behaviour.x = 1920;
   mock.behaviour.width = 2560;
   mock.behaviour.height = 1440;
   mock.behaviour.token = "new";
   assert_open_fails(&request, WAYTATOR_RECORD_PORTAL_ERROR, WAYTATOR_RECORD_PORTAL_ERROR_WRONG_SCREEN);
-  wait_for(&mock.behaviour.session_closes, 1);
+  wait_for(&mock.behaviour.session_closes, 2);
+  g_assert_cmpuint(mock.behaviour.starts, ==, 2);
   g_assert_cmpuint(mock.behaviour.remotes, ==, 0);
   token = token_stored("DP-2");
-  g_assert_cmpstr(token, ==, "old");
+  g_assert_null(token);
 
-  //the same size somewhere else is as wrong
+  //without a pass only the user can have picked it, and they are told rather than asked again. the same size
+  //somewhere else is as wrong
   mock.behaviour.width = 1920;
   mock.behaviour.height = 1080;
   assert_open_fails(&request, WAYTATOR_RECORD_PORTAL_ERROR, WAYTATOR_RECORD_PORTAL_ERROR_WRONG_SCREEN);
-  wait_for(&mock.behaviour.session_closes, 2);
+  wait_for(&mock.behaviour.session_closes, 3);
+  g_assert_cmpuint(mock.behaviour.starts, ==, 3);
 
   //where it sits not said, the size alone has to be right
   mock.behaviour.has_position = FALSE;
   mock.behaviour.width = 2560;
   mock.behaviour.height = 1440;
   assert_open_fails(&request, WAYTATOR_RECORD_PORTAL_ERROR, WAYTATOR_RECORD_PORTAL_ERROR_WRONG_SCREEN);
-  wait_for(&mock.behaviour.session_closes, 3);
+  wait_for(&mock.behaviour.session_closes, 4);
 
   mock.behaviour.width = 1920;
   mock.behaviour.height = 1080;
@@ -326,6 +330,89 @@ test_wrong_screen(void)
 }
 
 //on GNOME the portal's dialog is the only way to pick a screen, so whichever it gives is the one
+//a 2560x1440 screen on DP-2 and a 1920x1080 one to its right on DP-3 are both remembered, and then the two
+//come up on each other's connectors. the pass kept for DP-3 is the one of the screen that is on DP-2 by now
+static void
+test_swapped_connectors(void)
+{
+  WaytatorRecordPortalRequest request = screen_request("DP-3");
+  g_autofree char *token = NULL;
+  g_autoptr(GError) error = NULL;
+  WaytatorRecordPortal *portal;
+  const char *passed = NULL;
+  int width;
+  int height;
+
+  request.width = 2560;
+  request.height = 1440;
+
+  mock_reset();
+  token_put("DP-3", "small-screen");
+  mock.behaviour.remembered_token = "small-screen";
+  mock.behaviour.remembered_x = 2560;
+  mock.behaviour.remembered_width = 1920;
+  mock.behaviour.remembered_height = 1080;
+
+  //in the dialog the user picks the right screen
+  mock.behaviour.width = 2560;
+  mock.behaviour.height = 1440;
+  mock.behaviour.token = "large-screen";
+
+  //the pass gives the wrong screen, so the portal is asked again without it and gets to its dialog
+  portal = open_portal(&request, &error);
+  g_assert_no_error(error);
+  g_assert_nonnull(portal);
+  g_assert_cmpuint(mock.behaviour.starts, ==, 2);
+  g_assert_cmpuint(mock.behaviour.remotes, ==, 1);
+  g_assert_false(option_has(mock.behaviour.select_options, "restore_token"));
+  g_assert_cmpuint(option_uint(mock.behaviour.select_options, "persist_mode"), ==, 2);
+  waytator_record_portal_get_size(portal, &width, &height);
+  g_assert_cmpint(width, ==, 2560);
+  g_assert_cmpint(height, ==, 1440);
+
+  //the session that gave the wrong screen is closed and the one that is recorded is not
+  wait_for(&mock.behaviour.session_closes, 1);
+  wait_a_little();
+  g_assert_cmpuint(mock.behaviour.session_closes, ==, 1);
+  waytator_record_portal_close(portal);
+
+  //the pass from the dialog takes the place of the wrong one, and is all that is needed from then on
+  token = token_stored("DP-3");
+  g_assert_cmpstr(token, ==, "large-screen");
+  portal = open_portal(&request, &error);
+  g_assert_no_error(error);
+  g_assert_nonnull(portal);
+  g_assert_cmpuint(mock.behaviour.starts, ==, 3);
+  g_assert_true(g_variant_lookup(mock.behaviour.select_options, "restore_token", "&s", &passed));
+  g_assert_cmpstr(passed, ==, "large-screen");
+  waytator_record_portal_close(portal);
+}
+
+//the dialog that comes up over a pass for the wrong screen is dismissed
+static void
+test_swapped_connectors_dismissed(void)
+{
+  WaytatorRecordPortalRequest request = screen_request("DP-3");
+  g_autofree char *token = NULL;
+
+  mock_reset();
+  token_put("DP-3", "other-screen");
+  mock.behaviour.remembered_token = "other-screen";
+  mock.behaviour.remembered_x = 1920;
+  mock.behaviour.remembered_width = 1920;
+  mock.behaviour.remembered_height = 1080;
+  mock.behaviour.dialog_code = 1;
+
+  assert_open_fails(&request, G_IO_ERROR, G_IO_ERROR_CANCELLED);
+  wait_for(&mock.behaviour.session_closes, 2);
+  g_assert_cmpuint(mock.behaviour.starts, ==, 2);
+  g_assert_cmpuint(mock.behaviour.remotes, ==, 0);
+
+  //the pass is no good for this screen either way
+  token = token_stored("DP-3");
+  g_assert_null(token);
+}
+
 static void
 test_unnamed_screen(void)
 {
@@ -534,6 +621,8 @@ main(int   argc,
   g_test_add_func("/record-portal/second-screen", test_second_screen);
   g_test_add_func("/record-portal/window", test_window);
   g_test_add_func("/record-portal/wrong-screen", test_wrong_screen);
+  g_test_add_func("/record-portal/swapped-connectors", test_swapped_connectors);
+  g_test_add_func("/record-portal/swapped-connectors-dismissed", test_swapped_connectors_dismissed);
   g_test_add_func("/record-portal/unnamed-screen", test_unnamed_screen);
   g_test_add_func("/record-portal/dismissed", test_dismissed);
   g_test_add_func("/record-portal/no-stream", test_no_stream);
