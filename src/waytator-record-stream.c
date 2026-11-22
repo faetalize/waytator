@@ -130,6 +130,29 @@ waytator_record_stream_shared_unref(WaytatorRecordStreamShared *shared)
   g_free(shared);
 }
 
+//a layout with more than one plane for one picture keeps compression or a clear colour next to the pixels.
+//the importer the encoder goes through only reads the pixels, so those come out wrong with no error to say so,
+//as the green of Intel's compressed layouts. what the driver can't be asked about is left on offer
+static gboolean
+waytator_record_stream_layout_is_plain(struct gbm_device *gbm,
+                                       guint32            fourcc,
+                                       guint64            modifier)
+{
+  struct gbm_bo *bo;
+  int planes;
+
+  if (gbm == NULL || modifier == DRM_FORMAT_MOD_LINEAR)
+    return TRUE;
+
+  bo = gbm_bo_create_with_modifiers(gbm, 256, 256, fourcc, &modifier, 1);
+  if (bo == NULL)
+    return TRUE;
+
+  planes = gbm_bo_get_plane_count(bo);
+  gbm_bo_destroy(bo);
+  return planes <= 1;
+}
+
 static void
 waytator_record_stream_query_modifiers(WaytatorRecordStream *stream)
 {
@@ -187,8 +210,14 @@ waytator_record_stream_query_modifiers(WaytatorRecordStream *stream)
 
     //the ones only an external texture can use are no use for reading pixels
     for (EGLint j = 0; j < n_modifiers; j++) {
-      if (!external_only[j])
-        g_array_append_val(stream->modifiers[i], modifiers[j]);
+      if (external_only[j])
+        continue;
+      if (!waytator_record_stream_layout_is_plain(stream->gbm, fourcc, modifiers[j])) {
+        g_debug("record: the layout %#" G_GINT64_MODIFIER "x of format %u has more than one plane, left out",
+                (guint64) modifiers[j], i);
+        continue;
+      }
+      g_array_append_val(stream->modifiers[i], modifiers[j]);
     }
 
     //the compositor picks the layout itself too, for drivers that don't spell theirs out
@@ -459,6 +488,8 @@ waytator_record_stream_param_changed(void                 *data,
   stream->height = info.size.height;
   stream->dmabuf = (info.flags & SPA_VIDEO_FLAG_MODIFIER) != 0;
   stream->modifier = stream->dmabuf ? info.modifier : DRM_FORMAT_MOD_INVALID;
+  g_debug("record: the compositor chose format %u, %s, layout %#" G_GINT64_MODIFIER "x",
+          index, stream->dmabuf ? "on the gpu" : "in memory", stream->modifier);
   if (stream->dmabuf && !waytator_record_stream_update_frames(stream)) {
     //nothing on the gpu is going to work, so ask for pictures in memory only
     g_debug("record: ffmpeg can't take frames on the gpu");
