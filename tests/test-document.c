@@ -71,6 +71,21 @@ test_failed_save_keeps_saved_state(void)
   waytator_document_free(document);
 }
 
+//a copy leaves the open file without the edits, so the image is still unsaved
+static void
+test_save_copy_stays_unsaved(void)
+{
+  g_autoptr(GFile) original = g_file_new_for_path("/tmp/waytator-test/shot.png");
+  g_autoptr(GFile) copy = g_file_new_for_path("/tmp/waytator-test/shot (copy).png");
+  g_autoptr(GFile) same = g_file_new_for_path("/tmp/waytator-test/shot.png");
+
+  g_assert_false(waytator_document_save_target_is_document(original, copy));
+  //picking the open file itself in the dialog overwrites it
+  g_assert_true(waytator_document_save_target_is_document(original, same));
+  //an image with no file yet takes on the one it is saved to
+  g_assert_true(waytator_document_save_target_is_document(NULL, copy));
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -79,5 +94,6 @@ main(int   argc,
   g_test_add_func("/document/save-marks-saved", test_save_marks_saved);
   g_test_add_func("/document/stroke-during-save-stays-unsaved", test_stroke_during_save_stays_unsaved);
   g_test_add_func("/document/failed-save-keeps-saved-state", test_failed_save_keeps_saved_state);
+  g_test_add_func("/document/save-copy-stays-unsaved", test_save_copy_stays_unsaved);
   return g_test_run();
 }
