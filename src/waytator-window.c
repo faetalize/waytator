@@ -12,6 +12,7 @@
 #include "waytator-recording.h"
 #include "waytator-recording-bar.h"
 #include "waytator-render.h"
+#include "waytator-save.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
 #include "waytator-video-editor.h"
@@ -3450,7 +3451,8 @@ waytator_window_save_to_file(WaytatorWindow *self,
     self->adopt_file = g_object_ref(file);
 
   waytator_window_set_saved_path(self, file);
-  waytator_document_begin_save(self->document);
+  if (waytator_save_target_is_document(self->current_file, file))
+    waytator_document_begin_save(self->document);
   waytator_window_begin_save_feedback(self);
   task = g_task_new(self, NULL, waytator_window_save_export_ready, g_object_ref(self));
   g_task_set_task_data(task, request, (GDestroyNotify) waytator_export_request_free);
