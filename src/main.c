@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "waytator-capture.h"
+#include "waytator-command-line.h"
 #include "waytator-instance.h"
 #include "waytator-recording.h"
 #include "waytator-screenshot.h"
@@ -650,7 +651,7 @@ app_command_line(GApplication            *app,
 
   //no window at all here, one only appears if the notification is used to ask for it,
   //or when the screenshot would otherwise end up nowhere
-  if (screenshot && (notify || !app_capture_opens_editor(FALSE))) {
+  if (waytator_command_line_captures_in_background(screenshot, notify, app_capture_opens_editor(FALSE))) {
     waytator_screenshot_capture_background(app,
                                            capture_mode,
                                            capture_screen,

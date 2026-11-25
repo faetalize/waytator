@@ -170,6 +170,15 @@ test_last_tool = executable(
 )
 test('last-tool', test_last_tool)
 
+test_command_line = executable(
+  'test-command-line',
+  'test-command-line.c',
+  files('../src/waytator-command-line.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('command-line', test_command_line)
+
 test_document = executable(
   'test-document',
   'test-document.c',
