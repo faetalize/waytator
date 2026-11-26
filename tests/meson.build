@@ -170,6 +170,15 @@ test_last_tool = executable(
 )
 test('last-tool', test_last_tool)
 
+test_pen_eraser = executable(
+  'test-pen-eraser',
+  'test-pen-eraser.c',
+  files('../src/waytator-pen-eraser.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep],
+)
+test('pen-eraser', test_pen_eraser)
+
 test_command_line = executable(
   'test-command-line',
   'test-command-line.c',

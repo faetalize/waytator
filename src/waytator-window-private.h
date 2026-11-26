@@ -3,6 +3,7 @@
 #include "waytator-canvas-view.h"
 #include "waytator-countdown.h"
 #include "waytator-document.h"
+#include "waytator-pen-eraser.h"
 #include "waytator-settings.h"
 #include "waytator-types.h"
 #include "waytator-video-copy.h"
@@ -287,6 +288,11 @@ struct _WaytatorWindow {
   GdkRGBA tool_fill_colors[WAYTATOR_TOOL_BLUR + 1];
   int blur_type;
   WaytatorEraserStyle eraser_style;
+  WaytatorPenEraser pen_eraser;
+  //kept from every pointer event, for keeping GTK's layout motion away while the pen is in use
+  WaytatorPenInput last_pointer_input;
+  //the pen picked the tool, not a hand on the toolbar
+  gboolean pen_eraser_switching;
   GPtrArray *ocr_lines;
   WaytatorOcrLine *selected_ocr_line;
   char *ocr_all_text;
