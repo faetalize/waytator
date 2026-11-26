@@ -202,6 +202,48 @@ test_eraser_follows_pressure(void)
   waytator_stroke_free(stroke);
 }
 
+//the end of a real stroke off a tablet: the pressure fades as the pen lifts, then the release comes about 10 px
+//further on, reading no pressure. the line ends where the pen last pressed, with no stub out to the release
+static void
+test_release_leaves_no_stub(void)
+{
+  const double readings[][2] = {
+    { 89.2, 0.557 }, { 93.0, 0.548 }, { 101.5, 0.471 }, { 106.2, 0.388 }, { 110.8, 0.250 },
+  };
+  WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+  cairo_surface_t *surface;
+
+  for (guint i = 0; i < G_N_ELEMENTS(readings); i++)
+    waytator_stroke_add_pressure_point(stroke, readings[i][0], 50.0, readings[i][1]);
+  waytator_stroke_add_release_point(stroke, 121.4, 50.0, 0.250);
+  surface = waytator_test_render(stroke);
+
+  //the last reading is 0.25 of 20 px wide, so it ends 2.5 px past 110.8
+  g_assert_cmpint(waytator_test_alpha(surface, 110, 50), ==, 255);
+  g_assert_cmpint(waytator_test_alpha(surface, 116, 50), ==, 0);
+  g_assert_cmpint(waytator_test_alpha(surface, 120, 50), ==, 0);
+
+  cairo_surface_destroy(surface);
+  waytator_stroke_free(stroke);
+}
+
+//a mouse has no fade, its line runs right up to where it let go
+static void
+test_mouse_release_ends_line(void)
+{
+  WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+  cairo_surface_t *surface;
+
+  waytator_stroke_add_point(stroke, 40.0, 50.0);
+  waytator_stroke_add_release_point(stroke, 120.0, 50.0, -1.0);
+  surface = waytator_test_render(stroke);
+
+  g_assert_cmpint(waytator_test_alpha(surface, 125, 50), ==, 255);
+
+  cairo_surface_destroy(surface);
+  waytator_stroke_free(stroke);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -214,6 +256,8 @@ main(int argc, char **argv)
   g_test_add_func("/stroke/dot-follows-pressure", test_dot_follows_pressure);
   g_test_add_func("/stroke/pressing-in-place-widens", test_pressing_in_place_widens);
   g_test_add_func("/stroke/eraser-follows-pressure", test_eraser_follows_pressure);
+  g_test_add_func("/stroke/release-leaves-no-stub", test_release_leaves_no_stub);
+  g_test_add_func("/stroke/mouse-release-ends-line", test_mouse_release_ends_line);
 
   return g_test_run();
 }

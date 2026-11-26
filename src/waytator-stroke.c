@@ -163,6 +163,20 @@ waytator_stroke_add_pressure_point(WaytatorStroke *stroke,
   waytator_stroke_append_point(stroke, x, y, CLAMP(pressure, 0.0, 1.0));
 }
 
+void
+waytator_stroke_add_release_point(WaytatorStroke *stroke,
+                                  double          x,
+                                  double          y,
+                                  double          pressure)
+{
+  //a stylus lands its release a few px past its last reading, once the tip has left the surface. stamping it with
+  //that reading would add a stub past the line's natural fade, so a pressure line ends where it last pressed
+  if (pressure >= 0.0)
+    return;
+
+  waytator_stroke_add_point(stroke, x, y);
+}
+
 //full pressure gives the chosen width. the floor keeps a feather-light touch visible
 #define WAYTATOR_STROKE_MIN_PRESSURE 0.1
 
