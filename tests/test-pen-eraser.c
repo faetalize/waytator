@@ -113,6 +113,57 @@ test_lasting_tool(void)
   g_assert_cmpint(waytator_pen_eraser_lasting_tool(&window.pen, window.active_tool), ==, WAYTATOR_TOOL_TEXT);
 }
 
+//GTK's motion after a layout change, see gdk_surface_ensure_motion: the mouse device, no tool, no time,
+//and wherever the mouse was last, even with the pen hovering somewhere else
+static WaytatorPenInput
+waytator_test_layout_motion(void)
+{
+  return waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE, GDK_CURRENT_TIME);
+}
+
+static void
+test_layout_motion_is_not_the_mouse(void)
+{
+  g_assert_cmpint(waytator_test_layout_motion(), !=, WAYTATOR_PEN_INPUT_MOUSE);
+}
+
+//the switch to the eraser changes the toolbar, which makes GTK send its motion, which used to switch back
+static void
+test_layout_motion_keeps_the_eraser(void)
+{
+  WaytatorTestWindow window = { .active_tool = WAYTATOR_TOOL_BRUSH };
+
+  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_ERASER);
+  waytator_test_feed(&window, waytator_test_layout_motion());
+  g_assert_cmpint(window.active_tool, ==, WAYTATOR_TOOL_ERASER);
+
+  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_ERASER);
+  waytator_test_feed(&window, waytator_test_layout_motion());
+  g_assert_cmpint(window.active_tool, ==, WAYTATOR_TOOL_ERASER);
+
+  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_NIB);
+  g_assert_cmpint(window.active_tool, ==, WAYTATOR_TOOL_BRUSH);
+}
+
+//the preview stays under the pen instead of jumping to where the mouse was left
+static void
+test_preview_stays_with_the_pen(void)
+{
+  WaytatorTestWindow window = { .active_tool = WAYTATOR_TOOL_BRUSH };
+
+  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_NIB);
+  g_assert_true(waytator_pen_eraser_follows_motion(&window.pen, WAYTATOR_PEN_INPUT_NIB));
+  g_assert_false(waytator_pen_eraser_follows_motion(&window.pen, waytator_test_layout_motion()));
+
+  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_ERASER);
+  g_assert_false(waytator_pen_eraser_follows_motion(&window.pen, waytator_test_layout_motion()));
+
+  //with the mouse, GTK's motion is where the pointer really is and the preview catches up with the layout
+  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_MOUSE);
+  g_assert_true(waytator_pen_eraser_follows_motion(&window.pen, WAYTATOR_PEN_INPUT_MOUSE));
+  g_assert_true(waytator_pen_eraser_follows_motion(&window.pen, waytator_test_layout_motion()));
+}
+
 static void
 test_classify(void)
 {
@@ -124,29 +175,29 @@ test_classify(void)
   };
 
   //GDK hands tablet events a device that calls itself a mouse
-  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_ERASER, GDK_SOURCE_MOUSE, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_ERASER, GDK_SOURCE_MOUSE, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_ERASER);
-  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_ERASER, GDK_SOURCE_PEN, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_ERASER, GDK_SOURCE_PEN, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_ERASER);
   for (gsize i = 0; i < G_N_ELEMENTS(nibs); i++)
-    g_assert_cmpint(waytator_pen_input_classify(TRUE, nibs[i], GDK_SOURCE_MOUSE, FALSE),
+    g_assert_cmpint(waytator_pen_input_classify(TRUE, nibs[i], GDK_SOURCE_MOUSE, FALSE, 1000),
                     ==, WAYTATOR_PEN_INPUT_NIB);
-  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_MOUSE, GDK_SOURCE_MOUSE, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_MOUSE, GDK_SOURCE_MOUSE, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_MOUSE);
-  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_OTHER);
 
-  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_MOUSE);
-  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_TOUCHPAD, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_TOUCHPAD, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_MOUSE);
-  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_TRACKPOINT, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_TRACKPOINT, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_MOUSE);
-  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_TOUCHSCREEN, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_TOUCHSCREEN, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_OTHER);
-  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_KEYBOARD, FALSE),
+  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_KEYBOARD, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_OTHER);
-  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, TRUE),
+  g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, TRUE, 1000),
                   ==, WAYTATOR_PEN_INPUT_OTHER);
 }
 
@@ -163,6 +214,9 @@ main(int   argc,
   g_test_add_func("/pen-eraser/eraser-already-picked", test_eraser_already_picked);
   g_test_add_func("/pen-eraser/lasting-tool", test_lasting_tool);
   g_test_add_func("/pen-eraser/classify", test_classify);
+  g_test_add_func("/pen-eraser/layout-motion-is-not-the-mouse", test_layout_motion_is_not_the_mouse);
+  g_test_add_func("/pen-eraser/layout-motion-keeps-the-eraser", test_layout_motion_keeps_the_eraser);
+  g_test_add_func("/pen-eraser/preview-stays-with-the-pen", test_preview_stays_with_the_pen);
 
   return g_test_run();
 }

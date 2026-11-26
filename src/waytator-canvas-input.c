@@ -278,6 +278,29 @@ waytator_window_touch_event(GtkEventControllerLegacy *controller,
   return FALSE;
 }
 
+static WaytatorPenInput
+waytator_window_classify_pen_input(GdkEvent *event)
+{
+  GdkDeviceTool *tool = gdk_event_get_device_tool(event);
+  GdkDevice *device = gdk_event_get_device(event);
+
+  return waytator_pen_input_classify(tool != NULL,
+                                     tool != NULL ? gdk_device_tool_get_tool_type(tool) : GDK_DEVICE_TOOL_TYPE_UNKNOWN,
+                                     device != NULL ? gdk_device_get_source(device) : GDK_SOURCE_KEYBOARD,
+                                     gdk_event_get_pointer_emulated(event),
+                                     gdk_event_get_time(event));
+}
+
+static gboolean
+waytator_window_motion_followed(WaytatorWindow     *self,
+                                GtkEventController *controller)
+{
+  GdkEvent *event = gtk_event_controller_get_current_event(controller);
+
+  return event == NULL
+      || waytator_pen_eraser_follows_motion(&self->pen_eraser, waytator_window_classify_pen_input(event));
+}
+
 //flipping the pen to its eraser end picks the eraser, the nib or the mouse brings the tool back, see waytator-pen-eraser.c
 static gboolean
 waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
@@ -285,8 +308,6 @@ waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
                                  gpointer                  user_data)
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
-  GdkDeviceTool *tool;
-  GdkDevice *device;
   WaytatorPenInput input;
   WaytatorTool next_tool;
 
@@ -308,12 +329,7 @@ waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
   if (self->drawing)
     return FALSE;
 
-  tool = gdk_event_get_device_tool(event);
-  device = gdk_event_get_device(event);
-  input = waytator_pen_input_classify(tool != NULL,
-                                      tool != NULL ? gdk_device_tool_get_tool_type(tool) : GDK_DEVICE_TOOL_TYPE_UNKNOWN,
-                                      device != NULL ? gdk_device_get_source(device) : GDK_SOURCE_KEYBOARD,
-                                      gdk_event_get_pointer_emulated(event));
+  input = waytator_window_classify_pen_input(event);
 
   if (!waytator_pen_eraser_step(&self->pen_eraser, input, self->active_tool, &next_tool))
     return FALSE;
@@ -1322,7 +1338,8 @@ waytator_window_canvas_pointer_motion(GtkEventControllerMotion *controller,
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
 
-  (void) controller;
+  if (!waytator_window_motion_followed(self, GTK_EVENT_CONTROLLER(controller)))
+    return;
 
   self->pointer_over_canvas = TRUE;
   self->pointer_viewport_x = x;
@@ -1375,7 +1392,8 @@ waytator_window_pointer_motion(GtkEventControllerMotion *controller,
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
 
-  (void) controller;
+  if (!waytator_window_motion_followed(self, GTK_EVENT_CONTROLLER(controller)))
+    return;
 
   if (!waytator_window_get_image_point(self, x, y, TRUE, &self->pointer_x, &self->pointer_y))
     return;
