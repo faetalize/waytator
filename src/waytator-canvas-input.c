@@ -346,6 +346,33 @@ waytator_window_record_interaction_undo_step(WaytatorWindow *self)
   self->interaction_has_undo_step = TRUE;
 }
 
+//only the pen follows pressure, the highlighter keeps an even width
+static double
+waytator_window_event_pressure(WaytatorWindow     *self,
+                               GtkEventController *controller)
+{
+  GdkEvent *event = gtk_event_controller_get_current_event(controller);
+  double pressure;
+
+  if (self->active_tool != WAYTATOR_TOOL_BRUSH
+      || event == NULL
+      || !gdk_event_get_axis(event, GDK_AXIS_PRESSURE, &pressure))
+    return -1.0;
+
+  return pressure;
+}
+
+static void
+waytator_window_add_draw_point(WaytatorWindow *self,
+                               double          x,
+                               double          y)
+{
+  if (self->draw_pressure >= 0.0)
+    waytator_stroke_add_pressure_point(self->current_stroke, x, y, self->draw_pressure);
+  else
+    waytator_stroke_add_point(self->current_stroke, x, y);
+}
+
 static void
 waytator_window_begin_draw_stroke(WaytatorWindow *self)
 {
@@ -358,7 +385,7 @@ waytator_window_begin_draw_stroke(WaytatorWindow *self)
                                              &self->tool_colors[self->active_tool],
                                              &self->tool_fill_colors[self->active_tool],
                                              self->blur_type);
-  waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
+  waytator_window_add_draw_point(self, self->last_draw_x, self->last_draw_y);
 
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
@@ -1005,6 +1032,8 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
 
   self->drawing = TRUE;
   self->interaction_has_undo_step = FALSE;
+  //a stroke follows pressure only if it starts with it, so it never jumps from full width to the pen's
+  self->draw_pressure = waytator_window_event_pressure(self, GTK_EVENT_CONTROLLER(gesture));
   if (is_touch) {
     self->active_touch_draw_sequence = gtk_gesture_single_get_current_sequence(GTK_GESTURE_SINGLE(gesture));
     self->cancelled_touch_draw_sequence = NULL;
@@ -1079,10 +1108,17 @@ waytator_window_draw_update(GtkGestureDrag *gesture,
 
     waytator_window_maybe_snap_shape_endpoint(gesture, self, &image_x, &image_y);
 
+    if (self->draw_pressure >= 0.0) {
+      const double pressure = waytator_window_event_pressure(self, GTK_EVENT_CONTROLLER(gesture));
+
+      if (pressure >= 0.0)
+        self->draw_pressure = pressure;
+    }
+
     if (waytator_tool_is_shape(self->active_tool))
       waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);
     else
-      waytator_stroke_add_point(self->current_stroke, image_x, image_y);
+      waytator_window_add_draw_point(self, image_x, image_y);
 
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   }
@@ -1157,7 +1193,7 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);
   else
-    waytator_stroke_add_point(self->current_stroke, image_x, image_y);
+    waytator_stroke_add_release_point(self->current_stroke, image_x, image_y);
 
   if (self->active_tool == WAYTATOR_TOOL_BLUR && !self->blur_commit_warning_accepted) {
     if (sequence != NULL && sequence == self->cancelled_touch_draw_sequence)

@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
 
 static void
 waytator_marker_add_rect(cairo_t *cr,
@@ -104,6 +105,7 @@ waytator_stroke_copy(WaytatorStroke *stroke)
   copy->fill_b = stroke->fill_b;
   copy->fill_a = stroke->fill_a;
   copy->blur_type = stroke->blur_type;
+  copy->pressure = stroke->pressure;
   copy->points = g_array_sized_new(FALSE, FALSE, sizeof(WaytatorPoint), stroke->points->len);
   g_array_append_vals(copy->points, stroke->points->data, stroke->points->len);
   if (stroke->text != NULL)
@@ -122,22 +124,70 @@ waytator_stroke_free(WaytatorStroke *stroke)
   g_free(stroke);
 }
 
+static void
+waytator_stroke_append_point(WaytatorStroke *stroke,
+                             double          x,
+                             double          y,
+                             double          pressure)
+{
+  const guint len = stroke->points->len;
+  WaytatorPoint point = { x, y, pressure };
+
+  if (len > 0) {
+    WaytatorPoint *last = &g_array_index(stroke->points, WaytatorPoint, len - 1);
+
+    //pressing harder in place still widens the line, ink already down never shrinks
+    if (fabs(last->x - x) < 0.5 && fabs(last->y - y) < 0.5) {
+      last->pressure = MAX(last->pressure, pressure);
+      return;
+    }
+  }
+
+  g_array_append_val(stroke->points, point);
+}
+
 void
 waytator_stroke_add_point(WaytatorStroke *stroke,
                           double          x,
                           double          y)
 {
-  const guint len = stroke->points->len;
-  WaytatorPoint point = { x, y };
+  waytator_stroke_append_point(stroke, x, y, 1.0);
+}
 
-  if (len > 0) {
-    const WaytatorPoint *last = &g_array_index(stroke->points, WaytatorPoint, len - 1);
+void
+waytator_stroke_add_pressure_point(WaytatorStroke *stroke,
+                                   double          x,
+                                   double          y,
+                                   double          pressure)
+{
+  stroke->pressure = TRUE;
+  waytator_stroke_append_point(stroke, x, y, CLAMP(pressure, 0.0, 1.0));
+}
 
-    if (fabs(last->x - x) < 0.5 && fabs(last->y - y) < 0.5)
-      return;
-  }
+void
+waytator_stroke_add_release_point(WaytatorStroke *stroke,
+                                  double          x,
+                                  double          y)
+{
+  //a stylus lands its release a few px past its last reading, once the tip has left the surface. stamping it with
+  //that reading would add a stub past the line's natural fade, so a pressure line ends where it last pressed
+  if (stroke->pressure)
+    return;
 
-  g_array_append_val(stroke->points, point);
+  waytator_stroke_add_point(stroke, x, y);
+}
+
+//full pressure gives the chosen width. the floor keeps a feather-light touch visible
+#define WAYTATOR_STROKE_MIN_PRESSURE 0.1
+
+double
+waytator_stroke_point_width(WaytatorStroke      *stroke,
+                            const WaytatorPoint *point)
+{
+  if (!stroke->pressure)
+    return stroke->width;
+
+  return stroke->width * MAX(point->pressure, WAYTATOR_STROKE_MIN_PRESSURE);
 }
 
 void
@@ -145,7 +195,7 @@ waytator_stroke_set_last_point(WaytatorStroke *stroke,
                                double          x,
                                double          y)
 {
-  WaytatorPoint point = { x, y };
+  WaytatorPoint point = { x, y, 1.0 };
 
   if (stroke->points->len == 0) {
     g_array_append_val(stroke->points, point);
@@ -158,6 +208,180 @@ waytator_stroke_set_last_point(WaytatorStroke *stroke,
   }
 
   g_array_index(stroke->points, WaytatorPoint, stroke->points->len - 1) = point;
+}
+
+static void
+waytator_pressure_add_disc(cairo_t             *cr,
+                           const WaytatorPoint *point,
+                           double               radius)
+{
+  //cairo_arc winds with a positive area, the hulls and joints below match it
+  cairo_new_sub_path(cr);
+  cairo_arc(cr, point->x, point->y, radius, 0.0, 2.0 * G_PI);
+  cairo_close_path(cr);
+}
+
+//the outline of the hull of two neighbouring discs. the two outer tangents touch both discs at the same angle from
+//their centres, base ± spread, measured from the direction of travel
+typedef struct {
+  //FALSE when one disc holds the other, there are no tangents and the wider disc covers the segment
+  gboolean outlined;
+  double base;
+  double spread;
+} WaytatorPressureHull;
+
+static WaytatorPressureHull
+waytator_pressure_hull(const WaytatorPoint *from,
+                       double               from_radius,
+                       const WaytatorPoint *to,
+                       double               to_radius)
+{
+  const double distance = hypot(to->x - from->x, to->y - from->y);
+  WaytatorPressureHull hull = { FALSE, 0.0, 0.0 };
+
+  if (distance <= fabs(from_radius - to_radius) || distance < 0.0001)
+    return hull;
+
+  hull.outlined = TRUE;
+  hull.base = atan2(to->y - from->y, to->x - from->x);
+  hull.spread = acos((from_radius - to_radius) / distance);
+  return hull;
+}
+
+//the tangents and chords make a quad, the centre that lies outside it is added so the hull reaches both centres.
+//around each centre it then covers a whole sector of its disc, see waytator_pressure_add_joint
+static void
+waytator_pressure_add_hull(cairo_t                    *cr,
+                           const WaytatorPressureHull *hull,
+                           const WaytatorPoint        *from,
+                           double                      from_radius,
+                           const WaytatorPoint        *to,
+                           double                      to_radius)
+{
+  double corners[6][2];
+  int n_corners = 0;
+  double area = 0.0;
+
+  corners[n_corners][0] = from->x + from_radius * cos(hull->base + hull->spread);
+  corners[n_corners++][1] = from->y + from_radius * sin(hull->base + hull->spread);
+  corners[n_corners][0] = to->x + to_radius * cos(hull->base + hull->spread);
+  corners[n_corners++][1] = to->y + to_radius * sin(hull->base + hull->spread);
+  if (hull->spread > G_PI / 2.0) {
+    corners[n_corners][0] = to->x;
+    corners[n_corners++][1] = to->y;
+  }
+  corners[n_corners][0] = to->x + to_radius * cos(hull->base - hull->spread);
+  corners[n_corners++][1] = to->y + to_radius * sin(hull->base - hull->spread);
+  corners[n_corners][0] = from->x + from_radius * cos(hull->base - hull->spread);
+  corners[n_corners++][1] = from->y + from_radius * sin(hull->base - hull->spread);
+  if (hull->spread < G_PI / 2.0) {
+    corners[n_corners][0] = from->x;
+    corners[n_corners++][1] = from->y;
+  }
+
+  for (int i = 0; i < n_corners; i++)
+    area += corners[i][0] * corners[(i + 1) % n_corners][1] - corners[(i + 1) % n_corners][0] * corners[i][1];
+
+  cairo_new_sub_path(cr);
+  for (int i = 0; i < n_corners; i++) {
+    const int corner = area >= 0.0 ? i : n_corners - 1 - i;
+
+    cairo_line_to(cr, corners[corner][0], corners[corner][1]);
+  }
+  cairo_close_path(cr);
+}
+
+//round the joint between two hulls. at the point, the hull coming in covers the sector of the disc facing back
+//along it, outside base ± spread, and the hull going out covers the sector facing ahead, inside base ± spread.
+//what's left is up to a few thin wedges, mostly on the outside of a turn, filled as slices of the disc
+static void
+waytator_pressure_add_joint(cairo_t                    *cr,
+                            const WaytatorPoint        *point,
+                            double                      radius,
+                            const WaytatorPressureHull *in,
+                            const WaytatorPressureHull *out)
+{
+  //angles from the incoming direction. each cut of an arc leaves at most one more piece, 1 + 3 cuts
+  double gaps[4][2] = { { -in->spread, in->spread } };
+  int n_gaps = 1;
+  const double turn = remainder(out->base - in->base, 2.0 * G_PI);
+
+  for (int wrap = -1; wrap <= 1; wrap++) {
+    const double covered_from = turn - out->spread + wrap * 2.0 * G_PI;
+    const double covered_to = turn + out->spread + wrap * 2.0 * G_PI;
+    double left[4][2];
+    int n_left = 0;
+
+    for (int i = 0; i < n_gaps; i++) {
+      if (gaps[i][0] < covered_from) {
+        left[n_left][0] = gaps[i][0];
+        left[n_left++][1] = MIN(gaps[i][1], covered_from);
+      }
+      if (gaps[i][1] > covered_to) {
+        left[n_left][0] = MAX(gaps[i][0], covered_to);
+        left[n_left++][1] = gaps[i][1];
+      }
+    }
+
+    memcpy(gaps, left, sizeof(left));
+    n_gaps = n_left;
+  }
+
+  for (int i = 0; i < n_gaps; i++) {
+    if (gaps[i][1] - gaps[i][0] < 1e-9)
+      continue;
+
+    cairo_move_to(cr, point->x, point->y);
+    cairo_arc(cr, point->x, point->y, radius, in->base + gaps[i][0], in->base + gaps[i][1]);
+    cairo_close_path(cr);
+  }
+}
+
+//cairo strokes a path at one width, so a pen stroke with pressure is filled instead: the hull joining each pair of
+//neighbouring points, a round cap at both ends and a wedge rounding each joint. a whole disc at every point would
+//draw the same shape, but cairo spends most of its time on where the discs overlap. every piece winds the same way,
+//so one fill with the nonzero rule covers each pixel once and a see-through colour doesn't darken where they overlap
+static void
+waytator_stroke_render_pressure(cairo_t        *cr,
+                                WaytatorStroke *stroke)
+{
+  const guint len = stroke->points->len;
+  g_autofree WaytatorPressureHull *hulls = g_new(WaytatorPressureHull, MAX(len, 1));
+
+  for (guint i = 0; i < len; i++) {
+    const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
+    const double radius = waytator_stroke_point_width(stroke, point) / 2.0;
+
+    if (i == 0 || i == len - 1)
+      waytator_pressure_add_disc(cr, point, radius);
+
+    if (i > 0) {
+      const WaytatorPoint *previous = &g_array_index(stroke->points, WaytatorPoint, i - 1);
+      const double previous_radius = waytator_stroke_point_width(stroke, previous) / 2.0;
+
+      hulls[i - 1] = waytator_pressure_hull(previous, previous_radius, point, radius);
+      if (hulls[i - 1].outlined)
+        waytator_pressure_add_hull(cr, &hulls[i - 1], previous, previous_radius, point, radius);
+      else if (previous_radius > radius)
+        waytator_pressure_add_disc(cr, previous, previous_radius);
+      else
+        waytator_pressure_add_disc(cr, point, radius);
+    }
+  }
+
+  //a joint next to a hull without an outline sits inside the wider disc, which is already drawn whole
+  for (guint i = 1; i + 1 < len; i++) {
+    if (hulls[i - 1].outlined && hulls[i].outlined)
+      waytator_pressure_add_joint(cr,
+                                  &g_array_index(stroke->points, WaytatorPoint, i),
+                                  waytator_stroke_point_width(stroke,
+                                                              &g_array_index(stroke->points, WaytatorPoint, i)) / 2.0,
+                                  &hulls[i - 1],
+                                  &hulls[i]);
+  }
+
+  cairo_set_fill_rule(cr, CAIRO_FILL_RULE_WINDING);
+  cairo_fill(cr);
 }
 
 void
@@ -420,6 +644,11 @@ waytator_stroke_render(cairo_t         *cr,
     }
   }
 
+  if (stroke->pressure) {
+    waytator_stroke_render_pressure(cr, stroke);
+    return;
+  }
+
   if (len == 1) {
     const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, 0);
 
@@ -607,7 +836,7 @@ waytator_stroke_intersects_segment(WaytatorStroke *stroke,
       const double center_y = (start->y + end->y) / 2.0;
       const double radius_x = MAX(fabs(end->x - start->x) / 2.0, 0.0001);
       const double radius_y = MAX(fabs(end->y - start->y) / 2.0, 0.0001);
-      const WaytatorPoint candidates[] = { { x0, y0 }, { x1, y1 } };
+      const WaytatorPoint candidates[] = { { x0, y0, 1.0 }, { x1, y1, 1.0 } };
 
       for (guint j = 0; j < G_N_ELEMENTS(candidates); j++) {
         const double dx = (candidates[j].x - center_x) / radius_x;
@@ -631,7 +860,8 @@ waytator_stroke_intersects_segment(WaytatorStroke *stroke,
   for (i = 0; i < stroke->points->len; i++) {
     const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
 
-    if (waytator_distance_to_segment(point->x, point->y, x0, y0, x1, y1) <= radius + stroke->width / 2.0)
+    if (waytator_distance_to_segment(point->x, point->y, x0, y0, x1, y1)
+        <= radius + waytator_stroke_point_width(stroke, point) / 2.0)
       return TRUE;
   }
 
