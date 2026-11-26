@@ -127,7 +127,7 @@ test_layout_motion_is_not_the_mouse(void)
   g_assert_cmpint(waytator_test_layout_motion(), !=, WAYTATOR_PEN_INPUT_MOUSE);
 }
 
-//the switch to the eraser changes the toolbar, which makes GTK send its motion, which used to switch back
+//the switch to the eraser changes the toolbar, which makes GTK send its motion, and that mustn't switch back
 static void
 test_layout_motion_keeps_the_eraser(void)
 {
@@ -150,19 +150,35 @@ test_layout_motion_keeps_the_eraser(void)
 static void
 test_layout_motion_swallowed_for_the_pen(void)
 {
-  WaytatorTestWindow window = { .active_tool = WAYTATOR_TOOL_BRUSH };
+  WaytatorPenInput last = WAYTATOR_PEN_INPUT_OTHER;
 
-  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_NIB);
-  g_assert_false(waytator_pen_eraser_swallows_motion(&window.pen, WAYTATOR_PEN_INPUT_NIB));
-  g_assert_true(waytator_pen_eraser_swallows_motion(&window.pen, waytator_test_layout_motion()));
+  //nothing used yet
+  g_assert_false(waytator_pen_input_swallows_layout_motion(last, waytator_test_layout_motion()));
 
-  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_ERASER);
-  g_assert_true(waytator_pen_eraser_swallows_motion(&window.pen, waytator_test_layout_motion()));
+  last = waytator_pen_input_note(last, WAYTATOR_PEN_INPUT_NIB);
+  g_assert_false(waytator_pen_input_swallows_layout_motion(last, WAYTATOR_PEN_INPUT_NIB));
+  g_assert_true(waytator_pen_input_swallows_layout_motion(last, waytator_test_layout_motion()));
+
+  //touch and GTK's motion itself don't change who's in control
+  last = waytator_pen_input_note(last, WAYTATOR_PEN_INPUT_OTHER);
+  last = waytator_pen_input_note(last, waytator_test_layout_motion());
+  g_assert_true(waytator_pen_input_swallows_layout_motion(last, waytator_test_layout_motion()));
+
+  last = waytator_pen_input_note(last, WAYTATOR_PEN_INPUT_ERASER);
+  g_assert_true(waytator_pen_input_swallows_layout_motion(last, waytator_test_layout_motion()));
 
   //with the mouse, GTK's motion is where the pointer really is and the preview catches up with the layout
-  waytator_test_feed(&window, WAYTATOR_PEN_INPUT_MOUSE);
-  g_assert_false(waytator_pen_eraser_swallows_motion(&window.pen, WAYTATOR_PEN_INPUT_MOUSE));
-  g_assert_false(waytator_pen_eraser_swallows_motion(&window.pen, waytator_test_layout_motion()));
+  last = waytator_pen_input_note(last, WAYTATOR_PEN_INPUT_MOUSE);
+  g_assert_false(waytator_pen_input_swallows_layout_motion(last, WAYTATOR_PEN_INPUT_MOUSE));
+  g_assert_false(waytator_pen_input_swallows_layout_motion(last, waytator_test_layout_motion()));
+}
+
+//a tablet tool GDK can't name still draws, so it counts as the nib, and GTK's motion is kept from its strokes
+static void
+test_unknown_tablet_tool_is_a_nib(void)
+{
+  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE, 1000),
+                  ==, WAYTATOR_PEN_INPUT_NIB);
 }
 
 static void
@@ -185,8 +201,6 @@ test_classify(void)
                     ==, WAYTATOR_PEN_INPUT_NIB);
   g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_MOUSE, GDK_SOURCE_MOUSE, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_MOUSE);
-  g_assert_cmpint(waytator_pen_input_classify(TRUE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE, 1000),
-                  ==, WAYTATOR_PEN_INPUT_OTHER);
 
   g_assert_cmpint(waytator_pen_input_classify(FALSE, GDK_DEVICE_TOOL_TYPE_UNKNOWN, GDK_SOURCE_MOUSE, FALSE, 1000),
                   ==, WAYTATOR_PEN_INPUT_MOUSE);
@@ -215,6 +229,7 @@ main(int   argc,
   g_test_add_func("/pen-eraser/eraser-already-picked", test_eraser_already_picked);
   g_test_add_func("/pen-eraser/lasting-tool", test_lasting_tool);
   g_test_add_func("/pen-eraser/classify", test_classify);
+  g_test_add_func("/pen-eraser/unknown-tablet-tool-is-a-nib", test_unknown_tablet_tool_is_a_nib);
   g_test_add_func("/pen-eraser/layout-motion-is-not-the-mouse", test_layout_motion_is_not_the_mouse);
   g_test_add_func("/pen-eraser/layout-motion-keeps-the-eraser", test_layout_motion_keeps_the_eraser);
   g_test_add_func("/pen-eraser/layout-motion-swallowed-for-the-pen", test_layout_motion_swallowed_for_the_pen);

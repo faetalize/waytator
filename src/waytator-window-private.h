@@ -289,6 +289,8 @@ struct _WaytatorWindow {
   int blur_type;
   WaytatorEraserStyle eraser_style;
   WaytatorPenEraser pen_eraser;
+  //kept from every pointer event, for keeping GTK's layout motion away while the pen is in use
+  WaytatorPenInput last_pointer_input;
   //the pen picked the tool, not a hand on the toolbar
   gboolean pen_eraser_switching;
   GPtrArray *ocr_lines;

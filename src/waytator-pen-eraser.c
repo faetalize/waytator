@@ -28,9 +28,10 @@ waytator_pen_input_classify(gboolean          has_tool,
     case GDK_DEVICE_TOOL_TYPE_MOUSE:
     case GDK_DEVICE_TOOL_TYPE_LENS:
       return WAYTATOR_PEN_INPUT_MOUSE;
+    //a tablet tool GDK can't name still draws like one
     case GDK_DEVICE_TOOL_TYPE_UNKNOWN:
     default:
-      return WAYTATOR_PEN_INPUT_OTHER;
+      return WAYTATOR_PEN_INPUT_NIB;
     }
   }
 
@@ -77,15 +78,31 @@ waytator_pen_eraser_step(WaytatorPenEraser *pen,
   return pen->tool_before != active_tool;
 }
 
-//with the pen in use, GTK's motion is where the mouse was left, not where the pen is. it would move the
-//preview there, and since it holds no button, GtkGestureSingle would cancel the pen's stroke.
-//with the mouse it's where the pointer is, and lets the preview catch up when the layout moves under it
+WaytatorPenInput
+waytator_pen_input_note(WaytatorPenInput last,
+                        WaytatorPenInput input)
+{
+  switch (input) {
+  case WAYTATOR_PEN_INPUT_NIB:
+  case WAYTATOR_PEN_INPUT_ERASER:
+  case WAYTATOR_PEN_INPUT_MOUSE:
+    return input;
+  default:
+    return last;
+  }
+}
+
+//works around GTK. after a layout change it sends a motion of its own from the mouse device, at wherever the
+//mouse was left (gdk_surface_ensure_motion), which niri puts where the pen last left range. with the pen in
+//use that isn't where the pen is: it would move the brush preview there, and since it holds no button,
+//GtkGestureSingle would cancel the pen's drag on it mid-stroke, whichever device it came from.
+//with the mouse it's where the pointer really is, and lets the preview catch up when the layout moves under it
 gboolean
-waytator_pen_eraser_swallows_motion(const WaytatorPenEraser *pen,
-                                    WaytatorPenInput         input)
+waytator_pen_input_swallows_layout_motion(WaytatorPenInput last,
+                                          WaytatorPenInput input)
 {
   return input == WAYTATOR_PEN_INPUT_LAYOUT
-      && (pen->last_input == WAYTATOR_PEN_INPUT_NIB || pen->last_input == WAYTATOR_PEN_INPUT_ERASER);
+      && (last == WAYTATOR_PEN_INPUT_NIB || last == WAYTATOR_PEN_INPUT_ERASER);
 }
 
 void

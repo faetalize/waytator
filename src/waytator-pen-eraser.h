@@ -11,7 +11,7 @@ typedef enum {
   WAYTATOR_PEN_INPUT_ERASER,
   WAYTATOR_PEN_INPUT_NIB,
   WAYTATOR_PEN_INPUT_MOUSE,
-  //GTK's own motion after the layout changes, from where the mouse was last, see gdk_surface_ensure_motion
+  //GTK's own motion after the layout changes, see waytator_pen_input_swallows_layout_motion
   WAYTATOR_PEN_INPUT_LAYOUT,
 } WaytatorPenInput;
 
@@ -36,9 +36,13 @@ gboolean waytator_pen_eraser_step(WaytatorPenEraser *pen,
                                   WaytatorTool       active_tool,
                                   WaytatorTool      *tool);
 
-//whether a motion of this input should be kept from the window's widgets
-gboolean waytator_pen_eraser_swallows_motion(const WaytatorPenEraser *pen,
-                                             WaytatorPenInput         input);
+//the pointer input used last, the nib, the eraser end or the mouse, after this one
+WaytatorPenInput waytator_pen_input_note(WaytatorPenInput last,
+                                         WaytatorPenInput input);
+
+//whether GTK's layout motion should be kept from the window's widgets, see waytator-pen-eraser.c
+gboolean waytator_pen_input_swallows_layout_motion(WaytatorPenInput last,
+                                                   WaytatorPenInput input);
 
 //a tool picked by hand stays, the nib won't swap it back
 void waytator_pen_eraser_forget(WaytatorPenEraser *pen);

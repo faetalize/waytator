@@ -298,36 +298,32 @@ waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
                                  gpointer                  user_data)
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  const GdkEventType type = gdk_event_get_event_type(event);
   WaytatorPenInput input;
   WaytatorTool next_tool;
 
   (void) controller;
 
+  if (type != GDK_MOTION_NOTIFY && type != GDK_PROXIMITY_IN && type != GDK_BUTTON_PRESS)
+    return FALSE;
+
   input = waytator_window_classify_pen_input(event);
 
-  //works around GTK. after a layout change it sends a motion of its own from the mouse device, at wherever the
-  //mouse was left, which niri puts where the pen last left range (gdk_surface_ensure_motion). it holds no button,
-  //so GtkGestureSingle cancels the pen's drag on it mid-stroke whichever device it came from, and the brush
-  //preview would jump there. swallowed here in the capture phase, before any gesture sees it.
-  //only motion, since keys can come without a time too
-  if (gdk_event_get_event_type(event) == GDK_MOTION_NOTIFY
-      && waytator_pen_eraser_swallows_motion(&self->pen_eraser, input))
+  //GTK's layout motion, kept from every gesture in the window, mid-stroke included
+  if (type == GDK_MOTION_NOTIFY && waytator_pen_input_swallows_layout_motion(self->last_pointer_input, input))
     return TRUE;
 
-  switch (gdk_event_get_event_type(event)) {
-  case GDK_PROXIMITY_IN:
-  case GDK_BUTTON_PRESS:
-    break;
-  case GDK_MOTION_NOTIFY:
-    //not halfway through a drag, the tool under it would change
-    if (gdk_event_get_modifier_state(event) & (GDK_BUTTON1_MASK | GDK_BUTTON2_MASK | GDK_BUTTON3_MASK))
-      return FALSE;
-    break;
-  default:
-    return FALSE;
-  }
+  self->last_pointer_input = waytator_pen_input_note(self->last_pointer_input, input);
 
-  if (self->drawing)
+  //not halfway through a drag, the tool under it would change
+  if (type == GDK_MOTION_NOTIFY
+      && (gdk_event_get_modifier_state(event) & (GDK_BUTTON1_MASK | GDK_BUTTON2_MASK | GDK_BUTTON3_MASK)))
+    return FALSE;
+
+  //like the tool shortcuts: the image tools have nothing to work on in a video, and dialogs aren't the canvas
+  if (self->drawing
+      || waytator_window_is_video(self)
+      || adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(self)) != NULL)
     return FALSE;
 
   if (!waytator_pen_eraser_step(&self->pen_eraser, input, self->active_tool, &next_tool))

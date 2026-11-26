@@ -353,9 +353,6 @@ waytator_window_tool_toggled(GtkToggleButton *button,
   if (!gtk_toggle_button_get_active(button))
     return;
 
-  if (!self->pen_eraser_switching)
-    waytator_pen_eraser_forget(&self->pen_eraser);
-
   if (button == self->pan_tool_button)
     self->active_tool = WAYTATOR_TOOL_PAN;
   else if (button == self->crop_tool_button)
@@ -508,6 +505,10 @@ void
 waytator_window_select_tool(WaytatorWindow *self,
                             WaytatorTool    tool)
 {
+  //already active, the button won't toggle
+  if (!self->pen_eraser_switching)
+    waytator_pen_eraser_forget(&self->pen_eraser);
+
   gtk_toggle_button_set_active(waytator_window_tool_button(self, tool), TRUE);
 }
 
@@ -624,6 +625,8 @@ waytator_window_connect_tool_toggle(WaytatorWindow  *self,
                                     GtkToggleButton *button)
 {
   g_signal_connect(button, "toggled", G_CALLBACK(waytator_window_tool_toggled), self);
+  //a tap on the tool that's already active doesn't toggle, but it's still picked by hand
+  g_signal_connect_swapped(button, "clicked", G_CALLBACK(waytator_pen_eraser_forget), &self->pen_eraser);
 }
 
 void
