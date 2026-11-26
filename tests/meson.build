@@ -179,6 +179,15 @@ test_pen_eraser = executable(
 )
 test('pen-eraser', test_pen_eraser)
 
+test_tablet_button = executable(
+  'test-tablet-button',
+  'test-tablet-button.c',
+  files('../src/waytator-tablet-button.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('tablet-button', test_tablet_button)
+
 test_command_line = executable(
   'test-command-line',
   'test-command-line.c',
