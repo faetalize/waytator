@@ -305,7 +305,11 @@ waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
 
   input = waytator_window_classify_pen_input(event);
 
-  //before the gestures see it, even mid-stroke. only motion: keys can come with no time too
+  //works around GTK. after a layout change it sends a motion of its own from the mouse device, at wherever the
+  //mouse was left, which niri puts where the pen last left range (gdk_surface_ensure_motion). it holds no button,
+  //so GtkGestureSingle cancels the pen's drag on it mid-stroke whichever device it came from, and the brush
+  //preview would jump there. swallowed here in the capture phase, before any gesture sees it.
+  //only motion, since keys can come without a time too
   if (gdk_event_get_event_type(event) == GDK_MOTION_NOTIFY
       && waytator_pen_eraser_swallows_motion(&self->pen_eraser, input))
     return TRUE;
