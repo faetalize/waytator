@@ -353,6 +353,9 @@ waytator_window_tool_toggled(GtkToggleButton *button,
   if (!gtk_toggle_button_get_active(button))
     return;
 
+  if (!self->pen_eraser_switching)
+    waytator_pen_eraser_forget(&self->pen_eraser);
+
   if (button == self->pan_tool_button)
     self->active_tool = WAYTATOR_TOOL_PAN;
   else if (button == self->crop_tool_button)

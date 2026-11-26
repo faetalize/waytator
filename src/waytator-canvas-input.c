@@ -278,6 +278,53 @@ waytator_window_touch_event(GtkEventControllerLegacy *controller,
   return FALSE;
 }
 
+//flipping the pen to its eraser end picks the eraser, the nib or the mouse brings the tool back, see waytator-pen-eraser.c
+static gboolean
+waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
+                                 GdkEvent                 *event,
+                                 gpointer                  user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  GdkDeviceTool *tool;
+  GdkDevice *device;
+  WaytatorPenInput input;
+  WaytatorTool next_tool;
+
+  (void) controller;
+
+  switch (gdk_event_get_event_type(event)) {
+  case GDK_PROXIMITY_IN:
+  case GDK_BUTTON_PRESS:
+    break;
+  case GDK_MOTION_NOTIFY:
+    //not halfway through a drag, the tool under it would change
+    if (gdk_event_get_modifier_state(event) & (GDK_BUTTON1_MASK | GDK_BUTTON2_MASK | GDK_BUTTON3_MASK))
+      return FALSE;
+    break;
+  default:
+    return FALSE;
+  }
+
+  if (self->drawing)
+    return FALSE;
+
+  tool = gdk_event_get_device_tool(event);
+  device = gdk_event_get_device(event);
+  input = waytator_pen_input_classify(tool != NULL,
+                                      tool != NULL ? gdk_device_tool_get_tool_type(tool) : GDK_DEVICE_TOOL_TYPE_UNKNOWN,
+                                      device != NULL ? gdk_device_get_source(device) : GDK_SOURCE_KEYBOARD,
+                                      gdk_event_get_pointer_emulated(event));
+
+  if (!waytator_pen_eraser_step(&self->pen_eraser, input, self->active_tool, &next_tool))
+    return FALSE;
+
+  self->pen_eraser_switching = TRUE;
+  waytator_window_select_tool(self, next_tool);
+  self->pen_eraser_switching = FALSE;
+
+  return FALSE;
+}
+
 static void
 waytator_window_record_interaction_undo_step(WaytatorWindow *self)
 {
@@ -1384,6 +1431,7 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   GtkGesture *zoom;
   GtkGesture *right_click;
   GtkEventController *legacy;
+  GtkEventController *pen_eraser;
   GtkEventController *motion;
   GtkEventController *canvas_motion;
 
@@ -1440,6 +1488,12 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   g_signal_connect(legacy, "event", G_CALLBACK(waytator_window_touch_event), self);
   gtk_widget_add_controller(self->canvas_surface, legacy);
   self->touch_legacy_controller = legacy;
+
+  //on the whole window, so the mouse over the toolbar takes back control too
+  pen_eraser = gtk_event_controller_legacy_new();
+  gtk_event_controller_set_propagation_phase(pen_eraser, GTK_PHASE_CAPTURE);
+  g_signal_connect(pen_eraser, "event", G_CALLBACK(waytator_window_pen_eraser_event), self);
+  gtk_widget_add_controller(GTK_WIDGET(self), pen_eraser);
 
   motion = gtk_event_controller_motion_new();
   g_signal_connect(motion, "enter", G_CALLBACK(waytator_window_pointer_enter), self);

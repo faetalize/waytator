@@ -73,7 +73,7 @@ static void
 waytator_window_get_last_tool(WaytatorWindow   *self,
                               WaytatorLastTool *last_tool)
 {
-  last_tool->tool = self->active_tool;
+  last_tool->tool = waytator_pen_eraser_lasting_tool(&self->pen_eraser, self->active_tool);
   memcpy(last_tool->widths, self->tool_widths, sizeof(last_tool->widths));
   memcpy(last_tool->colors, self->tool_colors, sizeof(last_tool->colors));
   memcpy(last_tool->fill_colors, self->tool_fill_colors, sizeof(last_tool->fill_colors));
