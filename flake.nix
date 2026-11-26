@@ -1,5 +1,5 @@
 {
-  description = "Screenshot annotator and lightweight image editor";
+  description = "Fast screen capture and editing";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 

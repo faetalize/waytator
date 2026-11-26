@@ -1,11 +1,13 @@
-!! this is still maintained, i just need issues to work on. if you face issues or have feature requests, don't hesitate to open issues and ping me !!
-
 # waytator
 
-`waytator` is a one stop shot for screenshotting and recording on supported wlroots based compositor. It is also a lightweight image and video editor.
+`waytator` is a fast screen-capture tool, image annotator and video editor, all in one.
+
+* Screenshot and record your screen
+* Edit images and videos
+* GPU-accelerated, super light on resources
+* CLI-friendly
 
 Using niri or GNOME? See [Desktop-specific notes](#desktop-specific-notes).
-
 
 <p  align="center">
   <img width="600" src="https://github.com/user-attachments/assets/489d2d45-5422-47c0-b8d4-d96d0b42dba1" />
