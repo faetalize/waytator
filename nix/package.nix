@@ -84,7 +84,7 @@ stdenv.mkDerivation {
 
   meta = {
     homepage = "https://github.com/faetalize/waytator";
-    description = "Screenshot annotator and lightweight image and video editor";
+    description = "Fast screen capture and editing";
     license = lib.licenses.gpl3Plus;
     mainProgram = "waytator";
     platforms = lib.platforms.linux;

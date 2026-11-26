@@ -2271,6 +2271,7 @@ waytator_window_show_about(WaytatorWindow *self)
                         "application-name", "Waytator",
                         "application-icon", "waytator",
                         "version", WAYTATOR_VERSION,
+                        "comments", "Fast screen capture and editing",
                         "developer-name", "faetalize",
                         "developers", (const char *[]) { "faetalize", NULL },
                         "issue-url", "https://github.com/faetalize/waytator/issues",
