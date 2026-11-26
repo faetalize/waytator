@@ -77,14 +77,15 @@ waytator_pen_eraser_step(WaytatorPenEraser *pen,
   return pen->tool_before != active_tool;
 }
 
+//with the pen in use, GTK's motion is where the mouse was left, not where the pen is. it would move the
+//preview there, and since it holds no button, GtkGestureSingle would cancel the pen's stroke.
+//with the mouse it's where the pointer is, and lets the preview catch up when the layout moves under it
 gboolean
-waytator_pen_eraser_follows_motion(const WaytatorPenEraser *pen,
-                                   WaytatorPenInput         input)
+waytator_pen_eraser_swallows_motion(const WaytatorPenEraser *pen,
+                                    WaytatorPenInput         input)
 {
-  //with the pen in use GTK's motion is where the mouse was left, not where the pen is.
-  //with the mouse it's where the pointer is, and lets the preview catch up when the layout moves under it
-  return input != WAYTATOR_PEN_INPUT_LAYOUT
-      || (pen->last_input != WAYTATOR_PEN_INPUT_NIB && pen->last_input != WAYTATOR_PEN_INPUT_ERASER);
+  return input == WAYTATOR_PEN_INPUT_LAYOUT
+      && (pen->last_input == WAYTATOR_PEN_INPUT_NIB || pen->last_input == WAYTATOR_PEN_INPUT_ERASER);
 }
 
 void

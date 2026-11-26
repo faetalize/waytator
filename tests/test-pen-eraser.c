@@ -145,23 +145,24 @@ test_layout_motion_keeps_the_eraser(void)
   g_assert_cmpint(window.active_tool, ==, WAYTATOR_TOOL_BRUSH);
 }
 
-//the preview stays under the pen instead of jumping to where the mouse was left
+//GTK's motion is kept away from the canvas while the pen is in use: it would move the preview to where the
+//mouse was left, and cancel the pen's stroke since it holds no button
 static void
-test_preview_stays_with_the_pen(void)
+test_layout_motion_swallowed_for_the_pen(void)
 {
   WaytatorTestWindow window = { .active_tool = WAYTATOR_TOOL_BRUSH };
 
   waytator_test_feed(&window, WAYTATOR_PEN_INPUT_NIB);
-  g_assert_true(waytator_pen_eraser_follows_motion(&window.pen, WAYTATOR_PEN_INPUT_NIB));
-  g_assert_false(waytator_pen_eraser_follows_motion(&window.pen, waytator_test_layout_motion()));
+  g_assert_false(waytator_pen_eraser_swallows_motion(&window.pen, WAYTATOR_PEN_INPUT_NIB));
+  g_assert_true(waytator_pen_eraser_swallows_motion(&window.pen, waytator_test_layout_motion()));
 
   waytator_test_feed(&window, WAYTATOR_PEN_INPUT_ERASER);
-  g_assert_false(waytator_pen_eraser_follows_motion(&window.pen, waytator_test_layout_motion()));
+  g_assert_true(waytator_pen_eraser_swallows_motion(&window.pen, waytator_test_layout_motion()));
 
   //with the mouse, GTK's motion is where the pointer really is and the preview catches up with the layout
   waytator_test_feed(&window, WAYTATOR_PEN_INPUT_MOUSE);
-  g_assert_true(waytator_pen_eraser_follows_motion(&window.pen, WAYTATOR_PEN_INPUT_MOUSE));
-  g_assert_true(waytator_pen_eraser_follows_motion(&window.pen, waytator_test_layout_motion()));
+  g_assert_false(waytator_pen_eraser_swallows_motion(&window.pen, WAYTATOR_PEN_INPUT_MOUSE));
+  g_assert_false(waytator_pen_eraser_swallows_motion(&window.pen, waytator_test_layout_motion()));
 }
 
 static void
@@ -216,7 +217,7 @@ main(int   argc,
   g_test_add_func("/pen-eraser/classify", test_classify);
   g_test_add_func("/pen-eraser/layout-motion-is-not-the-mouse", test_layout_motion_is_not_the_mouse);
   g_test_add_func("/pen-eraser/layout-motion-keeps-the-eraser", test_layout_motion_keeps_the_eraser);
-  g_test_add_func("/pen-eraser/preview-stays-with-the-pen", test_preview_stays_with_the_pen);
+  g_test_add_func("/pen-eraser/layout-motion-swallowed-for-the-pen", test_layout_motion_swallowed_for_the_pen);
 
   return g_test_run();
 }

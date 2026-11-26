@@ -36,9 +36,9 @@ gboolean waytator_pen_eraser_step(WaytatorPenEraser *pen,
                                   WaytatorTool       active_tool,
                                   WaytatorTool      *tool);
 
-//whether the brush preview and zoom centre should move to a motion of this input
-gboolean waytator_pen_eraser_follows_motion(const WaytatorPenEraser *pen,
-                                            WaytatorPenInput         input);
+//whether a motion of this input should be kept from the window's widgets
+gboolean waytator_pen_eraser_swallows_motion(const WaytatorPenEraser *pen,
+                                             WaytatorPenInput         input);
 
 //a tool picked by hand stays, the nib won't swap it back
 void waytator_pen_eraser_forget(WaytatorPenEraser *pen);
