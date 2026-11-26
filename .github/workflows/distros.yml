@@ -1,0 +1,40 @@
+name: Distros
+
+# a build from source against what each distro ships. Arch has the newest libraries, Debian 13 the oldest
+# waytator supports, so the minimums in meson.build are whatever Debian 13 builds with
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Arch
+            image: archlinux:latest
+            install: >-
+              pacman -Syu --noconfirm --needed
+              git gcc meson ninja pkgconf glib2 gtk4 libadwaita gtk4-layer-shell wayland wayland-protocols
+              ffmpeg libdrm mesa libglvnd pipewire rubberband dbus
+          - name: Debian 13
+            image: debian:13
+            install: >-
+              apt-get update && apt-get install -y --no-install-recommends
+              ca-certificates git gcc libc6-dev meson ninja-build pkg-config libglib2.0-dev libglib2.0-dev-bin
+              libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev libwayland-dev libwayland-bin wayland-protocols
+              libavformat-dev libavcodec-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev
+              libdrm-dev libgbm-dev libegl-dev libpipewire-0.3-dev librubberband-dev dbus
+    steps:
+      - run: ${{ matrix.install }}
+      - uses: actions/checkout@v7
+      # tests that need a gpu, a display or pipewire skip themselves, as in the Nix build
+      - run: meson setup build
+      - run: meson test -C build --print-errorlogs
