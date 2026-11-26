@@ -197,6 +197,16 @@ test_document = executable(
 )
 test('document', test_document)
 
+#pen strokes with and without stylus pressure, rendered offscreen and measured
+test_stroke = executable(
+  'test-stroke',
+  'test-stroke.c',
+  files('../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('stroke', test_stroke)
+
 test_save = executable(
   'test-save',
   'test-save.c',

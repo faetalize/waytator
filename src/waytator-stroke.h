@@ -16,6 +16,13 @@ void waytator_stroke_free(WaytatorStroke *stroke);
 void waytator_stroke_add_point(WaytatorStroke *stroke,
                                double          x,
                                double          y);
+//pressure runs from 0 to 1 and gives the point a width of its own, see waytator_stroke_point_width
+void waytator_stroke_add_pressure_point(WaytatorStroke *stroke,
+                                        double          x,
+                                        double          y,
+                                        double          pressure);
+double waytator_stroke_point_width(WaytatorStroke      *stroke,
+                                   const WaytatorPoint *point);
 void waytator_stroke_set_last_point(WaytatorStroke *stroke,
                                     double          x,
                                     double          y);

@@ -229,6 +229,8 @@ struct _WaytatorWindow {
   gboolean ocr_running;
   double last_draw_x;
   double last_draw_y;
+  //the stylus pressure of the pen stroke being drawn, negative when the device has none
+  double draw_pressure;
   double drag_start_offset_x;
   double drag_start_offset_y;
   double pinch_start_zoom;

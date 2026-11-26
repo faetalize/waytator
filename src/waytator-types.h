@@ -76,6 +76,8 @@ typedef enum {
 typedef struct {
   double x;
   double y;
+  //0 to 1, only read when the stroke has pressure
+  double pressure;
 } WaytatorPoint;
 
 typedef struct {
@@ -90,6 +92,8 @@ typedef struct {
   double fill_b;
   double fill_a;
   int blur_type;
+  //a pen stroke drawn with a stylus, its width follows each point's pressure
+  gboolean pressure;
   GArray *points;
   char *text;
 } WaytatorStroke;

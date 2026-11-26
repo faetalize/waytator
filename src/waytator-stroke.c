@@ -104,6 +104,7 @@ waytator_stroke_copy(WaytatorStroke *stroke)
   copy->fill_b = stroke->fill_b;
   copy->fill_a = stroke->fill_a;
   copy->blur_type = stroke->blur_type;
+  copy->pressure = stroke->pressure;
   copy->points = g_array_sized_new(FALSE, FALSE, sizeof(WaytatorPoint), stroke->points->len);
   g_array_append_vals(copy->points, stroke->points->data, stroke->points->len);
   if (stroke->text != NULL)
@@ -122,22 +123,57 @@ waytator_stroke_free(WaytatorStroke *stroke)
   g_free(stroke);
 }
 
+static void
+waytator_stroke_append_point(WaytatorStroke *stroke,
+                             double          x,
+                             double          y,
+                             double          pressure)
+{
+  const guint len = stroke->points->len;
+  WaytatorPoint point = { x, y, pressure };
+
+  if (len > 0) {
+    WaytatorPoint *last = &g_array_index(stroke->points, WaytatorPoint, len - 1);
+
+    //pressing harder in place still widens the line, ink already down never shrinks
+    if (fabs(last->x - x) < 0.5 && fabs(last->y - y) < 0.5) {
+      last->pressure = MAX(last->pressure, pressure);
+      return;
+    }
+  }
+
+  g_array_append_val(stroke->points, point);
+}
+
 void
 waytator_stroke_add_point(WaytatorStroke *stroke,
                           double          x,
                           double          y)
 {
-  const guint len = stroke->points->len;
-  WaytatorPoint point = { x, y };
+  waytator_stroke_append_point(stroke, x, y, 1.0);
+}
 
-  if (len > 0) {
-    const WaytatorPoint *last = &g_array_index(stroke->points, WaytatorPoint, len - 1);
+void
+waytator_stroke_add_pressure_point(WaytatorStroke *stroke,
+                                   double          x,
+                                   double          y,
+                                   double          pressure)
+{
+  stroke->pressure = TRUE;
+  waytator_stroke_append_point(stroke, x, y, CLAMP(pressure, 0.0, 1.0));
+}
 
-    if (fabs(last->x - x) < 0.5 && fabs(last->y - y) < 0.5)
-      return;
-  }
+//full pressure gives the chosen width. the floor keeps a feather-light touch visible
+#define WAYTATOR_STROKE_MIN_PRESSURE 0.1
 
-  g_array_append_val(stroke->points, point);
+double
+waytator_stroke_point_width(WaytatorStroke      *stroke,
+                            const WaytatorPoint *point)
+{
+  if (!stroke->pressure)
+    return stroke->width;
+
+  return stroke->width * MAX(point->pressure, WAYTATOR_STROKE_MIN_PRESSURE);
 }
 
 void
@@ -145,7 +181,7 @@ waytator_stroke_set_last_point(WaytatorStroke *stroke,
                                double          x,
                                double          y)
 {
-  WaytatorPoint point = { x, y };
+  WaytatorPoint point = { x, y, 1.0 };
 
   if (stroke->points->len == 0) {
     g_array_append_val(stroke->points, point);
@@ -158,6 +194,90 @@ waytator_stroke_set_last_point(WaytatorStroke *stroke,
   }
 
   g_array_index(stroke->points, WaytatorPoint, stroke->points->len - 1) = point;
+}
+
+static void
+waytator_pressure_add_disc(cairo_t             *cr,
+                           const WaytatorPoint *point,
+                           double               radius)
+{
+  //cairo_arc winds with a positive area, the hulls below match it
+  cairo_new_sub_path(cr);
+  cairo_arc(cr, point->x, point->y, radius, 0.0, 2.0 * G_PI);
+  cairo_close_path(cr);
+}
+
+static void
+waytator_pressure_add_hull(cairo_t             *cr,
+                           const WaytatorPoint *from,
+                           double               from_radius,
+                           const WaytatorPoint *to,
+                           double               to_radius)
+{
+  const double dx = to->x - from->x;
+  const double dy = to->y - from->y;
+  const double distance = hypot(dx, dy);
+  double base;
+  double spread;
+  double corners[4][2];
+  double area = 0.0;
+
+  //one disc holds the other, the discs alone cover it
+  if (distance <= fabs(from_radius - to_radius) || distance < 0.0001)
+    return;
+
+  //the two outer tangents touch both discs at the same angle from their centres
+  base = atan2(dy, dx);
+  spread = acos((from_radius - to_radius) / distance);
+  corners[0][0] = from->x + from_radius * cos(base + spread);
+  corners[0][1] = from->y + from_radius * sin(base + spread);
+  corners[1][0] = to->x + to_radius * cos(base + spread);
+  corners[1][1] = to->y + to_radius * sin(base + spread);
+  corners[2][0] = to->x + to_radius * cos(base - spread);
+  corners[2][1] = to->y + to_radius * sin(base - spread);
+  corners[3][0] = from->x + from_radius * cos(base - spread);
+  corners[3][1] = from->y + from_radius * sin(base - spread);
+
+  for (int i = 0; i < 4; i++)
+    area += corners[i][0] * corners[(i + 1) % 4][1] - corners[(i + 1) % 4][0] * corners[i][1];
+
+  cairo_new_sub_path(cr);
+  for (int i = 0; i < 4; i++) {
+    const int corner = area >= 0.0 ? i : 3 - i;
+
+    cairo_line_to(cr, corners[corner][0], corners[corner][1]);
+  }
+  cairo_close_path(cr);
+}
+
+//cairo strokes a path at one width, so a pen stroke with pressure is filled instead: a disc at every point and the
+//hull joining each pair of neighbouring discs. every piece winds the same way, so one fill with the nonzero rule
+//covers each pixel once and a see-through colour doesn't darken where the pieces overlap
+static void
+waytator_stroke_render_pressure(cairo_t        *cr,
+                                WaytatorStroke *stroke)
+{
+  const guint len = stroke->points->len;
+
+  for (guint i = 0; i < len; i++) {
+    const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
+    const double radius = waytator_stroke_point_width(stroke, point) / 2.0;
+
+    waytator_pressure_add_disc(cr, point, radius);
+
+    if (i > 0) {
+      const WaytatorPoint *previous = &g_array_index(stroke->points, WaytatorPoint, i - 1);
+
+      waytator_pressure_add_hull(cr,
+                                 previous,
+                                 waytator_stroke_point_width(stroke, previous) / 2.0,
+                                 point,
+                                 radius);
+    }
+  }
+
+  cairo_set_fill_rule(cr, CAIRO_FILL_RULE_WINDING);
+  cairo_fill(cr);
 }
 
 void
@@ -420,6 +540,11 @@ waytator_stroke_render(cairo_t         *cr,
     }
   }
 
+  if (stroke->pressure) {
+    waytator_stroke_render_pressure(cr, stroke);
+    return;
+  }
+
   if (len == 1) {
     const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, 0);
 
@@ -607,7 +732,7 @@ waytator_stroke_intersects_segment(WaytatorStroke *stroke,
       const double center_y = (start->y + end->y) / 2.0;
       const double radius_x = MAX(fabs(end->x - start->x) / 2.0, 0.0001);
       const double radius_y = MAX(fabs(end->y - start->y) / 2.0, 0.0001);
-      const WaytatorPoint candidates[] = { { x0, y0 }, { x1, y1 } };
+      const WaytatorPoint candidates[] = { { x0, y0, 1.0 }, { x1, y1, 1.0 } };
 
       for (guint j = 0; j < G_N_ELEMENTS(candidates); j++) {
         const double dx = (candidates[j].x - center_x) / radius_x;
@@ -631,7 +756,8 @@ waytator_stroke_intersects_segment(WaytatorStroke *stroke,
   for (i = 0; i < stroke->points->len; i++) {
     const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
 
-    if (waytator_distance_to_segment(point->x, point->y, x0, y0, x1, y1) <= radius + stroke->width / 2.0)
+    if (waytator_distance_to_segment(point->x, point->y, x0, y0, x1, y1)
+        <= radius + waytator_stroke_point_width(stroke, point) / 2.0)
       return TRUE;
   }
 
