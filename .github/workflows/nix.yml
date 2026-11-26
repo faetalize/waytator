@@ -4,6 +4,8 @@ on:
   push:
     branches: [master]
   pull_request:
+  # the weekly flake.lock update starts it on its PR
+  workflow_dispatch:
 
 jobs:
   build:
