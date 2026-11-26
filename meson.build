@@ -13,7 +13,7 @@ project(
 gnome = import('gnome')
 
 gobject_dep = dependency('gobject-2.0')
-gtk_dep = dependency('gtk4', version: '>=4.14')
+gtk_dep = dependency('gtk4', version: '>=4.18')
 adw_dep = dependency('libadwaita-1', version: '>=1.6')
 layer_shell_dep = dependency('gtk4-layer-shell-0')
 wayland_client_dep = dependency('wayland-client', version: '>=1.20')
