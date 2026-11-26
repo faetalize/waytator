@@ -7,16 +7,23 @@ on:
 
 jobs:
   build:
+    name: build (nixos-${{ matrix.nixpkgs }}, ${{ matrix.runner }})
     strategy:
       fail-fast: false
       matrix:
         runner: [ubuntu-latest, ubuntu-24.04-arm]
+        # unstable is the flake as locked, what `nix run` gets. stable is what someone on the current NixOS
+        # release gets by following the README, which builds the flake against their own nixpkgs
+        nixpkgs: [unstable, stable]
+        include:
+          - nixpkgs: stable
+            override: --override-input nixpkgs github:NixOS/nixpkgs/nixos-26.05
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      - run: nix flake check -L
-      - run: nix build -L
+      - run: nix flake check -L ${{ matrix.override }}
+      - run: nix build -L ${{ matrix.override }}
       - name: Check wl-copy and tesseract ship with the app
         run: |
           nix path-info -r ./result | grep -q -- '-wl-clipboard-'
