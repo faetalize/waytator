@@ -215,7 +215,7 @@ test_release_leaves_no_stub(void)
 
   for (guint i = 0; i < G_N_ELEMENTS(readings); i++)
     waytator_stroke_add_pressure_point(stroke, readings[i][0], 50.0, readings[i][1]);
-  waytator_stroke_add_release_point(stroke, 121.4, 50.0, 0.250);
+  waytator_stroke_add_release_point(stroke, 121.4, 50.0);
   surface = waytator_test_render(stroke);
 
   //the last reading is 0.25 of 20 px wide, so it ends 2.5 px past 110.8
@@ -235,13 +235,136 @@ test_mouse_release_ends_line(void)
   cairo_surface_t *surface;
 
   waytator_stroke_add_point(stroke, 40.0, 50.0);
-  waytator_stroke_add_release_point(stroke, 120.0, 50.0, -1.0);
+  waytator_stroke_add_release_point(stroke, 120.0, 50.0);
   surface = waytator_test_render(stroke);
 
   g_assert_cmpint(waytator_test_alpha(surface, 125, 50), ==, 255);
 
   cairo_surface_destroy(surface);
   waytator_stroke_free(stroke);
+}
+
+//how far a pixel centre is outside a pressure line, negative inside, or just more than 1 px when it's further. a segment of the line is every disc whose
+//centre and width move evenly from one point to the next, and its distance is convex along the way, so a ternary
+//search finds the closest disc
+static double
+waytator_test_outside(WaytatorStroke *stroke,
+                      double          x,
+                      double          y)
+{
+  double best = G_MAXDOUBLE;
+
+  for (guint i = 0; i < stroke->points->len; i++) {
+    const WaytatorPoint *to = &g_array_index(stroke->points, WaytatorPoint, i);
+    const WaytatorPoint *from = &g_array_index(stroke->points, WaytatorPoint, i > 0 ? i - 1 : 0);
+    const double from_radius = waytator_stroke_point_width(stroke, from) / 2.0;
+    const double to_radius = waytator_stroke_point_width(stroke, to) / 2.0;
+    const double dx = to->x - from->x;
+    const double dy = to->y - from->y;
+    const double length_squared = dx * dx + dy * dy;
+    const double along = length_squared > 0.0
+                         ? CLAMP(((x - from->x) * dx + (y - from->y) * dy) / length_squared, 0.0, 1.0)
+                         : 0.0;
+    double lo = 0.0;
+    double hi = 1.0;
+
+    //no closer than the segment's spine less its widest end: far off, it can't change what the pixel is checked for
+    if (hypot(x - (from->x + dx * along), y - (from->y + dy * along)) - MAX(from_radius, to_radius) > 1.0)
+      continue;
+
+    for (int step = 0; step < 60; step++) {
+      const double t[2] = { lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0 };
+      double d[2];
+
+      for (int k = 0; k < 2; k++)
+        d[k] = hypot(x - (from->x + (to->x - from->x) * t[k]), y - (from->y + (to->y - from->y) * t[k]))
+             - (from_radius + (to_radius - from_radius) * t[k]);
+
+      if (d[0] < d[1])
+        hi = t[1];
+      else
+        lo = t[0];
+    }
+
+    best = MIN(best,
+               hypot(x - (from->x + (to->x - from->x) * lo), y - (from->y + (to->y - from->y) * lo))
+                 - (from_radius + (to_radius - from_radius) * lo));
+  }
+
+  return best;
+}
+
+//every pixel well inside the line is fully painted and every pixel well outside is untouched: no cracks at the
+//joints, no corners cut on sharp turns, nothing spilling past the line
+static void
+waytator_test_assert_exact(WaytatorStroke *stroke)
+{
+  cairo_surface_t *surface = waytator_test_render(stroke);
+
+  for (int y = 0; y < CANVAS_HEIGHT; y++) {
+    for (int x = 0; x < CANVAS_WIDTH; x++) {
+      const double outside = waytator_test_outside(stroke, x + 0.5, y + 0.5);
+      const guint8 alpha = waytator_test_alpha(surface, x, y);
+
+      if (outside < -1.0 && alpha != 255)
+        g_error("pixel %d,%d is %.2f px inside the line but has alpha %u", x, y, -outside, alpha);
+      if (outside > 1.0 && alpha != 0)
+        g_error("pixel %d,%d is %.2f px outside the line but has alpha %u", x, y, outside, alpha);
+    }
+  }
+
+  cairo_surface_destroy(surface);
+}
+
+static void
+test_shape_is_exact(void)
+{
+  const struct {
+    double x;
+    double y;
+    double pressure;
+  } shapes[][9] = {
+    //pressure swelling and fading along a smooth curve
+    { { 10, 60, 0.1 }, { 30, 40, 0.5 }, { 55, 30, 1.0 }, { 80, 35, 0.3 }, { 100, 50, 0.9 },
+      { 120, 65, 0.2 }, { 145, 70, 1.0 }, { 170, 60, 0.6 }, { 190, 40, 0.1 } },
+    //sharp zigzag turns at even pressure
+    { { 15, 80, 0.8 }, { 40, 20, 0.8 }, { 65, 80, 0.8 }, { 90, 20, 0.8 }, { 115, 80, 0.8 },
+      { 140, 20, 0.8 }, { 165, 80, 0.8 }, { 185, 20, 0.8 }, { 185, 21, 0.8 } },
+    //doubling back on itself, with the width jumping between close points
+    { { 20, 50, 0.2 }, { 120, 50, 1.0 }, { 126, 50, 0.1 }, { 130, 54, 1.0 }, { 60, 56, 0.4 },
+      { 64, 58, 1.0 }, { 66, 59, 0.1 }, { 150, 30, 0.7 }, { 40, 70, 0.3 } },
+    //a point swallowed by a much wider neighbour, then a sharp hook
+    { { 30, 50, 1.0 }, { 33, 51, 0.1 }, { 60, 50, 0.5 }, { 62, 50, 1.0 }, { 64, 51, 0.1 },
+      { 140, 50, 0.9 }, { 150, 30, 0.9 }, { 120, 40, 0.3 }, { 170, 80, 0.6 } },
+  };
+
+  for (guint s = 0; s < G_N_ELEMENTS(shapes); s++) {
+    WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+
+    for (guint i = 0; i < G_N_ELEMENTS(shapes[s]); i++)
+      waytator_stroke_add_pressure_point(stroke, shapes[s][i].x, shapes[s][i].y, shapes[s][i].pressure);
+
+    waytator_test_assert_exact(stroke);
+    waytator_stroke_free(stroke);
+  }
+
+  //random lines, from the test's seed so a failure can be run again with --seed
+  for (int s = 0; s < 30; s++) {
+    WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+    const int n_points = g_test_rand_int_range(2, 16);
+    const double step = g_test_rand_double_range(1.0, 40.0);
+    double x = g_test_rand_double_range(30.0, CANVAS_WIDTH - 30.0);
+    double y = g_test_rand_double_range(30.0, CANVAS_HEIGHT - 30.0);
+
+    for (int i = 0; i < n_points; i++) {
+      waytator_stroke_add_pressure_point(stroke, x, y, g_test_rand_double());
+      x = CLAMP(x + g_test_rand_double_range(-step, step), 12.0, CANVAS_WIDTH - 12.0);
+      y = CLAMP(y + g_test_rand_double_range(-step, step), 12.0, CANVAS_HEIGHT - 12.0);
+    }
+
+    waytator_test_assert_exact(stroke);
+    waytator_stroke_free(stroke);
+  }
 }
 
 int
@@ -256,6 +379,7 @@ main(int argc, char **argv)
   g_test_add_func("/stroke/dot-follows-pressure", test_dot_follows_pressure);
   g_test_add_func("/stroke/pressing-in-place-widens", test_pressing_in_place_widens);
   g_test_add_func("/stroke/eraser-follows-pressure", test_eraser_follows_pressure);
+  g_test_add_func("/stroke/shape-is-exact", test_shape_is_exact);
   g_test_add_func("/stroke/release-leaves-no-stub", test_release_leaves_no_stub);
   g_test_add_func("/stroke/mouse-release-ends-line", test_mouse_release_ends_line);
 

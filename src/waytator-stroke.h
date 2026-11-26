@@ -21,11 +21,10 @@ void waytator_stroke_add_pressure_point(WaytatorStroke *stroke,
                                         double          x,
                                         double          y,
                                         double          pressure);
-//where the pen or mouse let go. pressure is the last reading, negative when the device has none
+//where the pen or mouse let go
 void waytator_stroke_add_release_point(WaytatorStroke *stroke,
                                        double          x,
-                                       double          y,
-                                       double          pressure);
+                                       double          y);
 double waytator_stroke_point_width(WaytatorStroke      *stroke,
                                    const WaytatorPoint *point);
 void waytator_stroke_set_last_point(WaytatorStroke *stroke,

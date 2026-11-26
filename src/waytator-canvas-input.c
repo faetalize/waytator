@@ -1193,7 +1193,7 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);
   else
-    waytator_stroke_add_release_point(self->current_stroke, image_x, image_y, self->draw_pressure);
+    waytator_stroke_add_release_point(self->current_stroke, image_x, image_y);
 
   if (self->active_tool == WAYTATOR_TOOL_BLUR && !self->blur_commit_warning_accepted) {
     if (sequence != NULL && sequence == self->cancelled_touch_draw_sequence)
