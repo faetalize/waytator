@@ -9,7 +9,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  actions: write
 
 jobs:
   update:
@@ -17,21 +16,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
-      - id: update
-        uses: DeterminateSystems/update-flake-lock@v29
+      - uses: DeterminateSystems/update-flake-lock@v29
         with:
           branch: update-flake-lock
           commit-msg: Update flake.lock
           pr-title: Update flake.lock
           pr-body: |
-            The weekly move of the flake's nixpkgs pin. Merge it once the Nix build is green.
+            The weekly move of the flake's nixpkgs pin. GitHub may hold its checks until they're approved
+            on this PR. Merge it once they're green.
 
             ```
             {{ env.GIT_COMMIT_MESSAGE }}
             ```
-      # a PR opened with the workflow's own token starts no workflows, but a dispatched run does,
-      # and its checks show up on the PR all the same
-      - if: steps.update.outputs.pull-request-number != ''
-        run: gh workflow run nix.yml --repo "$GITHUB_REPOSITORY" --ref update-flake-lock
-        env:
-          GH_TOKEN: ${{ github.token }}
