@@ -63,6 +63,7 @@
     <file alias="edit-redo-symbolic.svg">ui/icons/adwaita/edit-redo-symbolic.svg</file>
     <file alias="edit-undo-symbolic.svg">ui/icons/adwaita/edit-undo-symbolic.svg</file>
     <file alias="folder-open-symbolic.svg">ui/icons/adwaita/folder-open-symbolic.svg</file>
+    <file alias="help-about-symbolic.svg">ui/icons/adwaita/help-about-symbolic.svg</file>
     <file alias="list-drag-handle-symbolic.svg">ui/icons/adwaita/list-drag-handle-symbolic.svg</file>
     <file alias="media-skip-backward-symbolic.svg">ui/icons/adwaita/media-skip-backward-symbolic.svg</file>
     <file alias="media-skip-forward-symbolic.svg">ui/icons/adwaita/media-skip-forward-symbolic.svg</file>

@@ -1915,8 +1915,7 @@ waytator_window_new_file_name_help(void)
   GtkWidget *note = gtk_label_new("Any strftime code works. The extension is added for you, "
                                   "and slashes and colons become dashes");
 
-  //a label of its own rather than gtk_menu_button_set_label, which adds a dropdown arrow beside it
-  gtk_menu_button_set_child(GTK_MENU_BUTTON(button), gtk_label_new("?"));
+  gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(button), "help-about-symbolic");
   gtk_widget_set_tooltip_text(button, "File name codes");
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
   gtk_widget_add_css_class(button, "flat");
