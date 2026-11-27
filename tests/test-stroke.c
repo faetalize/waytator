@@ -367,6 +367,149 @@ test_shape_is_exact(void)
   }
 }
 
+//a stroke turned a quarter is drawn, erased and boxed where it now is, about the middle of its ink
+static void
+test_turned_stroke_stands_upright(void)
+{
+  WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+  cairo_surface_t *surface;
+  double left;
+  double top;
+  double right;
+  double bottom;
+  double x = 60.0;
+  double y = 50.0;
+
+  //flat from 60 to 140 across the middle, so upright from 10 to 90 down x 100
+  waytator_stroke_add_point(stroke, 60.0, 50.0);
+  waytator_stroke_add_point(stroke, 140.0, 50.0);
+  stroke->rotation = G_PI / 2.0;
+  surface = waytator_test_render(stroke);
+
+  g_assert_cmpint(waytator_test_alpha(surface, 100, 15), ==, 255);
+  g_assert_cmpint(waytator_test_alpha(surface, 100, 85), ==, 255);
+  g_assert_cmpint(waytator_test_alpha(surface, 70, 50), ==, 0);
+  g_assert_cmpint(waytator_test_alpha(surface, 130, 50), ==, 0);
+
+  g_assert_true(waytator_stroke_intersects_segment(stroke, 100.0, 20.0, 100.0, 20.0, 2.0));
+  g_assert_false(waytator_stroke_intersects_segment(stroke, 70.0, 50.0, 70.0, 50.0, 2.0));
+
+  //the box is the stroke's own, from before it was turned
+  g_assert_true(waytator_stroke_get_bounds(stroke, &left, &top, &right, &bottom));
+  g_assert_cmpfloat(left, ==, 50.0);
+  g_assert_cmpfloat(top, ==, 40.0);
+  g_assert_cmpfloat(right, ==, 150.0);
+  g_assert_cmpfloat(bottom, ==, 60.0);
+
+  waytator_stroke_to_image(stroke, &x, &y);
+  g_assert_cmpfloat_with_epsilon(x, 100.0, 1e-9);
+  g_assert_cmpfloat_with_epsilon(y, 10.0, 1e-9);
+  waytator_stroke_from_image(stroke, &x, &y);
+  g_assert_cmpfloat_with_epsilon(x, 60.0, 1e-9);
+  g_assert_cmpfloat_with_epsilon(y, 50.0, 1e-9);
+
+  cairo_surface_destroy(surface);
+  waytator_stroke_free(stroke);
+}
+
+//a fast stroke has its points far apart, a click on the ink between two of them still lands on it
+static void
+test_hit_between_points(void)
+{
+  const GdkRGBA yellow = {1.0, 0.9, 0.2, 1.0};
+  const GdkRGBA clear = {0.0, 0.0, 0.0, 0.0};
+  const WaytatorTool tools[] = { WAYTATOR_TOOL_BRUSH, WAYTATOR_TOOL_MARKER };
+
+  for (guint i = 0; i < G_N_ELEMENTS(tools); i++) {
+    WaytatorStroke *stroke = waytator_stroke_new(tools[i], 8.0, &yellow, &clear, 0);
+
+    waytator_stroke_add_point(stroke, 0.0, 0.0);
+    waytator_stroke_add_point(stroke, 100.0, 0.0);
+    g_assert_true(waytator_stroke_hit(stroke, 50.0, 0.0, 2.0));
+    g_assert_true(waytator_stroke_hit(stroke, 50.0, 5.0, 2.0));
+    g_assert_false(waytator_stroke_hit(stroke, 50.0, 20.0, 2.0));
+    waytator_stroke_free(stroke);
+  }
+}
+
+//the eraser swept straight across the middle of a stroke, between two pointer readings that are both well clear
+//of the ink, still erases it (issue #92)
+static void
+test_sweep_across_erases(void)
+{
+  WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+  WaytatorStroke *pen = waytator_test_stroke_new(1.0);
+
+  //a fast flick: two points 160 apart, the sweep crosses halfway between them
+  waytator_stroke_add_point(stroke, 20.0, 50.0);
+  waytator_stroke_add_point(stroke, 180.0, 50.0);
+  g_assert_true(waytator_stroke_intersects_segment(stroke, 100.0, 10.0, 100.0, 90.0, 2.0));
+  //one that stops short of the ink doesn't
+  g_assert_false(waytator_stroke_intersects_segment(stroke, 100.0, 10.0, 100.0, 35.0, 2.0));
+
+  //a pen line thin at one end and full width at the other, swept past its side where it is thin and where it is
+  //wide, the same distance from the middle
+  waytator_stroke_add_pressure_point(pen, 20.0, 50.0, 0.1);
+  waytator_stroke_add_pressure_point(pen, 180.0, 50.0, 1.0);
+  g_assert_false(waytator_stroke_intersects_segment(pen, 30.0, 58.0, 40.0, 58.0, 1.0));
+  g_assert_true(waytator_stroke_intersects_segment(pen, 160.0, 58.0, 170.0, 58.0, 1.0));
+
+  waytator_stroke_free(stroke);
+  waytator_stroke_free(pen);
+}
+
+//an ellipse is only within reach near its outline, however flat it is
+static void
+test_flat_ellipse_ends_where_drawn(void)
+{
+  const GdkRGBA red = {1.0, 0.0, 0.0, 1.0};
+  const GdkRGBA clear = {0.0, 0.0, 0.0, 0.0};
+  WaytatorStroke *flat = waytator_stroke_new(WAYTATOR_TOOL_CIRCLE, 4.0, &red, &clear, 0);
+  WaytatorStroke *line = waytator_stroke_new(WAYTATOR_TOOL_CIRCLE, 4.0, &red, &clear, 0);
+
+  waytator_stroke_add_point(flat, 0.0, 0.0);
+  waytator_stroke_add_point(flat, 600.0, 20.0);
+  g_assert_false(waytator_stroke_hit(flat, 800.0, 10.0, 10.0));
+  g_assert_false(waytator_stroke_hit(flat, 620.0, 10.0, 5.0));
+  g_assert_true(waytator_stroke_hit(flat, 600.0, 10.0, 5.0));
+  g_assert_true(waytator_stroke_hit(flat, 300.0, 0.0, 5.0));
+  g_assert_true(waytator_stroke_hit(flat, 300.0, 20.0, 5.0));
+  //the middle of a hollow ellipse is not on it
+  g_assert_false(waytator_stroke_hit(flat, 300.0, 10.0, 2.0));
+
+  //dragged flat across, it is a line from 0 to 100
+  waytator_stroke_add_point(line, 0.0, 50.0);
+  waytator_stroke_add_point(line, 100.0, 50.0);
+  g_assert_false(waytator_stroke_hit(line, 5000.0, 50.0, 10.0));
+  g_assert_false(waytator_stroke_hit(line, 130.0, 50.0, 10.0));
+  g_assert_true(waytator_stroke_hit(line, 50.0, 50.0, 2.0));
+
+  waytator_stroke_free(flat);
+  waytator_stroke_free(line);
+}
+
+//the head of an arrow is part of it, a click on a barb picks it
+static void
+test_arrowhead_is_hit(void)
+{
+  const GdkRGBA red = {1.0, 0.0, 0.0, 1.0};
+  const GdkRGBA clear = {0.0, 0.0, 0.0, 0.0};
+  WaytatorStroke *arrow = waytator_stroke_new(WAYTATOR_TOOL_ARROW, 30.0, &red, &clear, 0);
+  //90 long, 30 degrees off the shaft: the barbs end 45 either side of it, 78 back from the tip
+  const double barb_x = 300.0 - 90.0 * cos(G_PI / 6.0);
+
+  waytator_stroke_add_point(arrow, 0.0, 100.0);
+  waytator_stroke_add_point(arrow, 300.0, 100.0);
+  g_assert_true(waytator_stroke_hit(arrow, barb_x, 55.0, 2.0));
+  g_assert_true(waytator_stroke_hit(arrow, barb_x, 145.0, 2.0));
+  g_assert_false(waytator_stroke_hit(arrow, barb_x, 20.0, 2.0));
+  //a line has no head
+  arrow->tool = WAYTATOR_TOOL_LINE;
+  g_assert_false(waytator_stroke_hit(arrow, barb_x, 55.0, 2.0));
+
+  waytator_stroke_free(arrow);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -382,6 +525,11 @@ main(int argc, char **argv)
   g_test_add_func("/stroke/shape-is-exact", test_shape_is_exact);
   g_test_add_func("/stroke/release-leaves-no-stub", test_release_leaves_no_stub);
   g_test_add_func("/stroke/mouse-release-ends-line", test_mouse_release_ends_line);
+  g_test_add_func("/stroke/turned-stroke-stands-upright", test_turned_stroke_stands_upright);
+  g_test_add_func("/stroke/hit-between-points", test_hit_between_points);
+  g_test_add_func("/stroke/sweep-across-erases", test_sweep_across_erases);
+  g_test_add_func("/stroke/flat-ellipse-ends-where-drawn", test_flat_ellipse_ends_where_drawn);
+  g_test_add_func("/stroke/arrowhead-is-hit", test_arrowhead_is_hit);
 
   return g_test_run();
 }

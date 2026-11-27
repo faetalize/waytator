@@ -5,6 +5,7 @@
     <file>ui/video-editor.ui</file>
     <file>ui/style.css</file>
     <file>ui/icons/hand-openyay-symbolic.svg</file>
+    <file>ui/icons/select-symbolic.svg</file>
     <file>ui/icons/pencil-symbolic.svg</file>
     <file>ui/icons/marker-symbolic.svg</file>
     <file>ui/icons/eraser-symbolic.svg</file>
@@ -31,6 +32,7 @@
   </gresource>
   <gresource prefix="/dev/faetalize/waytator/icons/hicolor/scalable/actions">
     <file alias="waytator-pan-symbolic.svg">ui/icons/hand-openyay-symbolic.svg</file>
+    <file alias="waytator-select-symbolic.svg">ui/icons/select-symbolic.svg</file>
     <file alias="waytator-crop-symbolic.svg">ui/icons/crop-symbolic.svg</file>
     <file alias="waytator-pencil-symbolic.svg">ui/icons/pencil-symbolic.svg</file>
     <file alias="waytator-highlight-symbolic.svg">ui/icons/marker-symbolic.svg</file>

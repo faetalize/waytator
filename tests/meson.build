@@ -217,6 +217,26 @@ test_stroke = executable(
 )
 test('stroke', test_stroke)
 
+#the select tool's arithmetic: what a press picks and where a drag leaves a stroke, with no window
+test_select = executable(
+  'test-select',
+  'test-select.c',
+  files('../src/waytator-select.c', '../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('select', test_select)
+
+#crops, turns and flips of an image with strokes on it, drawn offscreen and compared
+test_transform = executable(
+  'test-transform',
+  'test-transform.c',
+  files('../src/waytator-stroke.c', '../src/waytator-transform.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('transform', test_transform)
+
 test_save = executable(
   'test-save',
   'test-save.c',

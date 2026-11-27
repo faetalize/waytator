@@ -16,6 +16,7 @@
 #include "waytator-save.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
+#include "waytator-transform.h"
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
 
@@ -165,6 +166,7 @@ static const struct {
   [WAYTATOR_SHORTCUT_CAPTURE_AREA] = { "capture_area_shortcut", "capture-area", "Screenshot area", "win.capture-area", "<Primary><Shift>a" },
   [WAYTATOR_SHORTCUT_CAPTURE_SCREEN] = { "capture_screen_shortcut", "capture-screen", "Screenshot screen", "win.capture-screen", "<Primary><Shift>s" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_PAN)] = { "pan_tool_shortcut", NULL, "Pan", NULL, "p" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_SELECT)] = { "select_tool_shortcut", NULL, "Select", NULL, "v" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_CROP)] = { "crop_tool_shortcut", NULL, "Transform", NULL, "c" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_BRUSH)] = { "brush_tool_shortcut", NULL, "Brush", NULL, "b" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_MARKER)] = { "highlighter_tool_shortcut", NULL, "Highlighter", NULL, "h" },
@@ -3301,39 +3303,12 @@ waytator_window_refresh_image_from_document(WaytatorWindow *self)
   return TRUE;
 }
 
-cairo_surface_t *
-waytator_window_render_composited_surface(WaytatorWindow *self)
-{
-  cairo_surface_t *surface;
-  cairo_t *cr;
-  GPtrArray *strokes = waytator_window_strokes(self);
-
-  if (self->texture == NULL)
-    return NULL;
-
-  surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-                                       gdk_texture_get_width(self->texture),
-                                       gdk_texture_get_height(self->texture));
-  gdk_texture_download(self->texture,
-                       cairo_image_surface_get_data(surface),
-                       cairo_image_surface_get_stride(surface));
-  cairo_surface_mark_dirty(surface);
-
-  cr = cairo_create(surface);
-  waytator_render_strokes(cr,
-                          strokes,
-                          surface,
-                          self->allow_highlighter_overlap,
-                          waytator_stroke_render);
-  cairo_destroy(cr);
-  cairo_surface_flush(surface);
-  return surface;
-}
-
 void
 waytator_window_refresh_document_state(WaytatorWindow *self)
 {
   waytator_window_refresh_image_from_document(self);
+  //the document's strokes may have been swapped for others, the selected one with them
+  waytator_window_clear_selection(self);
   self->current_stroke = NULL;
   self->drawing = FALSE;
   self->interaction_has_undo_step = FALSE;
@@ -3928,6 +3903,7 @@ waytator_window_save_copy_and_close_action(GtkWidget  *widget,
     waytator_window_save_then(self, WAYTATOR_AFTER_SAVE_COPY_CLOSE);
 }
 
+//the image takes the place of the one it was made from. its strokes were moved along with it and stay strokes
 static void
 waytator_window_commit_transformed_surface(WaytatorWindow  *self,
                                            cairo_surface_t *surface)
@@ -3942,7 +3918,6 @@ waytator_window_commit_transformed_surface(WaytatorWindow  *self,
     return;
 
   waytator_document_set_image(self->document, pixels, width, height, stride);
-  waytator_document_clear_annotations(self->document);
   waytator_window_restore_strokes(self, waytator_window_strokes(self));
 }
 
@@ -3953,25 +3928,36 @@ waytator_window_apply_crop(WaytatorWindow *self,
                            int             width,
                            int             height)
 {
-  cairo_surface_t *source_surface;
   cairo_surface_t *result_surface;
-  cairo_t *cr;
 
-  if (self->texture == NULL || width <= 0 || height <= 0)
+  if (self->image_surface == NULL || width <= 0 || height <= 0)
     return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  cr = cairo_create(result_surface);
-  cairo_set_source_surface(cr, source_surface, -left, -top);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
 
   waytator_window_record_undo_step(self);
+  result_surface = waytator_transform_crop_surface(self->image_surface, left, top, width, height);
+  waytator_transform_crop_strokes(waytator_window_strokes(self), left, top, width, height);
+  waytator_window_commit_transformed_surface(self, result_surface);
+  cairo_surface_destroy(result_surface);
+}
+
+static void
+waytator_window_apply_transform(WaytatorWindow   *self,
+                                WaytatorTransform transform)
+{
+  cairo_surface_t *result_surface;
+
+  if (self->image_surface == NULL)
+    return;
+
+  //from the keyboard a turn or a flip can come in the middle of a drag. a half drawn blur would be left as a
+  //stroke that is never merged, so whatever is being drawn is called off first
+  waytator_window_cancel_current_interaction(self);
+  waytator_window_record_undo_step(self);
+  result_surface = waytator_transform_surface(self->image_surface, transform);
+  waytator_transform_strokes(waytator_window_strokes(self),
+                             transform,
+                             cairo_image_surface_get_width(self->image_surface),
+                             cairo_image_surface_get_height(self->image_surface));
   waytator_window_commit_transformed_surface(self, result_surface);
   cairo_surface_destroy(result_surface);
 }
@@ -3981,35 +3967,10 @@ waytator_window_rotate_counter_clockwise_action(GtkWidget  *widget,
                                                 const char *action_name,
                                                 GVariant   *parameter)
 {
-  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
-  cairo_surface_t *source_surface;
-  cairo_surface_t *result_surface;
-  cairo_t *cr;
-  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
-  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
-
   (void) action_name;
   (void) parameter;
 
-  if (width <= 0 || height <= 0)
-    return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, height, width);
-  cr = cairo_create(result_surface);
-  cairo_translate(cr, 0.0, width);
-  cairo_rotate(cr, -G_PI / 2.0);
-  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
-
-  waytator_window_record_undo_step(self);
-  waytator_window_commit_transformed_surface(self, result_surface);
-  cairo_surface_destroy(result_surface);
+  waytator_window_apply_transform(WAYTATOR_WINDOW(widget), WAYTATOR_TRANSFORM_TURN_COUNTER_CLOCKWISE);
 }
 
 static void
@@ -4017,35 +3978,10 @@ waytator_window_flip_horizontal_action(GtkWidget  *widget,
                                        const char *action_name,
                                        GVariant   *parameter)
 {
-  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
-  cairo_surface_t *source_surface;
-  cairo_surface_t *result_surface;
-  cairo_t *cr;
-  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
-  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
-
   (void) action_name;
   (void) parameter;
 
-  if (width <= 0 || height <= 0)
-    return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  cr = cairo_create(result_surface);
-  cairo_translate(cr, width, 0.0);
-  cairo_scale(cr, -1.0, 1.0);
-  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
-
-  waytator_window_record_undo_step(self);
-  waytator_window_commit_transformed_surface(self, result_surface);
-  cairo_surface_destroy(result_surface);
+  waytator_window_apply_transform(WAYTATOR_WINDOW(widget), WAYTATOR_TRANSFORM_FLIP_HORIZONTAL);
 }
 
 static void
@@ -4053,35 +3989,10 @@ waytator_window_flip_vertical_action(GtkWidget  *widget,
                                      const char *action_name,
                                      GVariant   *parameter)
 {
-  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
-  cairo_surface_t *source_surface;
-  cairo_surface_t *result_surface;
-  cairo_t *cr;
-  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
-  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
-
   (void) action_name;
   (void) parameter;
 
-  if (width <= 0 || height <= 0)
-    return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  cr = cairo_create(result_surface);
-  cairo_translate(cr, 0.0, height);
-  cairo_scale(cr, 1.0, -1.0);
-  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
-
-  waytator_window_record_undo_step(self);
-  waytator_window_commit_transformed_surface(self, result_surface);
-  cairo_surface_destroy(result_surface);
+  waytator_window_apply_transform(WAYTATOR_WINDOW(widget), WAYTATOR_TRANSFORM_FLIP_VERTICAL);
 }
 
 static void
@@ -4180,6 +4091,7 @@ waytator_window_copy_keep_open_action(GtkWidget  *widget,
 static void
 waytator_window_clear_annotations(WaytatorWindow *self)
 {
+  waytator_window_clear_selection(self);
   waytator_document_clear_annotations(self->document);
   self->current_stroke = NULL;
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
@@ -5354,6 +5266,10 @@ waytator_window_dispose(GObject *object)
   }
   waytator_window_clear_ocr_results(self);
   waytator_window_clear_annotations(self);
+  //the box and its buttons go with the canvas view they are laid over
+  self->selection_area = NULL;
+  self->selection_actions = NULL;
+  self->selection_edit_button = NULL;
   if (self->copy_feedback_timeout_id != 0)
     g_source_remove(self->copy_feedback_timeout_id);
   if (self->save_spinner_timeout_id != 0)
@@ -5458,6 +5374,7 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, zoom_osd);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, tool_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, pan_tool_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, select_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, crop_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, brush_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, highlighter_tool_button);
@@ -6010,6 +5927,7 @@ waytator_window_init(WaytatorWindow *self)
   waytator_window_setup_capture_button(self);
   waytator_window_setup_tool_shortcut_hints(self);
   waytator_window_setup_controllers(self);
+  waytator_window_setup_selection(self);
   waytator_window_setup_signals(self);
   waytator_window_setup_chrome_layout(self);
   g_signal_connect(self->copy_button, "clicked", G_CALLBACK(waytator_window_copy_clicked), self);

@@ -19,6 +19,18 @@ typedef gboolean (*WaytatorCanvasViewSizeFunc)(int      *width,
 void waytator_canvas_view_set_size_func(WaytatorCanvasView        *self,
                                         WaytatorCanvasViewSizeFunc func,
                                         gpointer                   user_data);
+
+//where a widget lying over the viewport goes. every child after the first is one of these: it stays put while the
+//first is moved about under it, and is drawn again whenever that moves. allocation starts out as the whole
+//viewport, child is where the first child has just been put. asked during layout, so it must not change any widget
+typedef void (*WaytatorCanvasViewPlaceFunc)(GtkWidget           *widget,
+                                            const GtkAllocation *child,
+                                            GtkAllocation       *allocation,
+                                            gpointer             user_data);
+
+void waytator_canvas_view_set_place_func(WaytatorCanvasView         *self,
+                                         WaytatorCanvasViewPlaceFunc func,
+                                         gpointer                    user_data);
 //the size it was last laid out at, 0 before that
 void waytator_canvas_view_get_viewport_size(WaytatorCanvasView *self,
                                             double             *width,

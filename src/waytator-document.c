@@ -95,6 +95,7 @@ waytator_stroke_equal(WaytatorStroke *left,
       || left->a != right->a
       || left->blur_type != right->blur_type
       || left->pressure != right->pressure
+      || left->rotation != right->rotation
       || left->points->len != right->points->len
       || g_strcmp0(left->text, right->text) != 0)
     return FALSE;
