@@ -432,6 +432,32 @@ test_hit_between_points(void)
   }
 }
 
+//the eraser swept straight across the middle of a stroke, between two pointer readings that are both well clear
+//of the ink, still erases it (issue #92)
+static void
+test_sweep_across_erases(void)
+{
+  WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+  WaytatorStroke *pen = waytator_test_stroke_new(1.0);
+
+  //a fast flick: two points 160 apart, the sweep crosses halfway between them
+  waytator_stroke_add_point(stroke, 20.0, 50.0);
+  waytator_stroke_add_point(stroke, 180.0, 50.0);
+  g_assert_true(waytator_stroke_intersects_segment(stroke, 100.0, 10.0, 100.0, 90.0, 2.0));
+  //one that stops short of the ink doesn't
+  g_assert_false(waytator_stroke_intersects_segment(stroke, 100.0, 10.0, 100.0, 35.0, 2.0));
+
+  //a pen line thin at one end and full width at the other, swept past its side where it is thin and where it is
+  //wide, the same distance from the middle
+  waytator_stroke_add_pressure_point(pen, 20.0, 50.0, 0.1);
+  waytator_stroke_add_pressure_point(pen, 180.0, 50.0, 1.0);
+  g_assert_false(waytator_stroke_intersects_segment(pen, 30.0, 58.0, 40.0, 58.0, 1.0));
+  g_assert_true(waytator_stroke_intersects_segment(pen, 160.0, 58.0, 170.0, 58.0, 1.0));
+
+  waytator_stroke_free(stroke);
+  waytator_stroke_free(pen);
+}
+
 //an ellipse is only within reach near its outline, however flat it is
 static void
 test_flat_ellipse_ends_where_drawn(void)
@@ -501,6 +527,7 @@ main(int argc, char **argv)
   g_test_add_func("/stroke/mouse-release-ends-line", test_mouse_release_ends_line);
   g_test_add_func("/stroke/turned-stroke-stands-upright", test_turned_stroke_stands_upright);
   g_test_add_func("/stroke/hit-between-points", test_hit_between_points);
+  g_test_add_func("/stroke/sweep-across-erases", test_sweep_across_erases);
   g_test_add_func("/stroke/flat-ellipse-ends-where-drawn", test_flat_ellipse_ends_where_drawn);
   g_test_add_func("/stroke/arrowhead-is-hit", test_arrowhead_is_hit);
 
