@@ -1,5 +1,6 @@
 #include "waytator-settings.h"
 
+#include "waytator-file-name.h"
 #include "waytator-types.h"
 
 static char *
@@ -36,6 +37,7 @@ waytator_settings_init(WaytatorSettings *settings)
 {
   settings->screenshot_save_dir = waytator_settings_default_save_dir();
   settings->screenshot_copy = TRUE;
+  settings->screenshot_file_name = g_strdup(WAYTATOR_SCREENSHOT_NAME_DEFAULT);
   settings->screenshot_open_editor = TRUE;
   settings->capture_hide_waytator = TRUE;
   settings->capture_magnifier = FALSE;
@@ -43,6 +45,7 @@ waytator_settings_init(WaytatorSettings *settings)
   settings->record_microphone = FALSE;
   settings->recording_save_dir = waytator_settings_default_recording_dir();
   settings->recording_copy = TRUE;
+  settings->recording_file_name = g_strdup(WAYTATOR_RECORDING_NAME_DEFAULT);
   settings->recording_open_editor = TRUE;
   settings->recording_microphone = g_strdup("");
   settings->recording_show_bar = TRUE;
@@ -59,9 +62,26 @@ void
 waytator_settings_clear(WaytatorSettings *settings)
 {
   g_clear_pointer(&settings->screenshot_save_dir, g_free);
+  g_clear_pointer(&settings->screenshot_file_name, g_free);
   g_clear_pointer(&settings->recording_save_dir, g_free);
+  g_clear_pointer(&settings->recording_file_name, g_free);
   g_clear_pointer(&settings->recording_microphone, g_free);
   g_clear_pointer(&settings->video_copy_profile, g_free);
+}
+
+//an empty name keeps the one it would replace, the file has to be called something
+static void
+waytator_settings_read_file_name(char      **file_name,
+                                 GKeyFile   *key_file,
+                                 const char *key)
+{
+  g_autofree char *value = g_key_file_get_string(key_file, WAYTATOR_SETTINGS_GROUP, key, NULL);
+
+  if (value == NULL || *g_strstrip(value) == '\0')
+    return;
+
+  g_free(*file_name);
+  *file_name = g_steal_pointer(&value);
 }
 
 //a key that is missing or out of range leaves the value it replaces alone
@@ -85,6 +105,7 @@ waytator_settings_read(WaytatorSettings *settings,
                                                        "screenshot_copy",
                                                        NULL);
 
+  waytator_settings_read_file_name(&settings->screenshot_file_name, key_file, "screenshot_file_name");
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "screenshot_open_editor", NULL))
     settings->screenshot_open_editor = g_key_file_get_boolean(key_file,
                                                               WAYTATOR_SETTINGS_GROUP,
@@ -134,6 +155,7 @@ waytator_settings_read(WaytatorSettings *settings,
                                                       "recording_copy",
                                                       NULL);
 
+  waytator_settings_read_file_name(&settings->recording_file_name, key_file, "recording_file_name");
   if (g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_open_editor", NULL))
     settings->recording_open_editor = g_key_file_get_boolean(key_file,
                                                              WAYTATOR_SETTINGS_GROUP,
@@ -225,6 +247,10 @@ waytator_settings_write(const WaytatorSettings *settings,
                          WAYTATOR_SETTINGS_GROUP,
                          "screenshot_copy",
                          settings->screenshot_copy);
+  g_key_file_set_string(key_file,
+                        WAYTATOR_SETTINGS_GROUP,
+                        "screenshot_file_name",
+                        settings->screenshot_file_name);
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "screenshot_open_editor",
@@ -253,6 +279,10 @@ waytator_settings_write(const WaytatorSettings *settings,
                          WAYTATOR_SETTINGS_GROUP,
                          "recording_copy",
                          settings->recording_copy);
+  g_key_file_set_string(key_file,
+                        WAYTATOR_SETTINGS_GROUP,
+                        "recording_file_name",
+                        settings->recording_file_name);
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "recording_open_editor",

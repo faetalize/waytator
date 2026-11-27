@@ -22,7 +22,7 @@ typedef void (*WaytatorScreenshotStoredFunc)(GFile      *file,
                                              gpointer    user_data);
 
 char *waytator_screenshot_display_path(const char *path);
-char *waytator_screenshot_make_name(void);
+char *waytator_screenshot_make_name(const WaytatorSettings *settings);
 char *waytator_screenshot_describe_save_error(const char   *save_dir,
                                               const GError *error);
 GFile *waytator_screenshot_reserve_file(const char *save_dir,

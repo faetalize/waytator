@@ -120,7 +120,7 @@ test('record-audio', test_record_audio, timeout: 180)
 test_recording_bar_place = executable(
   'test-recording-bar-place',
   'test-recording-bar-place.c',
-  files('../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [layer_shell_dep, gtk_dep, adw_dep, m_dep],
 )
@@ -155,16 +155,26 @@ test('record-stream', test_record_stream, timeout: 120)
 test_recording_settings = executable(
   'test-recording-settings',
   'test-recording-settings.c',
-  files('../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep],
 )
 test('recording-settings', test_recording_settings)
 
+#the names a template in the preferences gives screenshots and recordings
+test_file_name = executable(
+  'test-file-name',
+  'test-file-name.c',
+  files('../src/waytator-file-name.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('file-name', test_file_name)
+
 test_last_tool = executable(
   'test-last-tool',
   'test-last-tool.c',
-  files('../src/waytator-last-tool.c', '../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-last-tool.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep],
 )
@@ -228,6 +238,7 @@ test_record_recorder = executable(
     '../src/waytator-record-mixer.c',
     '../src/waytator-record-portal.c',
     '../src/waytator-record-stream.c',
+    '../src/waytator-file-name.c',
     '../src/waytator-record-writer.c',
     '../src/waytator-recorder.c',
     '../src/waytator-video-cache.c',

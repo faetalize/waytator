@@ -4,6 +4,7 @@
 
 #include "waytator-capture-overlay.h"
 #include "waytator-export.h"
+#include "waytator-file-name.h"
 #include "waytator-instance.h"
 #include "waytator-last-tool.h"
 #include "waytator-ocr.h"
@@ -1819,6 +1820,114 @@ waytator_window_recording_show_pointer_changed(AdwSwitchRow   *row,
   waytator_window_save_preferences(self);
 }
 
+//the name field of screenshots or recordings, which keeps its setting, its default and the extension on itself
+typedef struct {
+  WaytatorWindow *window;
+  char **setting;
+  const char *fallback;
+  const char *extension;
+  AdwActionRow *example_row;
+} WaytatorFileNameRow;
+
+//what the field's text names a file taken now, so the codes can be checked without taking a capture
+static gboolean
+waytator_window_update_file_name_example(AdwEntryRow *entry_row)
+{
+  WaytatorFileNameRow *row = g_object_get_data(G_OBJECT(entry_row), "file-name-row");
+  g_autoptr(GDateTime) now = g_date_time_new_now_local();
+  g_autofree char *stem = waytator_file_name_format(gtk_editable_get_text(GTK_EDITABLE(entry_row)), now);
+  g_autofree char *title = NULL;
+
+  if (stem != NULL) {
+    title = g_strdup_printf("%s.%s", stem, row->extension);
+  } else {
+    g_autofree char *fallback = waytator_file_name_format(row->fallback, now);
+
+    title = g_strdup_printf("No name comes out of this, the default gives %s.%s", fallback, row->extension);
+  }
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row->example_row), title);
+  if (stem != NULL)
+    gtk_widget_remove_css_class(GTK_WIDGET(entry_row), "error");
+  else
+    gtk_widget_add_css_class(GTK_WIDGET(entry_row), "error");
+  return stem != NULL;
+}
+
+static void
+waytator_window_file_name_changed(AdwEntryRow *entry_row,
+                                  gpointer     user_data)
+{
+  (void) user_data;
+
+  waytator_window_update_file_name_example(entry_row);
+}
+
+//an emptied field goes back to the default, and one that gives no name is left unsaved and marked
+static void
+waytator_window_file_name_applied(AdwEntryRow *entry_row,
+                                  gpointer     user_data)
+{
+  WaytatorFileNameRow *row = g_object_get_data(G_OBJECT(entry_row), "file-name-row");
+  g_autofree char *text = g_strdup(gtk_editable_get_text(GTK_EDITABLE(entry_row)));
+
+  (void) user_data;
+
+  if (*g_strstrip(text) == '\0') {
+    gtk_editable_set_text(GTK_EDITABLE(entry_row), row->fallback);
+    g_free(*row->setting);
+    *row->setting = g_strdup(row->fallback);
+    waytator_window_save_preferences(row->window);
+    return;
+  }
+
+  if (!waytator_window_update_file_name_example(entry_row))
+    return;
+
+  g_free(*row->setting);
+  *row->setting = g_steal_pointer(&text);
+  waytator_window_save_preferences(row->window);
+}
+
+//the name field and, under it, an example of the name it gives. the rows go into the group in that order
+static void
+waytator_window_add_file_name_rows(WaytatorWindow      *self,
+                                   AdwPreferencesGroup *group,
+                                   char               **setting,
+                                   const char          *fallback,
+                                   const char          *extension,
+                                   gboolean             sensitive)
+{
+  AdwEntryRow *entry_row = ADW_ENTRY_ROW(adw_entry_row_new());
+  AdwActionRow *example_row = ADW_ACTION_ROW(adw_action_row_new());
+  WaytatorFileNameRow *row = g_new0(WaytatorFileNameRow, 1);
+
+  row->window = self;
+  row->setting = setting;
+  row->fallback = fallback;
+  row->extension = extension;
+  row->example_row = example_row;
+  g_object_set_data_full(G_OBJECT(entry_row), "file-name-row", row, g_free);
+
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(entry_row), "File name");
+  adw_entry_row_set_show_apply_button(entry_row, TRUE);
+  gtk_editable_set_text(GTK_EDITABLE(entry_row), *setting);
+
+  //a name is plain text, an & or < in it is not markup
+  adw_preferences_row_set_use_markup(ADW_PREFERENCES_ROW(example_row), FALSE);
+  adw_action_row_set_subtitle(example_row,
+                              "Example. %Y is the year, %m the month, %d the day, "
+                              "%H the hour, %M the minute and %S the second");
+  waytator_window_update_file_name_example(entry_row);
+
+  g_signal_connect(entry_row, "changed", G_CALLBACK(waytator_window_file_name_changed), NULL);
+  g_signal_connect(entry_row, "apply", G_CALLBACK(waytator_window_file_name_applied), NULL);
+  gtk_widget_set_sensitive(GTK_WIDGET(entry_row), sensitive);
+  gtk_widget_set_sensitive(GTK_WIDGET(example_row), sensitive);
+  adw_preferences_group_add(group, GTK_WIDGET(entry_row));
+  adw_preferences_group_add(group, GTK_WIDGET(example_row));
+}
+
 static AdwPreferencesGroup *
 waytator_window_new_recordings_group(WaytatorWindow *self)
 {
@@ -1875,6 +1984,12 @@ waytator_window_new_recordings_group(WaytatorWindow *self)
   g_signal_connect(pointer_row, "notify::active", G_CALLBACK(waytator_window_recording_show_pointer_changed), self);
 
   adw_preferences_group_add(group, GTK_WIDGET(folder_row));
+  waytator_window_add_file_name_rows(self,
+                                     group,
+                                     &self->settings.recording_file_name,
+                                     WAYTATOR_RECORDING_NAME_DEFAULT,
+                                     "mp4",
+                                     TRUE);
   adw_preferences_group_add(group, GTK_WIDGET(copy_row));
   adw_preferences_group_add(group, GTK_WIDGET(editor_row));
   adw_preferences_group_add(group, GTK_WIDGET(microphone_row));
@@ -1964,6 +2079,13 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
   g_signal_connect(brake_row, "notify::selected", G_CALLBACK(waytator_window_capture_brake_speed_changed), self);
 
   adw_preferences_group_add(group, GTK_WIDGET(folder_row));
+  //GNOME's screenshot tool names its files itself
+  waytator_window_add_file_name_rows(self,
+                                     group,
+                                     &self->settings.screenshot_file_name,
+                                     WAYTATOR_SCREENSHOT_NAME_DEFAULT,
+                                     "png",
+                                     !waytator_capture_uses_gnome_ui());
   adw_preferences_group_add(group, GTK_WIDGET(copy_row));
   adw_preferences_group_add(group, GTK_WIDGET(editor_row));
   adw_preferences_group_add(group, GTK_WIDGET(hide_row));
@@ -4656,7 +4778,7 @@ waytator_window_finish_capture(WaytatorWindow *self,
   }
 
   if (texture != NULL) {
-    g_autofree char *name = file != NULL ? g_file_get_basename(file) : waytator_screenshot_make_name();
+    g_autofree char *name = file != NULL ? g_file_get_basename(file) : waytator_screenshot_make_name(&self->settings);
 
     //a window that only exists for this capture has nothing to stay on, it goes to the editor whatever the switch says
     if (!self->settings.screenshot_open_editor
