@@ -16,6 +16,7 @@
   wayland-protocols,
   adwaita-icon-theme,
   ffmpeg,
+  libva,
   libdrm,
   libgbm,
   libGL,
@@ -56,6 +57,7 @@ stdenv.mkDerivation {
     wayland-protocols
     adwaita-icon-theme
     ffmpeg
+    libva
     libdrm
     libgbm
     libGL

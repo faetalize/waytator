@@ -43,6 +43,16 @@ test_video_audio = executable(
 )
 test('video-audio', test_video_audio, timeout: 120)
 
+#which gpu drivers get B-frames, from the names they give themselves
+test_video_encoder = executable(
+  'test-video-encoder',
+  'test-video-encoder.c',
+  '../src/waytator-video-encoder.c',
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, m_dep, video_deps],
+)
+test('video-encoder', test_video_encoder)
+
 #makes its own videos and saves them through every turn and flip, checking the corners land where the editor shows them
 test_video_export = executable(
   'test-video-export',
