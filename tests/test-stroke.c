@@ -367,6 +367,51 @@ test_shape_is_exact(void)
   }
 }
 
+//a stroke turned a quarter is drawn, erased and boxed where it now is, about the middle of its ink
+static void
+test_turned_stroke_stands_upright(void)
+{
+  WaytatorStroke *stroke = waytator_test_stroke_new(1.0);
+  cairo_surface_t *surface;
+  double left;
+  double top;
+  double right;
+  double bottom;
+  double x = 60.0;
+  double y = 50.0;
+
+  //flat from 60 to 140 across the middle, so upright from 10 to 90 down x 100
+  waytator_stroke_add_point(stroke, 60.0, 50.0);
+  waytator_stroke_add_point(stroke, 140.0, 50.0);
+  stroke->rotation = G_PI / 2.0;
+  surface = waytator_test_render(stroke);
+
+  g_assert_cmpint(waytator_test_alpha(surface, 100, 15), ==, 255);
+  g_assert_cmpint(waytator_test_alpha(surface, 100, 85), ==, 255);
+  g_assert_cmpint(waytator_test_alpha(surface, 70, 50), ==, 0);
+  g_assert_cmpint(waytator_test_alpha(surface, 130, 50), ==, 0);
+
+  g_assert_true(waytator_stroke_intersects_segment(stroke, 100.0, 20.0, 100.0, 20.0, 2.0));
+  g_assert_false(waytator_stroke_intersects_segment(stroke, 70.0, 50.0, 70.0, 50.0, 2.0));
+
+  //the box is the stroke's own, from before it was turned
+  g_assert_true(waytator_stroke_get_bounds(stroke, &left, &top, &right, &bottom));
+  g_assert_cmpfloat(left, ==, 50.0);
+  g_assert_cmpfloat(top, ==, 40.0);
+  g_assert_cmpfloat(right, ==, 150.0);
+  g_assert_cmpfloat(bottom, ==, 60.0);
+
+  waytator_stroke_to_image(stroke, &x, &y);
+  g_assert_cmpfloat_with_epsilon(x, 100.0, 1e-9);
+  g_assert_cmpfloat_with_epsilon(y, 10.0, 1e-9);
+  waytator_stroke_from_image(stroke, &x, &y);
+  g_assert_cmpfloat_with_epsilon(x, 60.0, 1e-9);
+  g_assert_cmpfloat_with_epsilon(y, 50.0, 1e-9);
+
+  cairo_surface_destroy(surface);
+  waytator_stroke_free(stroke);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -382,6 +427,7 @@ main(int argc, char **argv)
   g_test_add_func("/stroke/shape-is-exact", test_shape_is_exact);
   g_test_add_func("/stroke/release-leaves-no-stub", test_release_leaves_no_stub);
   g_test_add_func("/stroke/mouse-release-ends-line", test_mouse_release_ends_line);
+  g_test_add_func("/stroke/turned-stroke-stands-upright", test_turned_stroke_stands_upright);
 
   return g_test_run();
 }
