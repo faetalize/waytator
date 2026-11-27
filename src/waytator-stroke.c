@@ -24,6 +24,7 @@ waytator_tool_width(WaytatorTool tool)
 {
   switch (tool) {
   case WAYTATOR_TOOL_PAN:
+  case WAYTATOR_TOOL_SELECT:
   case WAYTATOR_TOOL_CROP:
     return 0.0;
   case WAYTATOR_TOOL_MARKER:
@@ -59,6 +60,7 @@ gboolean
 waytator_tool_is_non_drawing(WaytatorTool tool)
 {
   return tool == WAYTATOR_TOOL_PAN
+      || tool == WAYTATOR_TOOL_SELECT
       || tool == WAYTATOR_TOOL_CROP
       || tool == WAYTATOR_TOOL_OCR;
 }

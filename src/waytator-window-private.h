@@ -4,6 +4,7 @@
 #include "waytator-countdown.h"
 #include "waytator-document.h"
 #include "waytator-pen-eraser.h"
+#include "waytator-select.h"
 #include "waytator-settings.h"
 #include "waytator-types.h"
 #include "waytator-video-copy.h"
@@ -51,6 +52,11 @@ struct _WaytatorWindow {
   GtkGesture *touch_pan_gesture;
   GtkGesture *crop_gesture;
   GtkGesture *draw_gesture;
+  GtkGesture *select_gesture;
+  //over the viewport, see waytator-canvas-select.c: the selected stroke's box and handles, and its buttons
+  GtkWidget *selection_area;
+  GtkWidget *selection_actions;
+  GtkWidget *selection_edit_button;
   GtkGesture *zoom_gesture;
   GtkEventController *touch_legacy_controller;
   GtkFixed *ocr_overlay;
@@ -108,6 +114,7 @@ struct _WaytatorWindow {
   GtkLabel *zoom_label;
   GtkWidget *tool_group;
   GtkToggleButton *pan_tool_button;
+  GtkToggleButton *select_tool_button;
   GtkToggleButton *crop_tool_button;
   GtkToggleButton *brush_tool_button;
   GtkToggleButton *highlighter_tool_button;
@@ -182,6 +189,18 @@ struct _WaytatorWindow {
   cairo_surface_t *image_surface;
   WaytatorDocument *document;
   WaytatorStroke *current_stroke;
+  //what the select tool has picked. it lives in the document's list, so it is dropped whenever that is swapped
+  WaytatorStroke *selected_stroke;
+  //while a drag has hold of the selected stroke: the stroke as it was when the drag began, what the drag took
+  //hold of and where on the image it began
+  WaytatorStroke *select_original;
+  WaytatorHandle select_handle;
+  double select_start_x;
+  double select_start_y;
+  gboolean select_moved;
+  //the last click that picked a stroke without moving it, for telling a double click on a text
+  WaytatorStroke *select_click_stroke;
+  guint32 select_click_time;
   double zoom;
   gboolean fit_mode;
   //a freshly opened image follows the window, no larger than its own size, until its zoom settles
@@ -410,6 +429,29 @@ void waytator_window_setup_tool_signals(WaytatorWindow *self);
 void waytator_window_install_canvas_actions(GtkWidgetClass *widget_class);
 void waytator_window_setup_controllers(WaytatorWindow *self);
 void waytator_window_setup_signals(WaytatorWindow *self);
+gboolean waytator_window_event_is_touch(GtkEventController *controller);
+gboolean waytator_window_snap_modifier_active(GtkGestureDrag *gesture,
+                                              WaytatorWindow *self);
+void waytator_window_record_interaction_undo_step(WaytatorWindow *self);
+//a popover with an entry in it, pointing at a place on the image
+GtkWidget *waytator_window_new_text_popover(WaytatorWindow *self,
+                                            double          image_x,
+                                            double          image_y,
+                                            GtkWidget     **entry);
+void waytator_window_setup_selection(WaytatorWindow *self);
+void waytator_window_update_selection(WaytatorWindow *self);
+//TRUE when there was something selected
+gboolean waytator_window_clear_selection(WaytatorWindow *self);
+gboolean waytator_window_delete_selection(WaytatorWindow *self);
+gboolean waytator_window_cancel_selection_drag(WaytatorWindow *self);
+//where the selected stroke is in the document's list, -1 with nothing selected. the list is swapped for a copy by
+//undo and redo, the same place in the new one is the same stroke as long as none was added or removed
+int waytator_window_get_selection_index(WaytatorWindow *self);
+void waytator_window_set_selection_index(WaytatorWindow *self,
+                                         int             index);
+void waytator_window_update_select_cursor(WaytatorWindow *self,
+                                          double          viewport_x,
+                                          double          viewport_y);
 void waytator_window_drawing_area_draw(GtkDrawingArea *area,
                                        cairo_t        *cr,
                                        int             width,

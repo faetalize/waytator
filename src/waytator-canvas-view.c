@@ -5,15 +5,17 @@
 //how much of the child stays in view however far it is pushed out of the viewport, all of it when it is smaller
 #define WAYTATOR_CANVAS_KEEP_VISIBLE 64.0
 
-//shows its one child at the size the size func asks for, anywhere across the viewport. the child can be pushed
+//shows its first child at the size the size func asks for, anywhere across the viewport. the child can be pushed
 //past the edges until only a strip of it is left, so zooming about any point of it never runs into one.
 //everything that hangs on the viewport's size is worked out while it is laid out, where that size is known and the
-//child can be moved without asking GTK for another layout
+//child can be moved without asking GTK for another layout. any children after the first lie over the viewport
 struct _WaytatorCanvasView {
   GtkWidget parent_instance;
 
   WaytatorCanvasViewSizeFunc size_func;
   gpointer size_func_data;
+  WaytatorCanvasViewPlaceFunc place_func;
+  gpointer place_func_data;
   double viewport_width;
   double viewport_height;
   //the point across the child at the middle of the viewport, a resize keeps it there
@@ -115,10 +117,12 @@ waytator_canvas_view_measure(GtkWidget      *widget,
   (void) minimum_baseline;
   (void) natural_baseline;
 
-  //the child is measured to keep GTK's bookkeeping straight, its size is the size func's to decide. the viewport
-  //itself takes whatever room it is given
-  if (child != NULL && gtk_widget_should_layout(child))
-    gtk_widget_measure(child, orientation, -1, NULL, NULL, NULL, NULL);
+  //the children are measured to keep GTK's bookkeeping straight, their sizes are the funcs' to decide. the
+  //viewport itself takes whatever room it is given
+  for (; child != NULL; child = gtk_widget_get_next_sibling(child)) {
+    if (gtk_widget_should_layout(child))
+      gtk_widget_measure(child, orientation, -1, NULL, NULL, NULL, NULL);
+  }
   *minimum = 0;
   *natural = 0;
 }
@@ -131,6 +135,7 @@ waytator_canvas_view_size_allocate(GtkWidget *widget,
 {
   WaytatorCanvasView *self = WAYTATOR_CANVAS_VIEW(widget);
   GtkWidget *child = gtk_widget_get_first_child(widget);
+  GtkAllocation child_allocation = { 0, 0, width, height };
   int child_width;
   int child_height;
   gboolean locked;
@@ -151,19 +156,32 @@ waytator_canvas_view_size_allocate(GtkWidget *widget,
   gtk_widget_measure(child, GTK_ORIENTATION_VERTICAL, -1, NULL, NULL, NULL, NULL);
   if (!waytator_canvas_view_get_child_size(self, &child_width, &child_height, &locked)) {
     gtk_widget_allocate(child, width, height, baseline, NULL);
-    return;
+  } else {
+    waytator_canvas_view_clamp(self, child_width, child_height, locked);
+    waytator_canvas_view_get_child_origin(self, child_width, child_height, &x, &y);
+    child_allocation = (GtkAllocation) {
+      .x = (int) floor(x + 0.5),
+      .y = (int) floor(y + 0.5),
+      .width = child_width,
+      .height = child_height,
+    };
+    gtk_widget_size_allocate(child, &child_allocation, -1);
   }
 
-  waytator_canvas_view_clamp(self, child_width, child_height, locked);
-  waytator_canvas_view_get_child_origin(self, child_width, child_height, &x, &y);
-  gtk_widget_size_allocate(child,
-                           &(GtkAllocation) {
-                             .x = (int) floor(x + 0.5),
-                             .y = (int) floor(y + 0.5),
-                             .width = child_width,
-                             .height = child_height,
-                           },
-                           -1);
+  for (GtkWidget *over = gtk_widget_get_next_sibling(child); over != NULL; over = gtk_widget_get_next_sibling(over)) {
+    GtkAllocation allocation = { 0, 0, width, height };
+
+    if (!gtk_widget_should_layout(over))
+      continue;
+
+    gtk_widget_measure(over, GTK_ORIENTATION_HORIZONTAL, -1, NULL, NULL, NULL, NULL);
+    gtk_widget_measure(over, GTK_ORIENTATION_VERTICAL, -1, NULL, NULL, NULL, NULL);
+    if (self->place_func != NULL)
+      self->place_func(over, &child_allocation, &allocation, self->place_func_data);
+    gtk_widget_size_allocate(over, &allocation, -1);
+    //what it shows is measured against the child, which may just have moved under it
+    gtk_widget_queue_draw(over);
+  }
 }
 
 static void
@@ -215,6 +233,16 @@ waytator_canvas_view_set_size_func(WaytatorCanvasView        *self,
 {
   self->size_func = func;
   self->size_func_data = user_data;
+  gtk_widget_queue_allocate(GTK_WIDGET(self));
+}
+
+void
+waytator_canvas_view_set_place_func(WaytatorCanvasView         *self,
+                                    WaytatorCanvasViewPlaceFunc func,
+                                    gpointer                    user_data)
+{
+  self->place_func = func;
+  self->place_func_data = user_data;
   gtk_widget_queue_allocate(GTK_WIDGET(self));
 }
 

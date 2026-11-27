@@ -823,6 +823,17 @@
                         </child>
 
                         <child>
+                          <object class="GtkToggleButton" id="select_tool_button">
+                            <property name="group">brush_tool_button</property>
+                            <property name="tooltip-text">Select</property>
+                            <property name="icon-name">waytator-select-symbolic</property>
+                            <style>
+                              <class name="flat"/>
+                            </style>
+                          </object>
+                        </child>
+
+                        <child>
                           <object class="GtkToggleButton" id="crop_tool_button">
                             <property name="group">brush_tool_button</property>
                             <property name="tooltip-text">Transform</property>

@@ -13,7 +13,9 @@
 #define WAYTATOR_CHROME_GAP 10
 #define WAYTATOR_CHROME_GAP_TIGHT 6
 #define WAYTATOR_CHROME_TOOL_GAP 4
-#define WAYTATOR_CHROME_TOOL_GAP_TIGHT 2
+//ten tools 32 px wide with this between them, the pill's padding and border and the tight margins come to 355 px,
+//which is what lets the dock into a window 360 px wide. see .tool-group > button.toggle in style.css
+#define WAYTATOR_CHROME_TOOL_GAP_TIGHT 1
 //a title narrower than this says too little to be worth the space
 #define WAYTATOR_TITLE_MIN_WIDTH 180
 

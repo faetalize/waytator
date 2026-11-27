@@ -7,6 +7,7 @@
 //names rather than numbers, so a tool added in the middle doesn't hand its neighbour's size to the wrong one
 static const char *const waytator_last_tool_names[WAYTATOR_N_TOOLS] = {
   [WAYTATOR_TOOL_PAN] = "pan",
+  [WAYTATOR_TOOL_SELECT] = "select",
   [WAYTATOR_TOOL_CROP] = "crop",
   [WAYTATOR_TOOL_BRUSH] = "brush",
   [WAYTATOR_TOOL_MARKER] = "highlighter",

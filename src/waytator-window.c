@@ -165,6 +165,7 @@ static const struct {
   [WAYTATOR_SHORTCUT_CAPTURE_AREA] = { "capture_area_shortcut", "capture-area", "Screenshot area", "win.capture-area", "<Primary><Shift>a" },
   [WAYTATOR_SHORTCUT_CAPTURE_SCREEN] = { "capture_screen_shortcut", "capture-screen", "Screenshot screen", "win.capture-screen", "<Primary><Shift>s" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_PAN)] = { "pan_tool_shortcut", NULL, "Pan", NULL, "p" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_SELECT)] = { "select_tool_shortcut", NULL, "Select", NULL, "v" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_CROP)] = { "crop_tool_shortcut", NULL, "Transform", NULL, "c" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_BRUSH)] = { "brush_tool_shortcut", NULL, "Brush", NULL, "b" },
   [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_MARKER)] = { "highlighter_tool_shortcut", NULL, "Highlighter", NULL, "h" },
@@ -3334,6 +3335,8 @@ void
 waytator_window_refresh_document_state(WaytatorWindow *self)
 {
   waytator_window_refresh_image_from_document(self);
+  //the document's strokes may have been swapped for others, the selected one with them
+  waytator_window_clear_selection(self);
   self->current_stroke = NULL;
   self->drawing = FALSE;
   self->interaction_has_undo_step = FALSE;
@@ -4180,6 +4183,7 @@ waytator_window_copy_keep_open_action(GtkWidget  *widget,
 static void
 waytator_window_clear_annotations(WaytatorWindow *self)
 {
+  waytator_window_clear_selection(self);
   waytator_document_clear_annotations(self->document);
   self->current_stroke = NULL;
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
@@ -5354,6 +5358,10 @@ waytator_window_dispose(GObject *object)
   }
   waytator_window_clear_ocr_results(self);
   waytator_window_clear_annotations(self);
+  //the box and its buttons go with the canvas view they are laid over
+  self->selection_area = NULL;
+  self->selection_actions = NULL;
+  self->selection_edit_button = NULL;
   if (self->copy_feedback_timeout_id != 0)
     g_source_remove(self->copy_feedback_timeout_id);
   if (self->save_spinner_timeout_id != 0)
@@ -5458,6 +5466,7 @@ waytator_window_bind_template_children(GtkWidgetClass *widget_class)
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, zoom_osd);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, tool_group);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, pan_tool_button);
+  gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, select_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, crop_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, brush_tool_button);
   gtk_widget_class_bind_template_child(widget_class, WaytatorWindow, highlighter_tool_button);
@@ -6010,6 +6019,7 @@ waytator_window_init(WaytatorWindow *self)
   waytator_window_setup_capture_button(self);
   waytator_window_setup_tool_shortcut_hints(self);
   waytator_window_setup_controllers(self);
+  waytator_window_setup_selection(self);
   waytator_window_setup_signals(self);
   waytator_window_setup_chrome_layout(self);
   g_signal_connect(self->copy_button, "clicked", G_CALLBACK(waytator_window_copy_clicked), self);

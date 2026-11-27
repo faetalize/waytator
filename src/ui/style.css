@@ -126,6 +126,13 @@
   box-shadow: none;
 }
 
+/* a tool is 32 px wide, like the shapes button among them: its icon's 24 px and this either side. the dock has
+   to fit a window 360 px wide, see WAYTATOR_CHROME_TOOL_GAP_TIGHT */
+.tool-group > button.toggle {
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
 .zoom-group button.zoom-fit {
   min-width: 0;
   padding: 0 12px;
