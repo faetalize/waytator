@@ -1889,6 +1889,77 @@ waytator_window_file_name_applied(AdwEntryRow *entry_row,
   waytator_window_save_preferences(row->window);
 }
 
+//the codes a file name is made of, each with what it gives now. any other strftime code works too
+static GtkWidget *
+waytator_window_new_file_name_help(void)
+{
+  static const struct {
+    const char *code;
+    const char *meaning;
+  } codes[] = {
+    { "%Y", "Year" },
+    { "%y", "Year, short" },
+    { "%m", "Month" },
+    { "%b", "Month name" },
+    { "%d", "Day" },
+    { "%H", "Hour" },
+    { "%M", "Minute" },
+    { "%S", "Second" },
+  };
+  g_autoptr(GDateTime) now = g_date_time_new_now_local();
+  GtkWidget *button = gtk_menu_button_new();
+  GtkWidget *popover = gtk_popover_new();
+  GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+  GtkWidget *heading = gtk_label_new("File name codes");
+  GtkWidget *grid = gtk_grid_new();
+  GtkWidget *note = gtk_label_new("Any strftime code works. The extension is added for you, "
+                                  "and slashes and colons become dashes");
+
+  //a label of its own rather than gtk_menu_button_set_label, which adds a dropdown arrow beside it
+  gtk_menu_button_set_child(GTK_MENU_BUTTON(button), gtk_label_new("?"));
+  gtk_widget_set_tooltip_text(button, "File name codes");
+  gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
+  gtk_widget_add_css_class(button, "flat");
+  gtk_widget_add_css_class(button, "circular");
+
+  gtk_widget_set_margin_top(box, 6);
+  gtk_widget_set_margin_bottom(box, 6);
+  gtk_widget_set_margin_start(box, 6);
+  gtk_widget_set_margin_end(box, 6);
+  gtk_widget_add_css_class(heading, "heading");
+  gtk_label_set_xalign(GTK_LABEL(heading), 0);
+  gtk_grid_set_column_spacing(GTK_GRID(grid), 18);
+  gtk_grid_set_row_spacing(GTK_GRID(grid), 6);
+
+  for (guint i = 0; i < G_N_ELEMENTS(codes); i++) {
+    g_autofree char *value = g_date_time_format(now, codes[i].code);
+    GtkWidget *code = gtk_label_new(codes[i].code);
+    GtkWidget *meaning = gtk_label_new(codes[i].meaning);
+    GtkWidget *example = gtk_label_new(value);
+
+    gtk_widget_add_css_class(code, "monospace");
+    gtk_widget_add_css_class(example, "dim-label");
+    gtk_label_set_xalign(GTK_LABEL(code), 0);
+    gtk_label_set_xalign(GTK_LABEL(meaning), 0);
+    gtk_label_set_xalign(GTK_LABEL(example), 0);
+    gtk_grid_attach(GTK_GRID(grid), code, 0, (int) i, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), meaning, 1, (int) i, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), example, 2, (int) i, 1, 1);
+  }
+
+  gtk_label_set_wrap(GTK_LABEL(note), TRUE);
+  gtk_label_set_max_width_chars(GTK_LABEL(note), 30);
+  gtk_label_set_xalign(GTK_LABEL(note), 0);
+  gtk_widget_add_css_class(note, "dim-label");
+
+  gtk_box_append(GTK_BOX(box), heading);
+  gtk_box_append(GTK_BOX(box), grid);
+  gtk_box_append(GTK_BOX(box), note);
+  gtk_popover_set_child(GTK_POPOVER(popover), box);
+  gtk_menu_button_set_popover(GTK_MENU_BUTTON(button), popover);
+  return button;
+}
+
 //the name field and, under it, a preview of the name it gives. the rows go into the group in that order
 static void
 waytator_window_add_file_name_rows(WaytatorWindow      *self,
@@ -1911,6 +1982,7 @@ waytator_window_add_file_name_rows(WaytatorWindow      *self,
 
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(entry_row), "File name");
   adw_entry_row_set_show_apply_button(entry_row, TRUE);
+  adw_entry_row_add_suffix(entry_row, waytator_window_new_file_name_help());
   gtk_editable_set_text(GTK_EDITABLE(entry_row), *setting);
 
   //a label over its value, like the folder and the name above it. a name is plain text, an & or < in it is not markup
@@ -1926,10 +1998,6 @@ waytator_window_add_file_name_rows(WaytatorWindow      *self,
   adw_preferences_group_add(group, GTK_WIDGET(entry_row));
   adw_preferences_group_add(group, GTK_WIDGET(preview_row));
 }
-
-//what the codes in a file name stand for, under the group that has the name
-#define WAYTATOR_WINDOW_FILE_NAME_CODES \
-  "In the file name, %Y is the year, %m the month, %d the day, %H the hour, %M the minute and %S the second"
 
 //where a recording goes, then what shapes it while it runs, then what happens to it once it stops
 static AdwPreferencesPage *
@@ -1958,8 +2026,7 @@ waytator_window_new_recordings_page(WaytatorWindow *self)
 
   adw_preferences_group_set_title(file_group, "Recordings");
   adw_preferences_group_set_description(file_group,
-                                        "These settings apply to recordings made by waytator. "
-                                        WAYTATOR_WINDOW_FILE_NAME_CODES);
+                                        "These settings apply to recordings made by waytator");
   adw_preferences_group_set_title(while_group, "While recording");
   adw_preferences_group_set_title(after_group, "After recording");
 
@@ -1986,7 +2053,7 @@ waytator_window_new_recordings_page(WaytatorWindow *self)
   g_signal_connect(microphone_row, "notify::selected", G_CALLBACK(waytator_window_recording_microphone_changed), self);
 
   adw_preferences_row_set_title(ADW_PREFERENCES_ROW(bar_row), "Show the recording bar");
-  adw_action_row_set_subtitle(ADW_ACTION_ROW(bar_row), "Start and stop with waytator --record when it's off");
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(bar_row), "Tip: use <tt>waytator --record</tt> to stop a recording");
   adw_switch_row_set_active(bar_row, self->settings.recording_show_bar);
   g_signal_connect(bar_row, "notify::active", G_CALLBACK(waytator_window_recording_show_bar_changed), self);
 
@@ -2048,8 +2115,7 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
     gtk_widget_set_sensitive(GTK_WIDGET(brake_row), FALSE);
   } else {
     adw_preferences_group_set_description(group,
-                                          "These settings apply to screenshots taken by waytator. "
-                                          WAYTATOR_WINDOW_FILE_NAME_CODES);
+                                          "These settings apply to screenshots taken by waytator");
   }
   adw_preferences_group_set_title(while_group, "While capturing");
   adw_preferences_group_set_title(after_group, "After capturing");
