@@ -412,6 +412,78 @@ test_turned_stroke_stands_upright(void)
   waytator_stroke_free(stroke);
 }
 
+//a fast stroke has its points far apart, a click on the ink between two of them still lands on it
+static void
+test_hit_between_points(void)
+{
+  const GdkRGBA yellow = {1.0, 0.9, 0.2, 1.0};
+  const GdkRGBA clear = {0.0, 0.0, 0.0, 0.0};
+  const WaytatorTool tools[] = { WAYTATOR_TOOL_BRUSH, WAYTATOR_TOOL_MARKER };
+
+  for (guint i = 0; i < G_N_ELEMENTS(tools); i++) {
+    WaytatorStroke *stroke = waytator_stroke_new(tools[i], 8.0, &yellow, &clear, 0);
+
+    waytator_stroke_add_point(stroke, 0.0, 0.0);
+    waytator_stroke_add_point(stroke, 100.0, 0.0);
+    g_assert_true(waytator_stroke_hit(stroke, 50.0, 0.0, 2.0));
+    g_assert_true(waytator_stroke_hit(stroke, 50.0, 5.0, 2.0));
+    g_assert_false(waytator_stroke_hit(stroke, 50.0, 20.0, 2.0));
+    waytator_stroke_free(stroke);
+  }
+}
+
+//an ellipse is only within reach near its outline, however flat it is
+static void
+test_flat_ellipse_ends_where_drawn(void)
+{
+  const GdkRGBA red = {1.0, 0.0, 0.0, 1.0};
+  const GdkRGBA clear = {0.0, 0.0, 0.0, 0.0};
+  WaytatorStroke *flat = waytator_stroke_new(WAYTATOR_TOOL_CIRCLE, 4.0, &red, &clear, 0);
+  WaytatorStroke *line = waytator_stroke_new(WAYTATOR_TOOL_CIRCLE, 4.0, &red, &clear, 0);
+
+  waytator_stroke_add_point(flat, 0.0, 0.0);
+  waytator_stroke_add_point(flat, 600.0, 20.0);
+  g_assert_false(waytator_stroke_hit(flat, 800.0, 10.0, 10.0));
+  g_assert_false(waytator_stroke_hit(flat, 620.0, 10.0, 5.0));
+  g_assert_true(waytator_stroke_hit(flat, 600.0, 10.0, 5.0));
+  g_assert_true(waytator_stroke_hit(flat, 300.0, 0.0, 5.0));
+  g_assert_true(waytator_stroke_hit(flat, 300.0, 20.0, 5.0));
+  //the middle of a hollow ellipse is not on it
+  g_assert_false(waytator_stroke_hit(flat, 300.0, 10.0, 2.0));
+
+  //dragged flat across, it is a line from 0 to 100
+  waytator_stroke_add_point(line, 0.0, 50.0);
+  waytator_stroke_add_point(line, 100.0, 50.0);
+  g_assert_false(waytator_stroke_hit(line, 5000.0, 50.0, 10.0));
+  g_assert_false(waytator_stroke_hit(line, 130.0, 50.0, 10.0));
+  g_assert_true(waytator_stroke_hit(line, 50.0, 50.0, 2.0));
+
+  waytator_stroke_free(flat);
+  waytator_stroke_free(line);
+}
+
+//the head of an arrow is part of it, a click on a barb picks it
+static void
+test_arrowhead_is_hit(void)
+{
+  const GdkRGBA red = {1.0, 0.0, 0.0, 1.0};
+  const GdkRGBA clear = {0.0, 0.0, 0.0, 0.0};
+  WaytatorStroke *arrow = waytator_stroke_new(WAYTATOR_TOOL_ARROW, 30.0, &red, &clear, 0);
+  //90 long, 30 degrees off the shaft: the barbs end 45 either side of it, 78 back from the tip
+  const double barb_x = 300.0 - 90.0 * cos(G_PI / 6.0);
+
+  waytator_stroke_add_point(arrow, 0.0, 100.0);
+  waytator_stroke_add_point(arrow, 300.0, 100.0);
+  g_assert_true(waytator_stroke_hit(arrow, barb_x, 55.0, 2.0));
+  g_assert_true(waytator_stroke_hit(arrow, barb_x, 145.0, 2.0));
+  g_assert_false(waytator_stroke_hit(arrow, barb_x, 20.0, 2.0));
+  //a line has no head
+  arrow->tool = WAYTATOR_TOOL_LINE;
+  g_assert_false(waytator_stroke_hit(arrow, barb_x, 55.0, 2.0));
+
+  waytator_stroke_free(arrow);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -428,6 +500,9 @@ main(int argc, char **argv)
   g_test_add_func("/stroke/release-leaves-no-stub", test_release_leaves_no_stub);
   g_test_add_func("/stroke/mouse-release-ends-line", test_mouse_release_ends_line);
   g_test_add_func("/stroke/turned-stroke-stands-upright", test_turned_stroke_stands_upright);
+  g_test_add_func("/stroke/hit-between-points", test_hit_between_points);
+  g_test_add_func("/stroke/flat-ellipse-ends-where-drawn", test_flat_ellipse_ends_where_drawn);
+  g_test_add_func("/stroke/arrowhead-is-hit", test_arrowhead_is_hit);
 
   return g_test_run();
 }

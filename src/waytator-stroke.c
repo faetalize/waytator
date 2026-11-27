@@ -543,6 +543,13 @@ waytator_stroke_render_pressure(cairo_t        *cr,
   cairo_fill(cr);
 }
 
+//how far an arrow's barbs reach back from its tip, 30 degrees either side of the shaft
+static double
+waytator_arrowhead_length(WaytatorStroke *stroke)
+{
+  return MAX(12.0, stroke->width * 3.0);
+}
+
 //the stroke as it was drawn, before it is turned
 static void
 waytator_stroke_render_unturned(cairo_t         *cr,
@@ -662,7 +669,7 @@ waytator_stroke_render_unturned(cairo_t         *cr,
       return;
     case WAYTATOR_TOOL_ARROW: {
       const double angle = atan2(end->y - start->y, end->x - start->x);
-      const double arrow_size = MAX(12.0, stroke->width * 3.0);
+      const double arrow_size = waytator_arrowhead_length(stroke);
 
       cairo_move_to(cr, start->x, start->y);
       cairo_line_to(cr, end->x, end->y);
@@ -874,6 +881,85 @@ waytator_distance_to_segment(double px,
   return hypot(px - closest_x, py - closest_y);
 }
 
+static double
+waytator_cross(double ax,
+               double ay,
+               double bx,
+               double by,
+               double cx,
+               double cy)
+{
+  return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+}
+
+//how close two segments come, 0 where they cross
+static double
+waytator_segment_distance(double ax,
+                          double ay,
+                          double bx,
+                          double by,
+                          double cx,
+                          double cy,
+                          double dx,
+                          double dy)
+{
+  const double c_side = waytator_cross(ax, ay, bx, by, cx, cy);
+  const double d_side = waytator_cross(ax, ay, bx, by, dx, dy);
+  const double a_side = waytator_cross(cx, cy, dx, dy, ax, ay);
+  const double b_side = waytator_cross(cx, cy, dx, dy, bx, by);
+
+  if (((c_side > 0.0 && d_side < 0.0) || (c_side < 0.0 && d_side > 0.0))
+      && ((a_side > 0.0 && b_side < 0.0) || (a_side < 0.0 && b_side > 0.0)))
+    return 0.0;
+
+  return MIN(MIN(waytator_distance_to_segment(ax, ay, cx, cy, dx, dy),
+                 waytator_distance_to_segment(bx, by, cx, cy, dx, dy)),
+             MIN(waytator_distance_to_segment(cx, cy, ax, ay, bx, by),
+                 waytator_distance_to_segment(dx, dy, ax, ay, bx, by)));
+}
+
+//whether a segment comes within radius of the ink between two neighbouring points of a freehand line. a pen line
+//changes width along the way, so each place is measured against the width the line has there
+static gboolean
+waytator_ink_segment_reached(WaytatorStroke      *stroke,
+                             const WaytatorPoint *from,
+                             const WaytatorPoint *to,
+                             double               x0,
+                             double               y0,
+                             double               x1,
+                             double               y1,
+                             double               radius)
+{
+  const double from_width = waytator_stroke_point_width(stroke, from);
+  const double to_width = waytator_stroke_point_width(stroke, to);
+  const double dx = to->x - from->x;
+  const double dy = to->y - from->y;
+  const double length_squared = dx * dx + dy * dy;
+  const double ends[2][2] = { { x0, y0 }, { x1, y1 } };
+
+  //crossing the line's middle is on it at any width
+  if (waytator_segment_distance(x0, y0, x1, y1, from->x, from->y, to->x, to->y) == 0.0)
+    return TRUE;
+
+  //each end of the segment against the place on the line nearest it
+  for (int end = 0; end < 2; end++) {
+    const double t = length_squared > 0.0001
+                   ? CLAMP(((ends[end][0] - from->x) * dx + (ends[end][1] - from->y) * dy) / length_squared, 0.0, 1.0)
+                   : 0.0;
+
+    if (hypot(ends[end][0] - (from->x + t * dx), ends[end][1] - (from->y + t * dy))
+        <= radius + (from_width + t * (to_width - from_width)) / 2.0)
+      return TRUE;
+  }
+
+  //and each point of the line against the segment, for a segment that passes by the line's side
+  return waytator_distance_to_segment(from->x, from->y, x0, y0, x1, y1) <= radius + from_width / 2.0
+      || waytator_distance_to_segment(to->x, to->y, x0, y0, x1, y1) <= radius + to_width / 2.0;
+}
+
+//enough sides that a traced ellipse is off the real one by well under a pixel at any size it gets drawn at
+#define WAYTATOR_ELLIPSE_SIDES 96
+
 static gboolean
 waytator_segment_intersects_rect(double x0,
                                  double y0,
@@ -987,36 +1073,46 @@ waytator_stroke_intersects_segment(WaytatorStroke *stroke,
     const double top = MIN(start->y, end->y);
     const double bottom = MAX(start->y, end->y);
 
+    const double reach = radius + stroke->width / 2.0;
+
     switch (stroke->tool) {
+    case WAYTATOR_TOOL_ARROW: {
+      const double angle = atan2(end->y - start->y, end->x - start->x);
+      const double length = waytator_arrowhead_length(stroke);
+
+      for (int side = -1; side <= 1; side += 2) {
+        if (waytator_segment_distance(x0, y0, x1, y1,
+                                      end->x, end->y,
+                                      end->x - length * cos(angle + side * G_PI / 6.0),
+                                      end->y - length * sin(angle + side * G_PI / 6.0))
+            <= reach)
+          return TRUE;
+      }
+    }
+      G_GNUC_FALLTHROUGH;
     case WAYTATOR_TOOL_LINE:
-    case WAYTATOR_TOOL_ARROW:
     case WAYTATOR_TOOL_BLUR:
-      return waytator_distance_to_segment(start->x, start->y, x0, y0, x1, y1) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(end->x, end->y, x0, y0, x1, y1) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, start->x, start->y, end->x, end->y) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, start->x, start->y, end->x, end->y) <= radius + stroke->width / 2.0;
+      return waytator_segment_distance(x0, y0, x1, y1, start->x, start->y, end->x, end->y) <= reach;
     case WAYTATOR_TOOL_RECTANGLE:
-      return waytator_distance_to_segment(x0, y0, left, top, right, top) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, right, top, right, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, right, bottom, left, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x0, y0, left, bottom, left, top) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, left, top, right, top) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, right, top, right, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, right, bottom, left, bottom) <= radius + stroke->width / 2.0
-          || waytator_distance_to_segment(x1, y1, left, bottom, left, top) <= radius + stroke->width / 2.0;
+      return waytator_segment_distance(x0, y0, x1, y1, left, top, right, top) <= reach
+          || waytator_segment_distance(x0, y0, x1, y1, right, top, right, bottom) <= reach
+          || waytator_segment_distance(x0, y0, x1, y1, right, bottom, left, bottom) <= reach
+          || waytator_segment_distance(x0, y0, x1, y1, left, bottom, left, top) <= reach;
     case WAYTATOR_TOOL_CIRCLE: {
-      const double center_x = (start->x + end->x) / 2.0;
-      const double center_y = (start->y + end->y) / 2.0;
-      const double radius_x = MAX(fabs(end->x - start->x) / 2.0, 0.0001);
-      const double radius_y = MAX(fabs(end->y - start->y) / 2.0, 0.0001);
-      const WaytatorPoint candidates[] = { { x0, y0, 1.0 }, { x1, y1, 1.0 } };
+      const double center_x = (left + right) / 2.0;
+      const double center_y = (top + bottom) / 2.0;
+      const double radius_x = (right - left) / 2.0;
+      const double radius_y = (bottom - top) / 2.0;
 
-      for (guint j = 0; j < G_N_ELEMENTS(candidates); j++) {
-        const double dx = (candidates[j].x - center_x) / radius_x;
-        const double dy = (candidates[j].y - center_y) / radius_y;
-        const double distance = fabs(hypot(dx, dy) - 1.0) * MIN(radius_x, radius_y);
+      //traced round its outline, so a flat one is as long as it is drawn and no longer
+      for (int side = 0; side < WAYTATOR_ELLIPSE_SIDES; side++) {
+        const double from = 2.0 * G_PI * side / WAYTATOR_ELLIPSE_SIDES;
+        const double to = 2.0 * G_PI * (side + 1) / WAYTATOR_ELLIPSE_SIDES;
 
-        if (distance <= radius + stroke->width / 2.0)
+        if (waytator_segment_distance(x0, y0, x1, y1,
+                                      center_x + radius_x * cos(from), center_y + radius_y * sin(from),
+                                      center_x + radius_x * cos(to), center_y + radius_y * sin(to))
+            <= reach)
           return TRUE;
       }
 
@@ -1030,11 +1126,12 @@ waytator_stroke_intersects_segment(WaytatorStroke *stroke,
   if (stroke->points->len == 0)
     return FALSE;
 
+  //the ink runs between the points, a fast stroke leaves them far apart
   for (i = 0; i < stroke->points->len; i++) {
     const WaytatorPoint *point = &g_array_index(stroke->points, WaytatorPoint, i);
+    const WaytatorPoint *previous = &g_array_index(stroke->points, WaytatorPoint, i > 0 ? i - 1 : 0);
 
-    if (waytator_distance_to_segment(point->x, point->y, x0, y0, x1, y1)
-        <= radius + waytator_stroke_point_width(stroke, point) / 2.0)
+    if (waytator_ink_segment_reached(stroke, previous, point, x0, y0, x1, y1, radius))
       return TRUE;
   }
 
