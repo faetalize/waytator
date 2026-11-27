@@ -976,7 +976,6 @@ test_no_picture(void)
   rig_free(rig);
 }
 
-//a name that is taken, finished or not, is skipped with a counter
 //the name from the preferences is used, the folder it would make out of a slash is not
 static void
 test_file_name(void)
@@ -1007,6 +1006,7 @@ test_file_name(void)
   rig_free(rig);
 }
 
+//a name that is taken, finished or not, is skipped with a counter
 static void
 test_name_collision(void)
 {

@@ -13,5 +13,11 @@ char *waytator_file_name_format(const char *template,
 char *waytator_file_name_make(const char *template,
                               const char *fallback,
                               GDateTime  *time);
+char *waytator_file_name_preview(const char *text,
+                                 const char *saved,
+                                 const char *fallback,
+                                 const char *extension,
+                                 GDateTime  *time,
+                                 gboolean   *usable);
 
 G_END_DECLS

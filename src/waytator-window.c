@@ -1835,23 +1835,20 @@ waytator_window_update_file_name_preview(AdwEntryRow *entry_row)
 {
   WaytatorFileNameRow *row = g_object_get_data(G_OBJECT(entry_row), "file-name-row");
   g_autoptr(GDateTime) now = g_date_time_new_now_local();
-  g_autofree char *stem = waytator_file_name_format(gtk_editable_get_text(GTK_EDITABLE(entry_row)), now);
-  g_autofree char *preview = NULL;
-
-  if (stem != NULL) {
-    preview = g_strdup_printf("%s.%s", stem, row->extension);
-  } else {
-    g_autofree char *fallback = waytator_file_name_format(row->fallback, now);
-
-    preview = g_strdup_printf("No name comes out of this, the default gives %s.%s", fallback, row->extension);
-  }
+  gboolean usable = FALSE;
+  g_autofree char *preview = waytator_file_name_preview(gtk_editable_get_text(GTK_EDITABLE(entry_row)),
+                                                        *row->setting,
+                                                        row->fallback,
+                                                        row->extension,
+                                                        now,
+                                                        &usable);
 
   adw_action_row_set_subtitle(row->preview_row, preview);
-  if (stem != NULL)
+  if (usable)
     gtk_widget_remove_css_class(GTK_WIDGET(entry_row), "error");
   else
     gtk_widget_add_css_class(GTK_WIDGET(entry_row), "error");
-  return stem != NULL;
+  return usable;
 }
 
 static void
@@ -1869,12 +1866,16 @@ waytator_window_file_name_applied(AdwEntryRow *entry_row,
                                   gpointer     user_data)
 {
   WaytatorFileNameRow *row = g_object_get_data(G_OBJECT(entry_row), "file-name-row");
-  g_autofree char *text = g_strdup(gtk_editable_get_text(GTK_EDITABLE(entry_row)));
+  const char *text = gtk_editable_get_text(GTK_EDITABLE(entry_row));
+  g_autofree char *stripped = g_strstrip(g_strdup(text));
 
   (void) user_data;
 
-  if (*g_strstrip(text) == '\0') {
+  if (*stripped == '\0') {
+    //text set while the apply button is on would bring it back for a name that is already saved
+    adw_entry_row_set_show_apply_button(entry_row, FALSE);
     gtk_editable_set_text(GTK_EDITABLE(entry_row), row->fallback);
+    adw_entry_row_set_show_apply_button(entry_row, TRUE);
     g_free(*row->setting);
     *row->setting = g_strdup(row->fallback);
     waytator_window_save_preferences(row->window);
@@ -1884,8 +1885,9 @@ waytator_window_file_name_applied(AdwEntryRow *entry_row,
   if (!waytator_window_update_file_name_preview(entry_row))
     return;
 
+  //as typed, like the field shows it
   g_free(*row->setting);
-  *row->setting = g_steal_pointer(&text);
+  *row->setting = g_strdup(text);
   waytator_window_save_preferences(row->window);
 }
 
@@ -1913,7 +1915,7 @@ waytator_window_new_file_name_help(void)
   GtkWidget *heading = gtk_label_new("File name codes");
   GtkWidget *grid = gtk_grid_new();
   GtkWidget *note = gtk_label_new("Any strftime code works. The extension is added for you, "
-                                  "and slashes and colons become dashes");
+                                  "and characters some drives refuse, like / and :, become dashes");
 
   gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(button), "help-about-symbolic");
   gtk_widget_set_tooltip_text(button, "File name codes");

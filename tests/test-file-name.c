@@ -48,6 +48,16 @@ test_slashes_and_colons(void)
   g_assert_null(strchr(locale, ':'));
 }
 
+//the rest of what FAT, exFAT and Windows shares refuse in a name, for the same reason as the colon
+static void
+test_characters_other_drives_refuse(void)
+{
+  g_autoptr(GDateTime) time = test_time();
+  g_autofree char *name = waytator_file_name_format("a\\b*c?d\"e<f>g|h", time);
+
+  g_assert_cmpstr(name, ==, "a-b-c-d-e-f-g-h");
+}
+
 static void
 test_control_characters(void)
 {
@@ -80,6 +90,36 @@ test_fallback(void)
 
   g_assert_cmpstr(broken, ==, "Screenshot from 2026-11-27 14-05-09");
   g_assert_cmpstr(kept, ==, "2026");
+}
+
+//a name that gives none is not saved, so the preview says the saved one stays, not that the default is used
+static void
+test_preview(void)
+{
+  g_autoptr(GDateTime) time = test_time();
+  gboolean usable = FALSE;
+  g_autofree char *good = waytator_file_name_preview("%y%m%d", "%Y", WAYTATOR_SCREENSHOT_NAME_DEFAULT, "png", time, &usable);
+  g_autofree char *broken = NULL;
+
+  g_assert_true(usable);
+  g_assert_cmpstr(good, ==, "261127.png");
+
+  broken = waytator_file_name_preview("%Q", "%Y", WAYTATOR_SCREENSHOT_NAME_DEFAULT, "png", time, &usable);
+  g_assert_false(usable);
+  g_assert_cmpstr(broken, ==, "No name comes out of this, files keep the name 2026.png");
+}
+
+//an emptied field goes back to the default when applied, and the preview says so
+static void
+test_preview_empty(void)
+{
+  g_autoptr(GDateTime) time = test_time();
+  gboolean usable = FALSE;
+  g_autofree char *empty = waytator_file_name_preview("  ", "%Y", WAYTATOR_SCREENSHOT_NAME_DEFAULT, "png", time, &usable);
+
+  //applying it is fine, it isn't marked as a mistake
+  g_assert_true(usable);
+  g_assert_cmpstr(empty, ==, "Left empty, files get the default name Screenshot from 2026-11-27 14-05-09.png");
 }
 
 static void
@@ -117,9 +157,12 @@ main(int    argc,
   g_test_add_func("/file-name/defaults", test_defaults);
   g_test_add_func("/file-name/codes", test_codes);
   g_test_add_func("/file-name/slashes-and-colons", test_slashes_and_colons);
+  g_test_add_func("/file-name/other-drives", test_characters_other_drives_refuse);
   g_test_add_func("/file-name/control-characters", test_control_characters);
   g_test_add_func("/file-name/unusable", test_unusable);
   g_test_add_func("/file-name/fallback", test_fallback);
+  g_test_add_func("/file-name/preview", test_preview);
+  g_test_add_func("/file-name/preview-empty", test_preview_empty);
   g_test_add_func("/file-name/space-around", test_space_around);
   g_test_add_func("/file-name/long", test_long);
   return g_test_run();

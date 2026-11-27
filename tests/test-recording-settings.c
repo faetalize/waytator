@@ -83,6 +83,36 @@ test_empty_file_name_keeps_default(void)
   waytator_settings_clear(&settings);
 }
 
+//a default name is not written down, so a user who never chose one gets the default of whichever version runs
+static void
+test_default_file_name_not_written(void)
+{
+  WaytatorSettings settings;
+  g_autoptr(GKeyFile) key_file = g_key_file_new();
+
+  waytator_settings_init(&settings);
+  waytator_settings_write(&settings, key_file);
+  g_assert_false(g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "screenshot_file_name", NULL));
+  g_assert_false(g_key_file_has_key(key_file, WAYTATOR_SETTINGS_GROUP, "recording_file_name", NULL));
+
+  waytator_settings_clear(&settings);
+}
+
+//the name is kept as it was typed, space around it and all, the same as the field shows it
+static void
+test_file_name_kept_as_typed(void)
+{
+  WaytatorSettings settings;
+  g_autoptr(GKeyFile) key_file = g_key_file_new();
+
+  waytator_settings_init(&settings);
+  g_key_file_set_string(key_file, WAYTATOR_SETTINGS_GROUP, "screenshot_file_name", "  %Y  ");
+  waytator_settings_read(&settings, key_file);
+  g_assert_cmpstr(settings.screenshot_file_name, ==, "  %Y  ");
+
+  waytator_settings_clear(&settings);
+}
+
 static void
 test_other_rates_are_ignored(void)
 {
@@ -118,6 +148,8 @@ main(int    argc,
   g_test_add_func("/recording-settings/round-trip", test_round_trip);
   g_test_add_func("/recording-settings/empty-folder", test_empty_folder_keeps_default);
   g_test_add_func("/recording-settings/empty-file-name", test_empty_file_name_keeps_default);
+  g_test_add_func("/recording-settings/default-file-name", test_default_file_name_not_written);
+  g_test_add_func("/recording-settings/file-name-as-typed", test_file_name_kept_as_typed);
   g_test_add_func("/recording-settings/other-rates", test_other_rates_are_ignored);
   return g_test_run();
 }

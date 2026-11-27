@@ -76,8 +76,10 @@ waytator_settings_read_file_name(char      **file_name,
                                  const char *key)
 {
   g_autofree char *value = g_key_file_get_string(key_file, WAYTATOR_SETTINGS_GROUP, key, NULL);
+  g_autofree char *stripped = g_strstrip(g_strdup(value != NULL ? value : ""));
 
-  if (value == NULL || *g_strstrip(value) == '\0')
+  //kept as typed, the space around it is dropped only when a name is made
+  if (*stripped == '\0')
     return;
 
   g_free(*file_name);
@@ -235,6 +237,19 @@ waytator_settings_read(WaytatorSettings *settings,
   }
 }
 
+//the default is left out, so someone who never chose a name follows the default of whichever version runs
+static void
+waytator_settings_write_file_name(GKeyFile   *key_file,
+                                  const char *key,
+                                  const char *file_name,
+                                  const char *fallback)
+{
+  if (g_strcmp0(file_name, fallback) == 0)
+    g_key_file_remove_key(key_file, WAYTATOR_SETTINGS_GROUP, key, NULL);
+  else
+    g_key_file_set_string(key_file, WAYTATOR_SETTINGS_GROUP, key, file_name);
+}
+
 void
 waytator_settings_write(const WaytatorSettings *settings,
                         GKeyFile               *key_file)
@@ -247,10 +262,10 @@ waytator_settings_write(const WaytatorSettings *settings,
                          WAYTATOR_SETTINGS_GROUP,
                          "screenshot_copy",
                          settings->screenshot_copy);
-  g_key_file_set_string(key_file,
-                        WAYTATOR_SETTINGS_GROUP,
-                        "screenshot_file_name",
-                        settings->screenshot_file_name);
+  waytator_settings_write_file_name(key_file,
+                                    "screenshot_file_name",
+                                    settings->screenshot_file_name,
+                                    WAYTATOR_SCREENSHOT_NAME_DEFAULT);
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "screenshot_open_editor",
@@ -279,10 +294,10 @@ waytator_settings_write(const WaytatorSettings *settings,
                          WAYTATOR_SETTINGS_GROUP,
                          "recording_copy",
                          settings->recording_copy);
-  g_key_file_set_string(key_file,
-                        WAYTATOR_SETTINGS_GROUP,
-                        "recording_file_name",
-                        settings->recording_file_name);
+  waytator_settings_write_file_name(key_file,
+                                    "recording_file_name",
+                                    settings->recording_file_name,
+                                    WAYTATOR_RECORDING_NAME_DEFAULT);
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "recording_open_editor",

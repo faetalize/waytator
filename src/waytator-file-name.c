@@ -6,8 +6,9 @@
 #define WAYTATOR_FILE_NAME_MAX_STEM 200
 
 //the name a template gives at a time, without its extension, or NULL when the template has a code strftime doesn't
-//know or comes out empty. a slash would make folders and a colon is refused by FAT and exFAT drives and Windows
-//shares, and both turn up in locale codes like %x and %X, so they become dashes like control characters do
+//know or comes out empty. a slash would make folders, and FAT and exFAT drives and Windows shares refuse \ : * ? " < >
+//and |, with the slash and colon turning up in locale codes like %x and %X. they all become dashes, like control
+//characters do
 char *
 waytator_file_name_format(const char *template,
                           GDateTime  *time)
@@ -24,7 +25,7 @@ waytator_file_name_format(const char *template,
     return NULL;
 
   for (char *c = formatted; *c != '\0'; c++) {
-    if (*c == '/' || *c == ':' || (guchar) *c < 0x20 || *c == 0x7f)
+    if (strchr("/\\:*?\"<>|", *c) != NULL || (guchar) *c < 0x20 || *c == 0x7f)
       *c = '-';
   }
 
@@ -56,4 +57,32 @@ waytator_file_name_make(const char *template,
   char *name = waytator_file_name_format(template, time);
 
   return name != NULL ? name : waytator_file_name_format(fallback, time);
+}
+
+//what the preferences show under the name being typed: the file it gives, the default an emptied field goes back to,
+//or when it gives none, the name files keep, since a name that gives none is never saved. usable is whether the
+//field can be applied
+char *
+waytator_file_name_preview(const char *text,
+                           const char *saved,
+                           const char *fallback,
+                           const char *extension,
+                           GDateTime  *time,
+                           gboolean   *usable)
+{
+  g_autofree char *stem = waytator_file_name_format(text, time);
+  g_autofree char *stripped = g_strstrip(g_strdup(text != NULL ? text : ""));
+  g_autofree char *instead = NULL;
+
+  *usable = stem != NULL || *stripped == '\0';
+  if (stem != NULL)
+    return g_strdup_printf("%s.%s", stem, extension);
+
+  if (*stripped == '\0') {
+    instead = waytator_file_name_format(fallback, time);
+    return g_strdup_printf("Left empty, files get the default name %s.%s", instead, extension);
+  }
+
+  instead = waytator_file_name_make(saved, fallback, time);
+  return g_strdup_printf("No name comes out of this, files keep the name %s.%s", instead, extension);
 }

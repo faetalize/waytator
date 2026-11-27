@@ -456,7 +456,7 @@ waytator_recorder_pick_paths(const char *folder,
     return TRUE;
   }
 
-  g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_EXISTS, "Too many recordings were made at the same time");
+  g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_EXISTS, "Too many recordings share this name");
   return FALSE;
 }
 
