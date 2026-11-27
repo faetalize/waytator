@@ -160,6 +160,8 @@ While you pick what to screenshot, the bar on screen switches between area and s
 
 Screenshots are saved to your Screenshots folder and copied to the clipboard. Both can be changed in Preferences.
 
+Files are named like `Screenshot from 2026-11-27 14-05-09.png`. Preferences → Screenshots and Preferences → Recordings take your own name with strftime codes, such as `%y%m%d-%H%M%S`, and show an example as you type.
+
 To prevent the editor from spawning after every screenshot, turn off Open in the editor in Preferences → Screenshots. `--notify` still lets you choose each time.
 
 A few more options:

@@ -976,6 +976,36 @@ test_no_picture(void)
   rig_free(rig);
 }
 
+//the name from the preferences is used, the folder it would make out of a slash is not
+static void
+test_file_name(void)
+{
+  TestProducerConfig config = { .format = &test_formats[0], .rate = RATE, .width = WIDTH, .height = HEIGHT };
+  Rig *rig = rig_new(&config);
+  WaytatorRecorderOptions options = screen_options(rig);
+  WaytatorRecorder *recorder = NULL;
+  g_autoptr(GError) error = NULL;
+  g_autoptr(GFile) file = NULL;
+  g_autoptr(GPtrArray) names = NULL;
+
+  options.file_name = "clips/%y%m%d %H%M%S";
+  recorder = rig_open(rig, &options);
+  begin(recorder);
+  run_for(1000);
+  file = stop(recorder, &error);
+  g_assert_no_error(error);
+  g_assert_nonnull(file);
+
+  names = folder_names(rig->folder);
+  g_assert_nonnull(names);
+  g_assert_cmpuint(names->len, ==, 1);
+  g_test_message("%s", (const char *) g_ptr_array_index(names, 0));
+  g_assert_true(g_regex_match_simple("^clips-[0-9]{6} [0-9]{6}\\.mp4$", g_ptr_array_index(names, 0), 0, 0));
+
+  waytator_recorder_free(recorder);
+  rig_free(rig);
+}
+
 //a name that is taken, finished or not, is skipped with a counter
 static void
 test_name_collision(void)
@@ -1112,6 +1142,7 @@ main(int    argc,
     g_test_add_func("/record-recorder/cancel-open", test_cancel_open);
     g_test_add_func("/record-recorder/cancel-waiting", test_cancel_waiting);
     g_test_add_func("/record-recorder/no-picture", test_no_picture);
+    g_test_add_func("/record-recorder/file-name", test_file_name);
     g_test_add_func("/record-recorder/name-collision", test_name_collision);
     g_test_add_func("/record-recorder/silent-sound", test_silent_sound);
   }

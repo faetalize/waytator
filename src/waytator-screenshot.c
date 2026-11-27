@@ -5,6 +5,7 @@
 #include "waytator-export.h"
 #include "waytator-instance.h"
 #include "waytator-notification.h"
+#include "waytator-file-name.h"
 #include "waytator-settings.h"
 #include "waytator-window.h"
 
@@ -81,12 +82,14 @@ waytator_screenshot_display_path(const char *path)
   return g_strdup(path);
 }
 
+//the name the preferences give a screenshot taken now
 char *
-waytator_screenshot_make_name(void)
+waytator_screenshot_make_name(const WaytatorSettings *settings)
 {
   g_autoptr(GDateTime) now = g_date_time_new_now_local();
+  g_autofree char *stem = waytator_file_name_make(settings->screenshot_file_name, WAYTATOR_SCREENSHOT_NAME_DEFAULT, now);
 
-  return g_date_time_format(now, "Screenshot from %Y-%m-%d %H-%M-%S.png");
+  return g_strdup_printf("%s.png", stem);
 }
 
 //on disk, all that is left is its notification, which a newer version can take over from
@@ -582,7 +585,7 @@ waytator_screenshot_captured(WaytatorScreenshot *shot,
   waytator_screenshot_set_capturing(shot, FALSE);
   waytator_window_restore_all(shot->hidden);
   shot->texture = g_object_ref(texture);
-  shot->name = waytator_screenshot_make_name();
+  shot->name = waytator_screenshot_make_name(&shot->settings);
 
   //neither saved nor copied, the editor is the only place it would end up without a notification
   if (*shot->settings.screenshot_save_dir == '\0' && !shot->settings.screenshot_copy) {
