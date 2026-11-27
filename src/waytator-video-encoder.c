@@ -1,8 +1,11 @@
 #include "waytator-video-encoder.h"
 
 #include <libavutil/hwcontext.h>
+#include <libavutil/hwcontext_vaapi.h>
 #include <libavutil/opt.h>
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 AVBufferRef *
 waytator_video_encoder_open_device(void)
@@ -47,6 +50,47 @@ waytator_video_encoder_new_frames(AVBufferRef       *device,
     av_buffer_unref(&frames);
 
   return frames;
+}
+
+gboolean
+waytator_video_encoder_vendor_hangs_on_b_frames(const char *vendor)
+{
+  static const char mesa[] = "Mesa Gallium driver ";
+  unsigned int major;
+  unsigned int minor;
+  unsigned int micro;
+  int end;
+  gboolean prerelease;
+
+  if (vendor == NULL)
+    return TRUE;
+  if (!g_str_has_prefix(vendor, mesa))
+    return FALSE;
+  if (sscanf(vendor + strlen(mesa), "%u.%u.%u%n", &major, &minor, &micro, &end) != 3)
+    return TRUE;
+
+  //26.3.0-rc3 and the ones before it were cut before the fix, and 27.0.0-devel is main, which has it.
+  //any other suffix is a distribution's own build of that release, like 26.3.1-arch1.3
+  prerelease = g_str_has_prefix(vendor + strlen(mesa) + end, "-rc")
+               || g_str_has_prefix(vendor + strlen(mesa) + end, "-devel");
+  if (major != 26)
+    return major < 26;
+  if (minor == 3)
+    return prerelease;
+  if (minor == 2)
+    return micro < 7;
+  return minor < 2;
+}
+
+gboolean
+waytator_video_encoder_device_hangs_on_b_frames(AVBufferRef *device)
+{
+  AVVAAPIDeviceContext *vaapi;
+
+  if (device == NULL)
+    return TRUE;
+  vaapi = ((AVHWDeviceContext *) device->data)->hwctx;
+  return waytator_video_encoder_vendor_hangs_on_b_frames(vaQueryVendorString(vaapi->display));
 }
 
 //each encoder has its own scale for how good, this takes a profile's 0 to 100 to it

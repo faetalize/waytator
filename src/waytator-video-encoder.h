@@ -55,6 +55,14 @@ void waytator_video_encoder_configure(AVCodecContext          *encoder,
                                       double                   keyframe_seconds,
                                       WaytatorVideoEncodeSpeed speed);
 
+//whether a va-api driver that names itself vendor hangs for good in vaRenderPicture on B-frames from
+//h264_vaapi. Mesa before 26.2.7, and the 26.3.0 release candidates, misread some of its headers and B-frames
+//make that far more likely, see https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16715. TRUE for a
+//vendor it cannot read, since a wrong FALSE costs a hang and a wrong TRUE only a slightly bigger file
+gboolean waytator_video_encoder_vendor_hangs_on_b_frames(const char *vendor);
+//the same for the driver behind device, TRUE when there is none
+gboolean waytator_video_encoder_device_hangs_on_b_frames(AVBufferRef *device);
+
 //sets error to what failed and ffmpeg's reason for code, and returns FALSE
 gboolean waytator_video_encoder_fail(GError    **error,
                                      int         code,
