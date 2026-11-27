@@ -403,6 +403,8 @@ waytator_window_select_begin(GtkGestureDrag *gesture,
   self->select_handle = handle;
   self->select_start_x = x;
   self->select_start_y = y;
+  self->select_press_x = start_x;
+  self->select_press_y = start_y;
   self->select_moved = FALSE;
   self->select_original = waytator_stroke_copy(stroke);
   gtk_widget_set_cursor_from_name(GTK_WIDGET(self->canvas_view),
@@ -418,9 +420,10 @@ waytator_window_select_update(GtkGestureDrag *gesture,
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
   WaytatorStroke *stroke = waytator_window_selected_stroke(self);
-  const double scale = waytator_window_select_scale(self);
+  double x;
+  double y;
 
-  if (self->select_original == NULL || stroke == NULL || scale <= 0.0)
+  if (self->select_original == NULL || stroke == NULL)
     return;
 
   if (!self->select_moved) {
@@ -431,14 +434,18 @@ waytator_window_select_update(GtkGestureDrag *gesture,
     self->select_moved = TRUE;
   }
 
-  //the image stays put under a drag, so how far the pointer went on screen is how far it went across the image
+  //where the pointer is on the image now. the wheel can zoom or move the image under a drag that is still held,
+  //so it is measured afresh rather than worked out from how far the pointer went
+  if (!waytator_window_viewport_to_image(self, self->select_press_x + offset_x, self->select_press_y + offset_y, &x, &y))
+    return;
+
   waytator_select_drag(stroke,
                        self->select_original,
                        self->select_handle,
                        self->select_start_x,
                        self->select_start_y,
-                       self->select_start_x + offset_x / scale,
-                       self->select_start_y + offset_y / scale,
+                       x,
+                       y,
                        waytator_window_snap_modifier_active(gesture, self));
   waytator_window_update_selection(self);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));

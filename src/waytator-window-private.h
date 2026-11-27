@@ -192,11 +192,13 @@ struct _WaytatorWindow {
   //what the select tool has picked. it lives in the document's list, so it is dropped whenever that is swapped
   WaytatorStroke *selected_stroke;
   //while a drag has hold of the selected stroke: the stroke as it was when the drag began, what the drag took
-  //hold of and where on the image it began
+  //hold of, where on the image it began and where in the viewport
   WaytatorStroke *select_original;
   WaytatorHandle select_handle;
   double select_start_x;
   double select_start_y;
+  double select_press_x;
+  double select_press_y;
   gboolean select_moved;
   //the last click that picked a stroke without moving it, for telling a double click on a text
   WaytatorStroke *select_click_stroke;
