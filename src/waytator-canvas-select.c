@@ -1,6 +1,7 @@
 #include "waytator-window-private.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "waytator-select.h"
 #include "waytator-stroke.h"
@@ -451,6 +452,17 @@ waytator_window_select_update(GtkGestureDrag *gesture,
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
 
+//a drag only ever moves the points, turns the stroke or resizes a text
+static gboolean
+waytator_window_select_unchanged(WaytatorStroke *stroke,
+                                 WaytatorStroke *original)
+{
+  return stroke->rotation == original->rotation
+      && stroke->width == original->width
+      && stroke->points->len == original->points->len
+      && memcmp(stroke->points->data, original->points->data, stroke->points->len * sizeof(WaytatorPoint)) == 0;
+}
+
 static void
 waytator_window_select_end(GtkGestureDrag *gesture,
                            double          offset_x,
@@ -469,6 +481,14 @@ waytator_window_select_end(GtkGestureDrag *gesture,
     return;
 
   waytator_window_select_update(gesture, offset_x, offset_y, user_data);
+
+  //dragged away and back to where it was, which leaves nothing to undo
+  if (self->select_moved && stroke != NULL && waytator_window_select_unchanged(stroke, self->select_original)) {
+    waytator_window_cancel_selection_drag(self);
+    self->drawing = FALSE;
+    return;
+  }
+
   moved = self->select_moved;
   g_clear_pointer(&self->select_original, waytator_stroke_free);
   self->select_handle = WAYTATOR_HANDLE_NONE;
