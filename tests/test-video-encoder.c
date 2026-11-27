@@ -17,6 +17,12 @@ test_b_frames(void)
     { "Mesa Gallium driver 26.1.4 for AMD Radeon 780M (radeonsi, phoenix)", TRUE },
     { "Mesa Gallium driver 26.2.6 for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
     { "Mesa Gallium driver 26.3.0-rc3 for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
+    //release candidates and snapshots the way packagers write them, and a stable branch build from before 26.2.7
+    { "Mesa Gallium driver 26.3.0~rc3-0ubuntu1 for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
+    { "Mesa Gallium driver 26.3.0~git2510301200.1c3e49a-1 for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
+    { "Mesa Gallium driver 26.3.0rc3 for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
+    { "Mesa Gallium driver 26.3.0_rc3 for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
+    { "Mesa Gallium driver 26.2.7-devel (git-abc1234) for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
     //the Mesa releases with it, and builds of main after them
     { "Mesa Gallium driver 26.2.7 for AMD Radeon RX 7800 XT (radeonsi, navi32)", FALSE },
     { "Mesa Gallium driver 26.2.10 for AMD Radeon RX 7800 XT (radeonsi, navi32)", FALSE },
@@ -26,6 +32,7 @@ test_b_frames(void)
     { "Mesa Gallium driver 26.3.1-arch1.3 for AMD Radeon RX 6700 XT (radeonsi, navi22, ACO, DRM 3.64, 7.3.4-arch1-2)", FALSE },
     { "Mesa Gallium driver 26.3.0-1ubuntu1 for AMD Radeon RX 7800 XT (radeonsi, navi32)", FALSE },
     { "Mesa Gallium driver 26.2.6-arch1.1 for AMD Radeon RX 7800 XT (radeonsi, navi32)", TRUE },
+    { "Mesa Gallium driver 26.3.1-devel for AMD Radeon RX 7800 XT (radeonsi, navi32)", FALSE },
     { "Mesa Gallium driver 27.0.0-devel for AMD Radeon RX 7800 XT (radeonsi, navi32)", FALSE },
     { "Mesa Gallium driver 30.1.2 for AMD Radeon RX 7800 XT (radeonsi, navi32)", FALSE },
     //drivers that aren't Mesa never had the bug

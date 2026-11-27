@@ -52,6 +52,20 @@ waytator_video_encoder_new_frames(AVBufferRef       *device,
   return frames;
 }
 
+//whether what follows a Mesa version marks a build from before that release: a release candidate like
+//-rc3, rc3 or _rc3, Debian and Ubuntu's ~rc3 or ~git snapshot, or a -devel build of a branch. any other
+//suffix is a distribution's own build of the release itself, like -arch1.3, so "rc" counts only right
+//after the separator and before a digit
+static gboolean
+waytator_video_encoder_mesa_prerelease(const char *suffix)
+{
+  if (*suffix == '~')
+    return TRUE;
+  if (*suffix == '-' || *suffix == '_' || *suffix == '.')
+    suffix++;
+  return (g_str_has_prefix(suffix, "rc") && g_ascii_isdigit(suffix[2])) || g_str_has_prefix(suffix, "devel");
+}
+
 gboolean
 waytator_video_encoder_vendor_hangs_on_b_frames(const char *vendor)
 {
@@ -69,16 +83,15 @@ waytator_video_encoder_vendor_hangs_on_b_frames(const char *vendor)
   if (sscanf(vendor + strlen(mesa), "%u.%u.%u%n", &major, &minor, &micro, &end) != 3)
     return TRUE;
 
-  //26.3.0-rc3 and the ones before it were cut before the fix, and 27.0.0-devel is main, which has it.
-  //any other suffix is a distribution's own build of that release, like 26.3.1-arch1.3
-  prerelease = g_str_has_prefix(vendor + strlen(mesa) + end, "-rc")
-               || g_str_has_prefix(vendor + strlen(mesa) + end, "-devel");
+  prerelease = waytator_video_encoder_mesa_prerelease(vendor + strlen(mesa) + end);
+  //a prerelease comes before its release, so 26.2.7-devel and 26.3.0~rc3 still lack the fix. 27.0.0-devel is
+  //main, which has it
   if (major != 26)
     return major < 26;
-  if (minor == 3)
-    return prerelease;
   if (minor == 2)
-    return micro < 7;
+    return micro < 7 || (micro == 7 && prerelease);
+  if (minor == 3)
+    return micro == 0 && prerelease;
   return minor < 2;
 }
 
