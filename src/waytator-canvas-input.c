@@ -1,6 +1,7 @@
 #include "waytator-window-private.h"
 
 #include "waytator-stroke.h"
+#include "waytator-tablet-button.h"
 #include "waytator-transform.h"
 
 #include <math.h>
@@ -588,6 +589,49 @@ waytator_window_global_key_pressed(GtkEventControllerKey *controller,
       continue;
 
     //the toolbar ones are mostly bare letters, keep them out of preferences and friends
+    if (i >= WAYTATOR_SHORTCUT_TOOL_FIRST
+        && focus != NULL
+        && gtk_widget_get_ancestor(focus, ADW_TYPE_DIALOG) != NULL)
+      return FALSE;
+
+    waytator_window_activate_shortcut(self, i);
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+//tablet pad buttons reach the window itself, whatever has focus, and fire their shortcut the way a key does
+static gboolean
+waytator_window_pad_event(GtkEventControllerLegacy *controller,
+                          GdkEvent                 *event,
+                          gpointer                  user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  g_autofree char *accelerator = NULL;
+  GtkWidget *focus;
+  guint button;
+
+  (void) controller;
+
+  if (gdk_event_get_event_type(event) != GDK_PAD_BUTTON_PRESS)
+    return FALSE;
+
+  button = gdk_pad_event_get_button(event);
+  if (waytator_window_capture_tablet_button(self, button))
+    return TRUE;
+
+  accelerator = waytator_tablet_button_shortcut(button);
+  focus = gtk_root_get_focus(GTK_ROOT(self));
+  for (int i = 0; i < WAYTATOR_N_SHORTCUTS; i++) {
+    if (!waytator_window_shortcut_is_active(self, i)
+        || g_strcmp0(waytator_window_shortcut_accel(self, i), accelerator) != 0)
+      continue;
+
+    if (i >= WAYTATOR_SHORTCUT_TOOL_FIRST && waytator_window_is_video(self))
+      continue;
+
+    //same as the keys, the toolbar ones stay out of preferences and friends
     if (i >= WAYTATOR_SHORTCUT_TOOL_FIRST
         && focus != NULL
         && gtk_widget_get_ancestor(focus, ADW_TYPE_DIALOG) != NULL)
@@ -1518,6 +1562,7 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   GtkGesture *right_click;
   GtkEventController *legacy;
   GtkEventController *pen_eraser;
+  GtkEventController *pad;
   GtkEventController *motion;
   GtkEventController *canvas_motion;
 
@@ -1596,6 +1641,10 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   scroll = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
   g_signal_connect(scroll, "scroll", G_CALLBACK(waytator_window_scroll_zoom), self);
   gtk_widget_add_controller(GTK_WIDGET(self->canvas_view), scroll);
+
+  pad = gtk_event_controller_legacy_new();
+  g_signal_connect(pad, "event", G_CALLBACK(waytator_window_pad_event), self);
+  gtk_widget_add_controller(GTK_WIDGET(self), pad);
 
   keys = gtk_event_controller_key_new();
   g_signal_connect(keys, "key-pressed", G_CALLBACK(waytator_window_global_key_pressed), self);

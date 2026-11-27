@@ -40,6 +40,8 @@ waytator_sources = files(
   'waytator-last-tool.h',
   'waytator-save.c',
   'waytator-save.h',
+  'waytator-tablet-button.c',
+  'waytator-tablet-button.h',
   'waytator-notification.c',
   'waytator-notification.h',
   'waytator-ocr.c',

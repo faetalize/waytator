@@ -16,6 +16,7 @@
 #include "waytator-save.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
+#include "waytator-tablet-button.h"
 #include "waytator-transform.h"
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
@@ -310,6 +311,7 @@ waytator_window_normalize_shortcut(const char *shortcut)
   g_auto(GStrv) tokens = NULL;
   GdkModifierType modifiers = 0;
   guint keyval = 0;
+  guint tablet_button;
   guint n_tokens;
   guint n_modifiers;
 
@@ -318,6 +320,9 @@ waytator_window_normalize_shortcut(const char *shortcut)
 
   if (g_ascii_strcasecmp(shortcut, WAYTATOR_SHORTCUT_RIGHT_CLICK) == 0)
     return g_strdup(WAYTATOR_SHORTCUT_RIGHT_CLICK);
+
+  if (waytator_tablet_button_parse(shortcut, &tablet_button))
+    return waytator_tablet_button_shortcut(tablet_button);
 
   if (waytator_window_parse_accelerator(shortcut, NULL, NULL))
     return g_strdup(shortcut);
@@ -425,8 +430,11 @@ waytator_window_accelerators_equal(const char *first,
   GdkModifierType first_modifiers;
   GdkModifierType second_modifiers;
 
+  //right click and tablet buttons are stored in one form only, so the text says it all
   if (g_strcmp0(first, WAYTATOR_SHORTCUT_RIGHT_CLICK) == 0
-      || g_strcmp0(second, WAYTATOR_SHORTCUT_RIGHT_CLICK) == 0)
+      || g_strcmp0(second, WAYTATOR_SHORTCUT_RIGHT_CLICK) == 0
+      || waytator_tablet_button_parse(first, NULL)
+      || waytator_tablet_button_parse(second, NULL))
     return g_strcmp0(first, second) == 0;
 
   return waytator_window_parse_accelerator(first, &first_keyval, &first_modifiers)
@@ -574,8 +582,18 @@ static void
 waytator_window_update_shortcut_label(GtkShortcutLabel *label,
                                       const char       *accelerator)
 {
+  guint tablet_button;
+
   if (g_strcmp0(accelerator, WAYTATOR_SHORTCUT_RIGHT_CLICK) == 0) {
     gtk_shortcut_label_set_disabled_text(label, "Right click");
+    gtk_shortcut_label_set_accelerator(label, "");
+    return;
+  }
+
+  if (waytator_tablet_button_parse(accelerator, &tablet_button)) {
+    g_autofree char *text = g_strdup_printf("Tablet button %u", tablet_button + 1);
+
+    gtk_shortcut_label_set_disabled_text(label, text);
     gtk_shortcut_label_set_accelerator(label, "");
     return;
   }
@@ -1172,7 +1190,11 @@ waytator_window_update_shortcut_conflicts(WaytatorWindow *self)
 static void
 waytator_window_end_shortcut_capture(GtkWidget *button)
 {
+  WaytatorWindow *self = WAYTATOR_WINDOW(g_object_get_data(G_OBJECT(button), "window"));
   GtkWidget *shortcut_label = g_object_get_data(G_OBJECT(button), "shortcut-label");
+
+  if (self->shortcut_capture_button == button)
+    g_clear_weak_pointer(&self->shortcut_capture_button);
 
   gtk_button_set_has_frame(GTK_BUTTON(button), FALSE);
   gtk_widget_remove_css_class(button, "suggested-action");
@@ -1185,6 +1207,7 @@ static void
 waytator_window_begin_shortcut_capture(GtkButton *button,
                                        gpointer   user_data)
 {
+  WaytatorWindow *self = WAYTATOR_WINDOW(g_object_get_data(G_OBJECT(button), "window"));
   GtkWidget *shortcut_label;
   (void) user_data;
 
@@ -1192,6 +1215,11 @@ waytator_window_begin_shortcut_capture(GtkButton *button,
     waytator_window_end_shortcut_capture(GTK_WIDGET(button));
     return;
   }
+
+  //tablet buttons go to the window rather than the focused widget, so it has to know who is listening
+  if (self->shortcut_capture_button != NULL)
+    waytator_window_end_shortcut_capture(self->shortcut_capture_button);
+  g_set_weak_pointer(&self->shortcut_capture_button, GTK_WIDGET(button));
 
   gtk_button_set_has_frame(button, TRUE);
   gtk_widget_add_css_class(GTK_WIDGET(button), "suggested-action");
@@ -1275,6 +1303,20 @@ waytator_window_shortcut_capture_right_clicked(GtkGestureClick *gesture,
   waytator_window_finish_shortcut_capture(button, WAYTATOR_SHORTCUT_RIGHT_CLICK);
 }
 
+gboolean
+waytator_window_capture_tablet_button(WaytatorWindow *self,
+                                      guint           button)
+{
+  g_autofree char *accelerator = NULL;
+
+  if (self->shortcut_capture_button == NULL)
+    return FALSE;
+
+  accelerator = waytator_tablet_button_shortcut(button);
+  waytator_window_finish_shortcut_capture(self->shortcut_capture_button, accelerator);
+  return TRUE;
+}
+
 static void
 waytator_window_shortcut_capture_focus_left(GtkEventControllerFocus *controller,
                                             gpointer                 user_data)
@@ -1315,7 +1357,7 @@ waytator_window_new_shortcut_row(WaytatorWindow  *self,
   gtk_box_append(GTK_BOX(button_box), shortcut_label);
   gtk_button_set_child(GTK_BUTTON(button), button_box);
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(button, "Click, then press a key combination or right-click");
+  gtk_widget_set_tooltip_text(button, "Click, then press a key combination, right-click or a tablet button");
   gtk_button_set_has_frame(GTK_BUTTON(clear_button), FALSE);
   gtk_widget_set_valign(clear_button, GTK_ALIGN_CENTER);
   gtk_widget_set_tooltip_text(clear_button, "Unassign");

@@ -127,7 +127,7 @@ waytator                            # open the app empty
 
 Add `--name "Screenshot.png"` to name a piped image.
 
-Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts.
+Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts, where any shortcut can also go on a right click or a drawing tablet's buttons.
 
 Annotations stay editable. With the Select tool, click one to get a box around it:
 

@@ -179,6 +179,7 @@ struct _WaytatorWindow {
   char *shortcut_accels[WAYTATOR_N_SHORTCUTS];
   char *shortcut_overrides[WAYTATOR_N_SHORTCUTS];
   AdwActionRow *shortcut_rows[WAYTATOR_N_SHORTCUTS];
+  GtkWidget *shortcut_capture_button;
   AdwPreferencesGroup *palette_group;
   GtkWidget *palette_add_button;
   GtkWidget *tool_shortcut_hints[WAYTATOR_TOOL_BLUR + 1];
@@ -373,6 +374,8 @@ const char *waytator_window_shortcut_accel(WaytatorWindow  *self,
 void waytator_window_activate_shortcut(WaytatorWindow  *self,
                                        WaytatorShortcut shortcut);
 const char *waytator_window_shortcut_title(WaytatorShortcut shortcut);
+gboolean waytator_window_capture_tablet_button(WaytatorWindow *self,
+                                               guint           button);
 int waytator_window_shortcut_conflict(WaytatorWindow  *self,
                                       WaytatorShortcut shortcut,
                                       gboolean         with_overrides);
