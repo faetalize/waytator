@@ -129,6 +129,15 @@ Add `--name "Screenshot.png"` to name a piped image.
 
 Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts, where any shortcut can also go on a right click or a drawing tablet's buttons.
 
+Annotations stay editable. With the Select tool, click one to get a box around it:
+
+* drag it to move it
+* drag a corner to resize a rectangle, an ellipse or a text, or an end to reshape a line or an arrow
+* drag the knob above the box to turn it
+* use the buttons beside the box to edit a text or delete the annotation, or press `Delete`
+
+Hold the snap key (`Shift`, changeable in Preferences) to turn in steps of 15°, keep a shape square and snap a line's end to 45°. Annotations stay editable after cropping, rotating or flipping the image.
+
 To start each time with the tool you last used, and its colour and size, turn on Remember last tool in Preferences.
 
 ### Editing videos
@@ -159,6 +168,8 @@ waytator --screenshot --notify      # show a notification that lets you edit the
 While you pick what to screenshot, the bar on screen switches between area and screen, waits a few seconds first, and turns on a magnifier for pixel-exact selections. Hold `Shift` to slow the cursor down. `Esc` or a right click cancels. The app itself has the same Screenshot and Record buttons.
 
 Screenshots are saved to your Screenshots folder and copied to the clipboard. Both can be changed in Preferences.
+
+Files are named like `Screenshot from 2026-11-27 14-05-09.png`. Preferences → Screenshots and Preferences → Recordings take your own name with strftime codes, such as `%y%m%d-%H%M%S`, and show an example as you type.
 
 To prevent the editor from spawning after every screenshot, turn off Open in the editor in Preferences → Screenshots. `--notify` still lets you choose each time.
 

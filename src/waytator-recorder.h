@@ -31,6 +31,8 @@ typedef struct {
   int rate;
   //the folder the recording is saved in, made when it isn't there
   const char *folder;
+  //the name before .mp4 in strftime codes, NULL or one that gives no name for the default
+  const char *file_name;
 } WaytatorRecorderOptions;
 
 typedef struct _WaytatorRecorder WaytatorRecorder;

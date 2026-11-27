@@ -120,7 +120,7 @@ test('record-audio', test_record_audio, timeout: 180)
 test_recording_bar_place = executable(
   'test-recording-bar-place',
   'test-recording-bar-place.c',
-  files('../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [layer_shell_dep, gtk_dep, adw_dep, m_dep],
 )
@@ -155,16 +155,26 @@ test('record-stream', test_record_stream, timeout: 120)
 test_recording_settings = executable(
   'test-recording-settings',
   'test-recording-settings.c',
-  files('../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep],
 )
 test('recording-settings', test_recording_settings)
 
+#the names a template in the preferences gives screenshots and recordings
+test_file_name = executable(
+  'test-file-name',
+  'test-file-name.c',
+  files('../src/waytator-file-name.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('file-name', test_file_name)
+
 test_last_tool = executable(
   'test-last-tool',
   'test-last-tool.c',
-  files('../src/waytator-last-tool.c', '../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-last-tool.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep],
 )
@@ -206,6 +216,36 @@ test_document = executable(
 )
 test('document', test_document)
 
+#pen strokes with and without stylus pressure, rendered offscreen and measured
+test_stroke = executable(
+  'test-stroke',
+  'test-stroke.c',
+  files('../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('stroke', test_stroke)
+
+#the select tool's arithmetic: what a press picks and where a drag leaves a stroke, with no window
+test_select = executable(
+  'test-select',
+  'test-select.c',
+  files('../src/waytator-select.c', '../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('select', test_select)
+
+#crops, turns and flips of an image with strokes on it, drawn offscreen and compared
+test_transform = executable(
+  'test-transform',
+  'test-transform.c',
+  files('../src/waytator-stroke.c', '../src/waytator-transform.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('transform', test_transform)
+
 test_save = executable(
   'test-save',
   'test-save.c',
@@ -227,6 +267,7 @@ test_record_recorder = executable(
     '../src/waytator-record-mixer.c',
     '../src/waytator-record-portal.c',
     '../src/waytator-record-stream.c',
+    '../src/waytator-file-name.c',
     '../src/waytator-record-writer.c',
     '../src/waytator-recorder.c',
     '../src/waytator-video-cache.c',

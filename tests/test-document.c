@@ -71,6 +71,34 @@ test_failed_save_keeps_saved_state(void)
   waytator_document_free(document);
 }
 
+//turning a stroke changes the picture, so it is something to save and something undo brings back
+static void
+test_turning_is_a_change(void)
+{
+  WaytatorDocument *document = waytator_test_document_new();
+  WaytatorStroke *stroke;
+
+  waytator_test_document_draw(document, 0.0);
+  waytator_document_mark_saved(document);
+  g_assert_false(waytator_document_has_unsaved_changes(document));
+
+  waytator_document_record_undo_step(document);
+  stroke = g_ptr_array_index(waytator_document_get_strokes(document), 0);
+  stroke->rotation = 0.5;
+  g_assert_true(waytator_document_has_unsaved_changes(document));
+
+  waytator_document_undo(document);
+  stroke = g_ptr_array_index(waytator_document_get_strokes(document), 0);
+  g_assert_cmpfloat(stroke->rotation, ==, 0.0);
+  g_assert_false(waytator_document_has_unsaved_changes(document));
+
+  waytator_document_redo(document);
+  stroke = g_ptr_array_index(waytator_document_get_strokes(document), 0);
+  g_assert_cmpfloat(stroke->rotation, ==, 0.5);
+
+  waytator_document_free(document);
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -79,5 +107,6 @@ main(int   argc,
   g_test_add_func("/document/save-marks-saved", test_save_marks_saved);
   g_test_add_func("/document/stroke-during-save-stays-unsaved", test_stroke_during_save_stays_unsaved);
   g_test_add_func("/document/failed-save-keeps-saved-state", test_failed_save_keeps_saved_state);
+  g_test_add_func("/document/turning-is-a-change", test_turning_is_a_change);
   return g_test_run();
 }
