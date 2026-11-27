@@ -83,7 +83,7 @@ waytator_window_show_blur_warning(WaytatorWindow *self)
                           g_object_ref(self));
 }
 
-static gboolean
+gboolean
 waytator_window_cancel_current_interaction(WaytatorWindow *self)
 {
   GPtrArray *strokes;

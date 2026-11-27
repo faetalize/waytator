@@ -431,6 +431,8 @@ void waytator_window_install_canvas_actions(GtkWidgetClass *widget_class);
 void waytator_window_setup_controllers(WaytatorWindow *self);
 void waytator_window_setup_signals(WaytatorWindow *self);
 gboolean waytator_window_event_is_touch(GtkEventController *controller);
+//calls off a drag that is under way the way Escape does, TRUE when there was one
+gboolean waytator_window_cancel_current_interaction(WaytatorWindow *self);
 gboolean waytator_window_snap_modifier_active(GtkGestureDrag *gesture,
                                               WaytatorWindow *self);
 void waytator_window_record_interaction_undo_step(WaytatorWindow *self);

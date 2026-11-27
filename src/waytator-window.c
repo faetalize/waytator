@@ -3949,6 +3949,9 @@ waytator_window_apply_transform(WaytatorWindow   *self,
   if (self->image_surface == NULL)
     return;
 
+  //from the keyboard a turn or a flip can come in the middle of a drag. a half drawn blur would be left as a
+  //stroke that is never merged, so whatever is being drawn is called off first
+  waytator_window_cancel_current_interaction(self);
   waytator_window_record_undo_step(self);
   result_surface = waytator_transform_surface(self->image_surface, transform);
   waytator_transform_strokes(waytator_window_strokes(self),
