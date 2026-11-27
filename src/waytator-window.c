@@ -16,6 +16,7 @@
 #include "waytator-save.h"
 #include "waytator-screenshot.h"
 #include "waytator-stroke.h"
+#include "waytator-transform.h"
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
 
@@ -3302,35 +3303,6 @@ waytator_window_refresh_image_from_document(WaytatorWindow *self)
   return TRUE;
 }
 
-cairo_surface_t *
-waytator_window_render_composited_surface(WaytatorWindow *self)
-{
-  cairo_surface_t *surface;
-  cairo_t *cr;
-  GPtrArray *strokes = waytator_window_strokes(self);
-
-  if (self->texture == NULL)
-    return NULL;
-
-  surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
-                                       gdk_texture_get_width(self->texture),
-                                       gdk_texture_get_height(self->texture));
-  gdk_texture_download(self->texture,
-                       cairo_image_surface_get_data(surface),
-                       cairo_image_surface_get_stride(surface));
-  cairo_surface_mark_dirty(surface);
-
-  cr = cairo_create(surface);
-  waytator_render_strokes(cr,
-                          strokes,
-                          surface,
-                          self->allow_highlighter_overlap,
-                          waytator_stroke_render);
-  cairo_destroy(cr);
-  cairo_surface_flush(surface);
-  return surface;
-}
-
 void
 waytator_window_refresh_document_state(WaytatorWindow *self)
 {
@@ -3931,6 +3903,7 @@ waytator_window_save_copy_and_close_action(GtkWidget  *widget,
     waytator_window_save_then(self, WAYTATOR_AFTER_SAVE_COPY_CLOSE);
 }
 
+//the image takes the place of the one it was made from. its strokes were moved along with it and stay strokes
 static void
 waytator_window_commit_transformed_surface(WaytatorWindow  *self,
                                            cairo_surface_t *surface)
@@ -3945,7 +3918,6 @@ waytator_window_commit_transformed_surface(WaytatorWindow  *self,
     return;
 
   waytator_document_set_image(self->document, pixels, width, height, stride);
-  waytator_document_clear_annotations(self->document);
   waytator_window_restore_strokes(self, waytator_window_strokes(self));
 }
 
@@ -3956,25 +3928,33 @@ waytator_window_apply_crop(WaytatorWindow *self,
                            int             width,
                            int             height)
 {
-  cairo_surface_t *source_surface;
   cairo_surface_t *result_surface;
-  cairo_t *cr;
 
-  if (self->texture == NULL || width <= 0 || height <= 0)
+  if (self->image_surface == NULL || width <= 0 || height <= 0)
     return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  cr = cairo_create(result_surface);
-  cairo_set_source_surface(cr, source_surface, -left, -top);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
 
   waytator_window_record_undo_step(self);
+  result_surface = waytator_transform_crop_surface(self->image_surface, left, top, width, height);
+  waytator_transform_crop_strokes(waytator_window_strokes(self), left, top, width, height);
+  waytator_window_commit_transformed_surface(self, result_surface);
+  cairo_surface_destroy(result_surface);
+}
+
+static void
+waytator_window_apply_transform(WaytatorWindow   *self,
+                                WaytatorTransform transform)
+{
+  cairo_surface_t *result_surface;
+
+  if (self->image_surface == NULL)
+    return;
+
+  waytator_window_record_undo_step(self);
+  result_surface = waytator_transform_surface(self->image_surface, transform);
+  waytator_transform_strokes(waytator_window_strokes(self),
+                             transform,
+                             cairo_image_surface_get_width(self->image_surface),
+                             cairo_image_surface_get_height(self->image_surface));
   waytator_window_commit_transformed_surface(self, result_surface);
   cairo_surface_destroy(result_surface);
 }
@@ -3984,35 +3964,10 @@ waytator_window_rotate_counter_clockwise_action(GtkWidget  *widget,
                                                 const char *action_name,
                                                 GVariant   *parameter)
 {
-  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
-  cairo_surface_t *source_surface;
-  cairo_surface_t *result_surface;
-  cairo_t *cr;
-  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
-  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
-
   (void) action_name;
   (void) parameter;
 
-  if (width <= 0 || height <= 0)
-    return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, height, width);
-  cr = cairo_create(result_surface);
-  cairo_translate(cr, 0.0, width);
-  cairo_rotate(cr, -G_PI / 2.0);
-  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
-
-  waytator_window_record_undo_step(self);
-  waytator_window_commit_transformed_surface(self, result_surface);
-  cairo_surface_destroy(result_surface);
+  waytator_window_apply_transform(WAYTATOR_WINDOW(widget), WAYTATOR_TRANSFORM_TURN_COUNTER_CLOCKWISE);
 }
 
 static void
@@ -4020,35 +3975,10 @@ waytator_window_flip_horizontal_action(GtkWidget  *widget,
                                        const char *action_name,
                                        GVariant   *parameter)
 {
-  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
-  cairo_surface_t *source_surface;
-  cairo_surface_t *result_surface;
-  cairo_t *cr;
-  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
-  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
-
   (void) action_name;
   (void) parameter;
 
-  if (width <= 0 || height <= 0)
-    return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  cr = cairo_create(result_surface);
-  cairo_translate(cr, width, 0.0);
-  cairo_scale(cr, -1.0, 1.0);
-  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
-
-  waytator_window_record_undo_step(self);
-  waytator_window_commit_transformed_surface(self, result_surface);
-  cairo_surface_destroy(result_surface);
+  waytator_window_apply_transform(WAYTATOR_WINDOW(widget), WAYTATOR_TRANSFORM_FLIP_HORIZONTAL);
 }
 
 static void
@@ -4056,35 +3986,10 @@ waytator_window_flip_vertical_action(GtkWidget  *widget,
                                      const char *action_name,
                                      GVariant   *parameter)
 {
-  WaytatorWindow *self = WAYTATOR_WINDOW(widget);
-  cairo_surface_t *source_surface;
-  cairo_surface_t *result_surface;
-  cairo_t *cr;
-  const int width = self->texture != NULL ? gdk_texture_get_width(self->texture) : 0;
-  const int height = self->texture != NULL ? gdk_texture_get_height(self->texture) : 0;
-
   (void) action_name;
   (void) parameter;
 
-  if (width <= 0 || height <= 0)
-    return;
-
-  source_surface = waytator_window_render_composited_surface(self);
-  if (source_surface == NULL)
-    return;
-
-  result_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  cr = cairo_create(result_surface);
-  cairo_translate(cr, 0.0, height);
-  cairo_scale(cr, 1.0, -1.0);
-  cairo_set_source_surface(cr, source_surface, 0.0, 0.0);
-  cairo_paint(cr);
-  cairo_destroy(cr);
-  cairo_surface_destroy(source_surface);
-
-  waytator_window_record_undo_step(self);
-  waytator_window_commit_transformed_surface(self, result_surface);
-  cairo_surface_destroy(result_surface);
+  waytator_window_apply_transform(WAYTATOR_WINDOW(widget), WAYTATOR_TRANSFORM_FLIP_VERTICAL);
 }
 
 static void

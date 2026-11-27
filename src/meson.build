@@ -76,6 +76,8 @@ waytator_sources = files(
   'waytator-settings.h',
   'waytator-stroke.c',
   'waytator-stroke.h',
+  'waytator-transform.c',
+  'waytator-transform.h',
   'waytator-types.h',
   'waytator-video-audio.c',
   'waytator-video-audio-output.c',

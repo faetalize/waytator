@@ -401,7 +401,6 @@ double waytator_window_get_effective_zoom(WaytatorWindow *self);
 void waytator_window_apply_zoom_mode(WaytatorWindow *self);
 void waytator_window_update_zoom_label(WaytatorWindow *self);
 void waytator_window_refresh_document_state(WaytatorWindow *self);
-cairo_surface_t *waytator_window_render_composited_surface(WaytatorWindow *self);
 void waytator_window_apply_crop(WaytatorWindow *self,
                                 int             left,
                                 int             top,

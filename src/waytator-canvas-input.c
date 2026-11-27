@@ -1,6 +1,7 @@
 #include "waytator-window-private.h"
 
 #include "waytator-stroke.h"
+#include "waytator-transform.h"
 
 #include <math.h>
 
@@ -398,7 +399,11 @@ waytator_window_begin_draw_stroke(WaytatorWindow *self)
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
 
-  g_ptr_array_add(waytator_window_strokes(self), self->current_stroke);
+  //a blur becomes part of the image, which is under every stroke, so it is shown under them while it is drawn too
+  if (self->active_tool == WAYTATOR_TOOL_BLUR)
+    g_ptr_array_insert(waytator_window_strokes(self), 0, self->current_stroke);
+  else
+    g_ptr_array_add(waytator_window_strokes(self), self->current_stroke);
   waytator_window_reset_save_button(self);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
@@ -430,6 +435,8 @@ waytator_window_surface_copy_bytes(cairo_surface_t *surface,
   return g_bytes_new_take(pixels, rowstride * image_height);
 }
 
+//the blur is merged into the image and stops being a stroke. the other strokes are left as they are, on top of
+//it: they are notes on the picture, not part of what the blur hides
 static void
 waytator_window_commit_blur_stroke(WaytatorWindow *self)
 {
@@ -439,20 +446,20 @@ waytator_window_commit_blur_stroke(WaytatorWindow *self)
   int height = 0;
   gsize stride = 0;
 
-  if (self->current_stroke == NULL || self->current_stroke->tool != WAYTATOR_TOOL_BLUR)
+  if (self->current_stroke == NULL
+      || self->current_stroke->tool != WAYTATOR_TOOL_BLUR
+      || self->image_surface == NULL)
     return;
 
-  surface = waytator_window_render_composited_surface(self);
-  if (surface == NULL)
-    return;
-
+  surface = waytator_transform_merge_stroke(self->image_surface, self->current_stroke);
   pixels = waytator_window_surface_copy_bytes(surface, &width, &height, &stride);
   cairo_surface_destroy(surface);
   if (pixels == NULL)
     return;
 
   waytator_document_set_image(self->document, pixels, width, height, stride);
-  g_ptr_array_set_size(waytator_window_strokes(self), 0);
+  g_ptr_array_remove(waytator_window_strokes(self), self->current_stroke);
+  self->current_stroke = NULL;
   waytator_window_refresh_document_state(self);
 }
 
