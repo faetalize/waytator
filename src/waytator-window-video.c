@@ -475,6 +475,7 @@ waytator_window_video_start(WaytatorWindow              *self,
   g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
   const WaytatorVideoProfile *profile = waytator_window_video_find_profile(profiles, profile_id);
   g_autoptr(GError) error = NULL;
+  g_autofree char *reason = NULL;
   WaytatorWindowVideoSave *save;
 
   if (waytator_video_editor_get_edit(editor) == NULL || waytator_video_editor_is_exporting(editor))
@@ -489,20 +490,17 @@ waytator_window_video_start(WaytatorWindow              *self,
     }
   }
 
-  //Copy has no list that greys its profile out, so one known not to export here says why. it never waits
-  //for the encoders to be tried, Copy is meant to be quick: until they have been, one that only trying
-  //them rules out is exported anyway and fails with the export's own error. an export to a file had its
-  //profile picked from the list
-  if (!plan->saves) {
-    g_autofree char *reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
+  //a profile known not to export here says why. Copy has no list that greys its profile out, and a row of
+  //Export As can be picked before the encoders have been tried, with the file dialog outlasting the check.
+  //it never waits for them, Copy is meant to be quick: until they have been tried, one that only trying them
+  //rules out is exported anyway and fails with the export's own error. the message is the export's own,
+  //the reason is a caption for the list
+  reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
+  if (reason != NULL) {
+    g_autofree char *message = waytator_video_profile_describe_unavailable(profile);
 
-    //the export's own words for it, the reason is a caption for the list
-    if (reason != NULL) {
-      g_autofree char *message = waytator_video_profile_describe_unavailable(profile);
-
-      waytator_window_show_error(self, message);
-      return;
-    }
+    waytator_window_show_error(self, message);
+    return;
   }
 
   save = g_new0(WaytatorWindowVideoSave, 1);
