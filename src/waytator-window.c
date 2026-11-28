@@ -20,6 +20,7 @@
 #include "waytator-transform.h"
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
+#include "waytator-window-test-report.h"
 
 #include <cairo.h>
 #include <string.h>
@@ -4014,6 +4015,7 @@ waytator_window_apply_crop(WaytatorWindow *self,
   waytator_transform_crop_strokes(waytator_window_strokes(self), left, top, width, height);
   waytator_window_commit_transformed_surface(self, result_surface);
   cairo_surface_destroy(result_surface);
+  waytator_window_report_crop(self, left, top, width, height);
 }
 
 static void
@@ -6026,6 +6028,7 @@ waytator_window_init(WaytatorWindow *self)
   waytator_window_update_size_controls(self);
   waytator_window_update_tool_ui(self);
   waytator_window_sync_state(self);
+  waytator_window_report_attach(self);
 }
 
 //every way a window goes ends up here, unlike close-request. waiting for dispose is no good: a running export holds

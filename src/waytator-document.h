@@ -26,6 +26,11 @@ void waytator_document_finish_save(WaytatorDocument *document,
 
 gboolean waytator_document_can_undo(WaytatorDocument *document);
 gboolean waytator_document_can_redo(WaytatorDocument *document);
+#ifdef WAYTATOR_ENABLE_TEST_REPORT
+void waytator_document_get_history_depth(WaytatorDocument *document,
+                                         guint            *undo,
+                                         guint            *redo);
+#endif
 void waytator_document_record_undo_step(WaytatorDocument *document);
 GPtrArray *waytator_document_discard_undo_step(WaytatorDocument *document);
 GPtrArray *waytator_document_undo(WaytatorDocument *document);

@@ -1,3 +1,5 @@
 #when the commit this was built from was made, in seconds since 1970, for builds without a .git folder to read it
 #from, like the Nix flake. it tells two builds of the same version apart, see src/waytator-instance.h
 option('commit_time', type: 'string', value: '0', description: 'Commit time in seconds since 1970, for builds without git')
+#off in every real build, tests/e2e turns it on
+option('test_report', type: 'boolean', value: false, description: 'Report what happens to the end to end tests, into the file WAYTATOR_TEST_REPORT names')

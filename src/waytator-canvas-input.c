@@ -3,6 +3,7 @@
 #include "waytator-stroke.h"
 #include "waytator-tablet-button.h"
 #include "waytator-transform.h"
+#include "waytator-window-test-report.h"
 
 #include <math.h>
 
@@ -84,22 +85,18 @@ waytator_window_show_blur_warning(WaytatorWindow *self)
                           g_object_ref(self));
 }
 
-gboolean
-waytator_window_cancel_current_interaction(WaytatorWindow *self)
+//undoes whatever the drag under way has done so far
+static void
+waytator_window_call_off_interaction(WaytatorWindow *self)
 {
   GPtrArray *strokes;
 
-  if (!self->drawing)
-    return FALSE;
-
-  self->drawing = FALSE;
-
   if (self->active_tool == WAYTATOR_TOOL_PAN)
-    return TRUE;
+    return;
 
   if (self->active_tool == WAYTATOR_TOOL_SELECT) {
     waytator_window_cancel_selection_drag(self);
-    return TRUE;
+    return;
   }
 
   if (self->active_tool == WAYTATOR_TOOL_CROP) {
@@ -108,7 +105,7 @@ waytator_window_cancel_current_interaction(WaytatorWindow *self)
     self->crop_end_x = 0.0;
     self->crop_end_y = 0.0;
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
-    return TRUE;
+    return;
   }
 
   if (self->active_touch_draw_sequence != NULL) {
@@ -123,12 +120,25 @@ waytator_window_cancel_current_interaction(WaytatorWindow *self)
   self->current_stroke = NULL;
   if (!self->interaction_has_undo_step) {
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
-    return TRUE;
+    return;
   }
 
   waytator_document_discard_undo_step(self->document);
   waytator_window_refresh_document_state(self);
   waytator_window_update_history_buttons(self);
+}
+
+gboolean
+waytator_window_cancel_current_interaction(WaytatorWindow *self)
+{
+  const gboolean had_stroke = self->current_stroke != NULL;
+
+  if (!self->drawing)
+    return FALSE;
+
+  self->drawing = FALSE;
+  waytator_window_call_off_interaction(self);
+  waytator_window_report_cancel(self, had_stroke);
   return TRUE;
 }
 
@@ -285,6 +295,7 @@ waytator_window_touch_event(GtkEventControllerLegacy *controller,
     break;
   }
 
+  waytator_window_report_touch(self, event);
   return FALSE;
 }
 
@@ -314,6 +325,7 @@ waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
 
   (void) controller;
 
+  waytator_window_report_pen(self, event);
   if (type != GDK_MOTION_NOTIFY && type != GDK_PROXIMITY_IN && type != GDK_BUTTON_PRESS)
     return FALSE;
 
@@ -451,6 +463,9 @@ waytator_window_commit_blur_stroke(WaytatorWindow *self)
       || self->current_stroke->tool != WAYTATOR_TOOL_BLUR
       || self->image_surface == NULL)
     return;
+
+  //a blur stops being a stroke once it is merged, so it is reported while it still is one
+  waytator_window_report_stroke(self, self->current_stroke);
 
   surface = waytator_transform_merge_stroke(self->image_surface, self->current_stroke);
   pixels = waytator_window_surface_copy_bytes(surface, &width, &height, &stride);
@@ -727,10 +742,13 @@ waytator_window_erase_strokes(WaytatorWindow *self,
   const double radius = self->tool_widths[WAYTATOR_TOOL_ERASER] / 2.0;
   GPtrArray *strokes = waytator_window_strokes(self);
   gboolean removed_stroke = FALSE;
+  guint n_before;
   guint i;
 
   if (strokes == NULL)
     return FALSE;
+
+  n_before = strokes->len;
 
   for (i = strokes->len; i > 0; i--) {
     WaytatorStroke *stroke = g_ptr_array_index(strokes, i - 1);
@@ -742,8 +760,10 @@ waytator_window_erase_strokes(WaytatorWindow *self,
     }
   }
 
-  if (removed_stroke)
+  if (removed_stroke) {
     waytator_window_reset_save_button(self);
+    waytator_window_report_erase(self, n_before - strokes->len);
+  }
 
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   return removed_stroke;
@@ -1097,6 +1117,7 @@ waytator_window_text_entry_activated(GtkEntry       *entry,
   if (text != NULL && *text != '\0' && self->current_stroke != NULL) {
     g_free(self->current_stroke->text);
     self->current_stroke->text = g_strdup(text);
+    waytator_window_report_stroke(self, self->current_stroke);
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
     waytator_window_maybe_auto_copy_latest_change(self);
     self->current_stroke = NULL;
@@ -1319,8 +1340,12 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
   }
 
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
-  if (self->active_tool != WAYTATOR_TOOL_TEXT)
+  if (self->active_tool != WAYTATOR_TOOL_TEXT) {
+    //a blur has been reported and merged into the image by now
+    if (self->active_tool != WAYTATOR_TOOL_BLUR)
+      waytator_window_report_stroke(self, self->current_stroke);
     waytator_window_maybe_auto_copy_latest_change(self);
+  }
 
 done:
   self->interaction_has_undo_step = FALSE;

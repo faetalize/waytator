@@ -330,3 +330,13 @@ test_record_recorder = executable(
   dependencies: [adw_dep, gio_unix_dep, m_dep, video_deps],
 )
 test('record-recorder', test_record_recorder, timeout: 180)
+
+#the lines the end to end tests read, built here whether or not the app has them
+test_test_report = executable(
+  'test-test-report',
+  'test-test-report.c',
+  files('../src/waytator-test-report.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('test-report', test_test_report)

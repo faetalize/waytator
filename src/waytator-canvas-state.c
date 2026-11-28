@@ -3,6 +3,7 @@
 #include <math.h>
 
 #include "waytator-stroke.h"
+#include "waytator-window-test-report.h"
 
 static const char *
 waytator_tool_icon_name(WaytatorTool tool)
@@ -327,6 +328,7 @@ waytator_window_undo_clicked(GtkButton *button,
   snapshot = waytator_document_undo(self->document);
   waytator_window_restore_strokes(self, snapshot);
   waytator_window_bring_back_selection(self, selection_index, n_strokes);
+  waytator_window_report_history(self, "undo");
 }
 
 static void
@@ -352,6 +354,7 @@ waytator_window_redo_clicked(GtkButton *button,
   snapshot = waytator_document_redo(self->document);
   waytator_window_restore_strokes(self, snapshot);
   waytator_window_bring_back_selection(self, selection_index, n_strokes);
+  waytator_window_report_history(self, "redo");
 }
 
 static void
@@ -430,6 +433,7 @@ waytator_window_tool_toggled(GtkToggleButton *button,
 
   waytator_window_update_size_controls(self);
   waytator_window_update_tool_ui(self);
+  waytator_window_report_tool(self);
 }
 
 static void
