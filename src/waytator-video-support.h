@@ -12,11 +12,9 @@ typedef struct {
   gboolean (*has_encoder)(const char *name);
   //whether gifski is installed, which makes GIFs without ffmpeg's encoder. cheap too
   gboolean (*has_gifski)(void);
-  //for each encoder in names, which are for the cpu, whether it opens, into works. asked on a worker thread,
-  //about one encoder at a time in the order an export tries them, and only about encoders has_encoder said
-  //ffmpeg has
-  void (*cpu_encodes)(const char *const *names,
-                      gboolean          *works);
+  //whether the encoder for the cpu called name opens. asked on a worker thread, in the order an export tries
+  //them up to the first that opens, and only about encoders has_encoder said ffmpeg has
+  gboolean (*cpu_opens)(const char *name);
   //for each encoder in names, whether the gpu really encodes with it, into works. slow, asked once on a
   //worker thread, and only about encoders has_encoder said ffmpeg has
   void (*gpu_encodes)(const char *const *names,

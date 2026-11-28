@@ -2,6 +2,8 @@
 
 #include "waytator-video-encoder.h"
 
+#include <string.h>
+
 #define WAYTATOR_VIDEO_SUPPORT_CODECS (WAYTATOR_VIDEO_CODEC_GIF + 1)
 
 static const char waytator_video_support_none[] = "Not available on this system";
@@ -26,7 +28,7 @@ waytator_video_support_real_has_gifski(void)
 static const WaytatorVideoSupportLookup waytator_video_support_real = {
   .has_encoder = waytator_video_encoder_exists,
   .has_gifski = waytator_video_support_real_has_gifski,
-  .cpu_encodes = waytator_video_encoder_probe_software,
+  .cpu_opens = waytator_video_encoder_probe_software,
   .gpu_encodes = waytator_video_encoder_probe_hardware,
 };
 
@@ -133,7 +135,7 @@ waytator_video_support_encoder_note(WaytatorVideoCodec   codec,
   return NULL;
 }
 
-//the encoders to try, the codec each is for, and which of them work
+//the gpu encoders to try, the codec each is for, and which of them work
 typedef struct {
   //NULL-terminated
   GPtrArray *names;
@@ -144,45 +146,16 @@ typedef struct {
 typedef struct {
   WaytatorVideoSupportLookup lookup;
   guint generation;
-  WaytatorVideoSupportBatch cpu;
+  WaytatorVideoAnswer cpu[WAYTATOR_VIDEO_SUPPORT_CODECS];
   WaytatorVideoSupportBatch gpu;
 } WaytatorVideoSupportCheck;
 
 static void
-waytator_video_support_batch_add(WaytatorVideoSupportBatch *batch,
-                                 const char                *name,
-                                 WaytatorVideoCodec         codec)
-{
-  g_ptr_array_add(batch->names, (gpointer) name);
-  g_array_append_val(batch->codecs, codec);
-}
-
-static void
-waytator_video_support_batch_clear(WaytatorVideoSupportBatch *batch)
-{
-  g_ptr_array_unref(batch->names);
-  g_array_unref(batch->codecs);
-  g_free(batch->works);
-}
-
-//what the batch found, into answers. a codec with nothing to try fails
-static void
-waytator_video_support_batch_answer(const WaytatorVideoSupportBatch *batch,
-                                    WaytatorVideoAnswer             *answers)
-{
-  for (guint i = 0; i < WAYTATOR_VIDEO_SUPPORT_CODECS; i++)
-    answers[i] = WAYTATOR_VIDEO_FAILS;
-  for (guint i = 0; i < batch->codecs->len; i++) {
-    if (batch->works[i])
-      answers[g_array_index(batch->codecs, WaytatorVideoCodec, i)] = WAYTATOR_VIDEO_ENCODES;
-  }
-}
-
-static void
 waytator_video_support_check_free(WaytatorVideoSupportCheck *check)
 {
-  waytator_video_support_batch_clear(&check->cpu);
-  waytator_video_support_batch_clear(&check->gpu);
+  g_ptr_array_unref(check->gpu.names);
+  g_array_unref(check->gpu.codecs);
+  g_free(check->gpu.works);
   g_free(check);
 }
 
@@ -193,20 +166,17 @@ waytator_video_support_check_thread(GTask        *task,
                                     GCancellable *cancellable)
 {
   WaytatorVideoSupportCheck *check = task_data;
-  gboolean opened[WAYTATOR_VIDEO_SUPPORT_CODECS] = { FALSE };
 
   (void) source_object;
   (void) cancellable;
 
-  //in the order an export tries them, up to the first that opens, which is the one it ends up with
-  for (guint i = 0; i < check->cpu.codecs->len; i++) {
-    const WaytatorVideoCodec codec = g_array_index(check->cpu.codecs, WaytatorVideoCodec, i);
-    const char *const one[] = { g_ptr_array_index(check->cpu.names, i), NULL };
-
-    if (opened[codec])
-      continue;
-    check->lookup.cpu_encodes(one, &check->cpu.works[i]);
-    opened[codec] = check->cpu.works[i];
+  //the one an export ends up with. ffmpeg's GIF encoder is its own and isn't tried, having it is enough
+  for (WaytatorVideoCodec codec = 0; codec < WAYTATOR_VIDEO_SUPPORT_CODECS; codec++) {
+    if (codec != WAYTATOR_VIDEO_CODEC_GIF)
+      check->cpu[codec] = waytator_video_encoder_find_working_software(codec, check->lookup.has_encoder,
+                                                                       check->lookup.cpu_opens) != NULL
+                        ? WAYTATOR_VIDEO_ENCODES
+                        : WAYTATOR_VIDEO_FAILS;
   }
   check->lookup.gpu_encodes((const char *const *) check->gpu.names->pdata, check->gpu.works);
   g_task_return_boolean(task, TRUE);
@@ -226,10 +196,14 @@ waytator_video_support_check_done(GObject      *source_object,
   if (check->generation != waytator_video_support_generation)
     return;
 
-  waytator_video_support_batch_answer(&check->cpu, waytator_video_support_cpu);
-  //ffmpeg's GIF encoder is its own and isn't tried, having it is enough
-  waytator_video_support_cpu[WAYTATOR_VIDEO_CODEC_GIF] = WAYTATOR_VIDEO_UNCHECKED;
-  waytator_video_support_batch_answer(&check->gpu, waytator_video_support_gpu);
+  memcpy(waytator_video_support_cpu, check->cpu, sizeof check->cpu);
+  //a codec with nothing to try fails
+  for (guint i = 0; i < WAYTATOR_VIDEO_SUPPORT_CODECS; i++)
+    waytator_video_support_gpu[i] = WAYTATOR_VIDEO_FAILS;
+  for (guint i = 0; i < check->gpu.codecs->len; i++) {
+    if (check->gpu.works[i])
+      waytator_video_support_gpu[g_array_index(check->gpu.codecs, WaytatorVideoCodec, i)] = WAYTATOR_VIDEO_ENCODES;
+  }
 
   waytator_video_support_checking = FALSE;
   waytator_video_support_checked = TRUE;
@@ -243,31 +217,23 @@ waytator_video_support_start_check(void)
 {
   WaytatorVideoSupportCheck *check = g_new0(WaytatorVideoSupportCheck, 1);
   g_autoptr(GTask) task = g_task_new(NULL, NULL, waytator_video_support_check_done, NULL);
-  WaytatorVideoSupportBatch *batches[] = { &check->cpu, &check->gpu };
 
   check->lookup = *waytator_video_support_lookup;
   check->generation = waytator_video_support_generation;
-  for (guint i = 0; i < G_N_ELEMENTS(batches); i++) {
-    batches[i]->names = g_ptr_array_new();
-    batches[i]->codecs = g_array_new(FALSE, FALSE, sizeof(WaytatorVideoCodec));
-  }
+  check->gpu.names = g_ptr_array_new();
+  check->gpu.codecs = g_array_new(FALSE, FALSE, sizeof(WaytatorVideoCodec));
   for (WaytatorVideoCodec codec = 0; codec < WAYTATOR_VIDEO_SUPPORT_CODECS; codec++) {
-    const char *const *software = waytator_video_encoder_get_names(codec, FALSE);
-    const char *const *hardware = waytator_video_encoder_get_names(codec, TRUE);
+    const char *const *names = waytator_video_encoder_get_names(codec, TRUE);
 
-    for (guint i = 0; software[i] != NULL && codec != WAYTATOR_VIDEO_CODEC_GIF; i++) {
-      if (check->lookup.has_encoder(software[i]))
-        waytator_video_support_batch_add(&check->cpu, software[i], codec);
-    }
-    for (guint i = 0; hardware[i] != NULL; i++) {
-      if (check->lookup.has_encoder(hardware[i]))
-        waytator_video_support_batch_add(&check->gpu, hardware[i], codec);
+    for (guint i = 0; names[i] != NULL; i++) {
+      if (check->lookup.has_encoder(names[i])) {
+        g_ptr_array_add(check->gpu.names, (gpointer) names[i]);
+        g_array_append_val(check->gpu.codecs, codec);
+      }
     }
   }
-  for (guint i = 0; i < G_N_ELEMENTS(batches); i++) {
-    batches[i]->works = g_new0(gboolean, batches[i]->codecs->len);
-    g_ptr_array_add(batches[i]->names, NULL);
-  }
+  check->gpu.works = g_new0(gboolean, check->gpu.codecs->len);
+  g_ptr_array_add(check->gpu.names, NULL);
 
   waytator_video_support_checking = TRUE;
   g_task_set_source_tag(task, waytator_video_support_start_check);

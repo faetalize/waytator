@@ -230,15 +230,26 @@ waytator_video_encoder_software_opens(const AVCodec *codec)
   return opens;
 }
 
-void
-waytator_video_encoder_probe_software(const char *const *names,
-                                      gboolean          *works)
+gboolean
+waytator_video_encoder_probe_software(const char *name)
 {
-  for (guint i = 0; names[i] != NULL; i++) {
-    const AVCodec *found = avcodec_find_encoder_by_name(names[i]);
+  const AVCodec *found = avcodec_find_encoder_by_name(name);
 
-    works[i] = found != NULL && waytator_video_encoder_software_opens(found);
+  return found != NULL && waytator_video_encoder_software_opens(found);
+}
+
+const char *
+waytator_video_encoder_find_working_software(WaytatorVideoCodec codec,
+                                             gboolean         (*has_encoder)(const char *name),
+                                             gboolean         (*cpu_opens)(const char *name))
+{
+  const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
+
+  for (guint i = 0; names[i] != NULL; i++) {
+    if (has_encoder(names[i]) && cpu_opens(names[i]))
+      return names[i];
   }
+  return NULL;
 }
 
 //the size the gpu is tried at to see whether it encodes a format at all, a common one that the gpus that
@@ -285,25 +296,13 @@ WaytatorVideoEncoder
 waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
                                       WaytatorVideoEncoder preference,
                                       gboolean           (*has_encoder)(const char *name),
-                                      void               (*cpu_encodes)(const char *const *names,
-                                                                        gboolean          *works))
+                                      gboolean           (*cpu_opens)(const char *name))
 {
-  const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
-
   if (preference != WAYTATOR_VIDEO_ENCODER_AUTO)
     return preference;
-  //an export moves on to the next encoder when one doesn't open, so any of them that opens will do
-  for (guint i = 0; names[i] != NULL; i++) {
-    const char *const one[] = { names[i], NULL };
-    gboolean works = FALSE;
-
-    if (!has_encoder(names[i]))
-      continue;
-    cpu_encodes(one, &works);
-    if (works)
-      return WAYTATOR_VIDEO_ENCODER_SOFTWARE;
-  }
-  return WAYTATOR_VIDEO_ENCODER_AUTO;
+  return waytator_video_encoder_find_working_software(codec, has_encoder, cpu_opens) != NULL
+       ? WAYTATOR_VIDEO_ENCODER_SOFTWARE
+       : WAYTATOR_VIDEO_ENCODER_AUTO;
 }
 
 gboolean

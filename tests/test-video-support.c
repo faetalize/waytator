@@ -33,15 +33,12 @@ fake_has_gifski(void)
   return fake_gifski;
 }
 
-static void
-fake_cpu_encodes(const char *const *names,
-                 gboolean          *works)
+static gboolean
+fake_cpu_opens(const char *name)
 {
-  for (guint i = 0; names[i] != NULL; i++) {
-    g_assert_true(fake_has_encoder(names[i]));
-    works[i] = !fake_listed(fake_cpu_broken, names[i]);
-    g_string_append_printf(fake_cpu_tried, "%s\n", names[i]);
-  }
+  g_assert_true(fake_has_encoder(name));
+  g_string_append_printf(fake_cpu_tried, "%s\n", name);
+  return !fake_listed(fake_cpu_broken, name);
 }
 
 static void
@@ -58,7 +55,7 @@ fake_gpu_encodes(const char *const *names,
 static const WaytatorVideoSupportLookup fake_lookup = {
   .has_encoder = fake_has_encoder,
   .has_gifski = fake_has_gifski,
-  .cpu_encodes = fake_cpu_encodes,
+  .cpu_opens = fake_cpu_opens,
   .gpu_encodes = fake_gpu_encodes,
 };
 
@@ -267,7 +264,7 @@ static WaytatorVideoEncoder
 size_limited(WaytatorVideoEncoder preference)
 {
   return waytator_video_encoder_for_size_limit(WAYTATOR_VIDEO_CODEC_H264, preference,
-                                               fake_has_encoder, fake_cpu_encodes);
+                                               fake_has_encoder, fake_cpu_opens);
 }
 
 //a size limit goes to the processor, but Automatic has to stay free to take the gpu when only the gpu can

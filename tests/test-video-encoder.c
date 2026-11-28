@@ -75,18 +75,12 @@ opens_for_export(const AVCodec *codec)
 static void
 test_software_probe(void)
 {
-  static const char *const unknown[] = { "no-such-encoder", NULL };
-  gboolean works = TRUE;
-
   for (WaytatorVideoCodec codec = WAYTATOR_VIDEO_CODEC_H264; codec < WAYTATOR_VIDEO_CODEC_GIF; codec++) {
     const char *name = waytator_video_encoder_find_software(codec, waytator_video_encoder_exists);
-    const char *const names[] = { name, NULL };
 
     if (name == NULL)
       continue;
-    works = FALSE;
-    waytator_video_encoder_probe_software(names, &works);
-    if (works) {
+    if (waytator_video_encoder_probe_software(name)) {
       g_test_message("%s opens", name);
       continue;
     }
@@ -94,8 +88,7 @@ test_software_probe(void)
     g_assert_false(opens_for_export(avcodec_find_encoder_by_name(name)));
   }
 
-  waytator_video_encoder_probe_software(unknown, &works);
-  g_assert_false(works);
+  g_assert_false(waytator_video_encoder_probe_software("no-such-encoder"));
 }
 
 //this ffmpeg less its encoders for HEVC on the cpu

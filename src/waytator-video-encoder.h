@@ -53,19 +53,23 @@ const char *waytator_video_encoder_find_software(WaytatorVideoCodec codec,
 void waytator_video_encoder_probe_hardware(const char *const *names,
                                            gboolean          *works);
 
-//for each encoder in names, which are for the cpu, whether it opens, into works. takes a while too: call it
-//from a worker thread
-void waytator_video_encoder_probe_software(const char *const *names,
-                                           gboolean          *works);
+//whether the encoder for the cpu called name opens, which ffmpeg having it doesn't say: it can be a stand-in
+//for a library that was left out. takes a while: call it from a worker thread
+gboolean waytator_video_encoder_probe_software(const char *name);
+//the first encoder on the cpu for codec that opens, going by has_encoder and cpu_opens, which is the one an
+//export ends up with. NULL when none does. has_encoder and cpu_opens are what the checks ask too, see
+//waytator-video-support.h
+const char *waytator_video_encoder_find_working_software(WaytatorVideoCodec codec,
+                                                         gboolean         (*has_encoder)(const char *name),
+                                                         gboolean         (*cpu_opens)(const char *name));
 
 //where an export aiming at a size encodes, preference being what its profile says. Automatic means the
 //processor, which gets closer to the size, but stays Automatic when the processor can't make codec, so the
-//gpu can. has_encoder and cpu_encodes are what the checks ask too, see waytator-video-support.h
+//gpu can
 WaytatorVideoEncoder waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
                                                            WaytatorVideoEncoder preference,
                                                            gboolean           (*has_encoder)(const char *name),
-                                                           void               (*cpu_encodes)(const char *const *names,
-                                                                                             gboolean          *works));
+                                                           gboolean           (*cpu_opens)(const char *name));
 
 //on the gpu unless preference says the cpu or the gpu can't encode a width by height picture in codec, on
 //the first encoder for the cpu otherwise, going by has_encoder for which encoders ffmpeg has. fails with G_IO_ERROR_NOT_SUPPORTED
