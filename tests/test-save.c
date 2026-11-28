@@ -55,6 +55,15 @@ test_first_save_capture(void)
   g_assert_cmpint(waytator_save_first_destination(FALSE, TRUE, FALSE), ==, WAYTATOR_FIRST_SAVE_DIALOG);
 }
 
+//a menu takes _ for the key that picks an entry, so a path's own underscores are doubled to show as they are
+static void
+test_menu_label_keeps_underscores(void)
+{
+  g_autofree char *label = waytator_save_menu_label("~/bug_report_1.png");
+
+  g_assert_cmpstr(label, ==, "Save to ~/bug__report__1.png");
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -66,5 +75,6 @@ main(int   argc,
   g_test_add_func("/save/first-save-target", test_first_save_target);
   g_test_add_func("/save/first-save-piped-asks", test_first_save_piped_asks);
   g_test_add_func("/save/first-save-capture", test_first_save_capture);
+  g_test_add_func("/save/menu-label-keeps-underscores", test_menu_label_keeps_underscores);
   return g_test_run();
 }

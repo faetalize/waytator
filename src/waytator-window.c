@@ -3077,7 +3077,7 @@ waytator_window_update_save_menu(WaytatorWindow *self)
   waytator_window_queue_chrome_layout(self);
   g_menu_remove_all(self->save_menu);
   if (destination != NULL) {
-    g_autofree char *label = g_strdup_printf("Save to %s", destination);
+    g_autofree char *label = waytator_save_menu_label(destination);
 
     g_menu_append(self->save_menu, label, "win.save-image");
     g_menu_append(self->save_menu, "Save as…", "win.save-as");

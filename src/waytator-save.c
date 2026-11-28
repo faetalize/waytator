@@ -20,3 +20,13 @@ waytator_save_first_destination(gboolean has_target,
     return WAYTATOR_FIRST_SAVE_FOLDER;
   return WAYTATOR_FIRST_SAVE_DIALOG;
 }
+
+//a menu takes _ for the key that picks an entry and hides it, so a path's own underscores are doubled
+char *
+waytator_save_menu_label(const char *destination)
+{
+  g_auto(GStrv) parts = g_strsplit(destination, "_", -1);
+  g_autofree char *escaped = g_strjoinv("__", parts);
+
+  return g_strdup_printf("Save to %s", escaped);
+}

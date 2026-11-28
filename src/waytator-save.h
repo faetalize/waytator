@@ -20,4 +20,7 @@ WaytatorFirstSave waytator_save_first_destination(gboolean has_target,
                                                   gboolean from_capture,
                                                   gboolean has_screenshot_folder);
 
+//the Save menu's entry for a place Save goes to without asking
+char *waytator_save_menu_label(const char *destination);
+
 G_END_DECLS
