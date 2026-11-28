@@ -1,9 +1,12 @@
 //the drop-down that greys out what can't be picked, shown on a Broadway display of the test's own, so nothing
-//appears on anyone's screen. skips where gtk4-broadwayd isn't installed
+//appears on anyone's screen. skips where gtk4-broadwayd isn't installed, and fails where it is but doesn't
+//come up
 #include <gio/gunixsocketaddress.h>
 #include <glib/gstdio.h>
 #include <signal.h>
+#include <string.h>
 #include <sys/prctl.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include "waytator-choice-list.h"
@@ -125,18 +128,33 @@ test_die_with_us(gpointer user_data)
   prctl(PR_SET_PDEATHSIG, SIGKILL);
 }
 
-//a broadwayd that keeps its sockets in folder, listening on no network port. NULL when there is none to start
-static GSubprocess *
-test_start_broadway(const char *folder)
+//a folder of the test's own for broadwayd's sockets. in TMPDIR, unless that is long enough to make a socket's
+//path longer than a Unix socket can have, in /tmp then
+static char *
+test_make_folder(void)
 {
-  g_autofree char *program = g_find_program_in_path("gtk4-broadwayd");
+  const gsize longest = sizeof ((struct sockaddr_un *) NULL)->sun_path - 1;
+  g_autofree char *folder = g_dir_make_tmp("waytator-choices-XXXXXX", NULL);
+
+  if (folder != NULL && strlen(folder) + strlen("/broadway6.socket") <= longest)
+    return g_steal_pointer(&folder);
+  if (folder != NULL)
+    g_rmdir(folder);
+  g_free(folder);
+  folder = g_strdup("/tmp/waytator-choices-XXXXXX");
+  return g_mkdtemp(folder) != NULL ? g_steal_pointer(&folder) : NULL;
+}
+
+//program, a broadwayd, keeping its sockets in folder and listening on no network port. NULL when it doesn't
+//come up
+static GSubprocess *
+test_start_broadway(const char *program,
+                    const char *folder)
+{
   g_autofree char *http = g_build_filename(folder, "http", NULL);
   g_autofree char *socket_path = g_build_filename(folder, "broadway6.socket", NULL);
   g_autoptr(GSubprocessLauncher) launcher = NULL;
   GSubprocess *broadway;
-
-  if (program == NULL)
-    return NULL;
 
   launcher = g_subprocess_launcher_new(G_SUBPROCESS_FLAGS_STDOUT_SILENCE | G_SUBPROCESS_FLAGS_STDERR_SILENCE);
   g_subprocess_launcher_set_child_setup(launcher, test_die_with_us, NULL, NULL);
@@ -155,7 +173,8 @@ int
 main(int   argc,
      char *argv[])
 {
-  g_autofree char *folder = g_dir_make_tmp("waytator-choices-XXXXXX", NULL);
+  g_autofree char *program = g_find_program_in_path("gtk4-broadwayd");
+  g_autofree char *folder = test_make_folder();
   g_autoptr(GSubprocess) broadway = NULL;
   int result;
 
@@ -171,10 +190,14 @@ main(int   argc,
   g_setenv("GSETTINGS_BACKEND", "memory", TRUE);
 
   g_test_init(&argc, &argv, NULL);
-  broadway = test_start_broadway(folder);
-  if (broadway == NULL || !gtk_init_check()) {
-    g_print("1..0 # SKIP no Broadway display\n");
+  if (program != NULL)
+    broadway = test_start_broadway(program, folder);
+  if (program == NULL) {
+    g_print("1..0 # SKIP gtk4-broadwayd isn't installed\n");
     result = 77;
+  } else if (broadway == NULL || !gtk_init_check()) {
+    g_print("Bail out! %s didn't bring up a display with its sockets in %s\n", program, folder);
+    result = 1;
   } else {
     //Broadway warns about frame timings, which says nothing about the list
     g_log_set_always_fatal(G_LOG_FATAL_MASK);
