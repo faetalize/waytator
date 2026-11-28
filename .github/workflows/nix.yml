@@ -34,5 +34,17 @@ jobs:
           closure=$(nix path-info -r ./result-minimal)
           grep -q -- '-wl-clipboard-' <<< "$closure"
           if grep -- '-tesseract-' <<< "$closure"; then exit 1; fi
+      # what OCR adds is the paths in the closure of the app with it and not without it. for comparison, the
+      # same for the all-languages tesseract nixpkgs ships by default, read from the binary cache
       - name: Closure sizes
-        run: nix path-info -Sh ./result ./result-minimal
+        run: |
+          mib() { awk '{ sum += $2 } END { printf "%.1f MiB\n", sum / 1048576 }'; }
+          minimal=$(nix path-info -r ./result-minimal | sort)
+          echo "waytator:         $(nix path-info -S ./result | mib)"
+          echo "waytator-minimal: $(nix path-info -S ./result-minimal | mib)"
+          echo "OCR, English:     $(comm -23 <(nix path-info -r ./result | sort) <(echo "$minimal") | grep -v -- '-waytator-' | xargs nix path-info -s | mib)"
+          if [ "${{ matrix.nixpkgs }}" = unstable ]; then
+            cache=(--store https://cache.nixos.org)
+            all=$(nix path-info "${cache[@]}" -r --inputs-from . nixpkgs#tesseract | sort)
+            echo "OCR, every language (nixpkgs' default tesseract): $(comm -23 <(echo "$all") <(echo "$minimal") | xargs nix path-info "${cache[@]}" -s | mib)"
+          fi
