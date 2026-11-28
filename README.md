@@ -17,12 +17,34 @@ Using niri or GNOME? See [Desktop-specific notes](#desktop-specific-notes).
 <img width="600" src="https://github.com/user-attachments/assets/7bd789a5-f45c-4a10-a6d2-a778225ff345" />
 </p>
 
-## Quickstart
+## Build & Install
+
+### Arch
+
+Get it from the AUR:
+
+```bash
+yay -S waytator
+```
 
 ### Fedora
 
 ```bash
-sudo dnf install https://github.com/faetalize/waytator/releases/latest/download/waytator-fedora-x86_64.rpm
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-fedora-x86_64.rpm
+```
+
+```bash
+dnf install ./waytator-fedora-x86_64.rpm
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-fedora-aarch64.rpm
+```
+
+```bash
+dnf install ./waytator-fedora-aarch64.rpm
 ```
 
 For GPU-accelerated H.264 recording, add RPM Fusion's ffmpeg and drivers: see [RPM Fusion's multimedia guide](https://rpmfusion.org/Howto/Multimedia).
@@ -34,7 +56,17 @@ curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator
 ```
 
 ```bash
-sudo apt install ./waytator-debian-amd64.deb
+apt install ./waytator-debian-amd64.deb
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-debian-arm64.deb
+```
+
+```bash
+apt install ./waytator-debian-arm64.deb
 ```
 
 ### Ubuntu 26.04 and 26.10
@@ -44,19 +76,17 @@ curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator
 ```
 
 ```bash
-sudo apt install ./waytator-ubuntu-amd64.deb
+apt install ./waytator-ubuntu-amd64.deb
 ```
 
-On ARM, replace `x86_64` with `aarch64` and `amd64` with `arm64`. Run the same commands again to update.
-
-## Build & Install
-
-### Arch
-
-Get it from the AUR:
+On ARM:
 
 ```bash
-yay -S waytator
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-ubuntu-arm64.deb
+```
+
+```bash
+apt install ./waytator-ubuntu-arm64.deb
 ```
 
 ### Nix
