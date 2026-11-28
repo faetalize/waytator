@@ -643,22 +643,22 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
   if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
     codec = avcodec_find_encoder(AV_CODEC_ID_GIF);
 
-  encoder = exporter->video_encoder = waytator_export_new_video_encoder(exporter, codec, sink, source_frame, pass);
   //an encoder on the cpu that ffmpeg lists can be a stand-in for a library that was left out, so the next one
-  //it has for the format is tried before giving up. only libx264 does two passes: moving off it in the first
-  //pass leaves that pass's work unused and makes the export one pass, which still comes out right
-  while ((code = avcodec_open2(encoder, codec, NULL)) < 0) {
-    const char *failed = codec->name;
-
-    if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF
-        || !waytator_video_encoder_choose_next_software(profile->codec, waytator_video_encoder_exists,
-                                                        &exporter->choice))
+  //it has for the format is tried before giving up. a GIF has no choice to move on from. only libx264 does
+  //two passes: moving off it in the first pass leaves that pass's work unused and makes the export one pass,
+  //which still comes out right
+  for (;;) {
+    encoder = exporter->video_encoder = waytator_export_new_video_encoder(exporter, codec, sink, source_frame, pass);
+    code = avcodec_open2(encoder, codec, NULL);
+    if (code >= 0)
+      break;
+    g_debug("%s doesn't open", codec->name);
+    avcodec_free_context(&exporter->video_encoder);
+    if (!waytator_video_encoder_choose_next_software(profile->codec, waytator_video_encoder_exists,
+                                                     &exporter->choice))
       return waytator_video_encoder_fail(error, code, "Could not start the video encoder");
     codec = exporter->choice.codec;
-    g_debug("%s doesn't open, trying %s", failed, codec->name);
     plan->two_pass = plan->two_pass && g_str_equal(codec->name, "libx264");
-    avcodec_free_context(&exporter->video_encoder);
-    encoder = exporter->video_encoder = waytator_export_new_video_encoder(exporter, codec, sink, source_frame, pass);
   }
 
   if (exporter->muxer != NULL) {
