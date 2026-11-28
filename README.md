@@ -72,7 +72,7 @@ Then add the package to your system:
 # configuration.nix
 environment.systemPackages = [
   inputs.waytator.packages.${pkgs.stdenv.hostPlatform.system}.default
-  # without OCR, for a smaller install: inputs.waytator.packages.${pkgs.stdenv.hostPlatform.system}.waytator-minimal
+  # use .waytator-minimal instead of .default to install without OCR
 ];
 ```
 
