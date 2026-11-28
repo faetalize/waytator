@@ -70,6 +70,10 @@ typedef struct {
   guint32 version;
   guint32 source_types;
   guint32 cursor_modes;
+  //the session was asked for with the screen's restore token
+  gboolean token_passed;
+  //the token gave another screen, so the portal is asked again without one
+  gboolean token_refused;
   WaytatorRecordPortalStep step;
   //the request the current step waits on the answer of
   char *request_path;
@@ -89,6 +93,7 @@ typedef struct {
 
 static void waytator_record_portal_attempt_abort(WaytatorRecordPortalAttempt *attempt,
                                                  GError                      *error);
+static void waytator_record_portal_attempt_create_session(WaytatorRecordPortalAttempt *attempt);
 static void waytator_record_portal_attempt_request(WaytatorRecordPortalAttempt *attempt,
                                                    WaytatorRecordPortalStep     step,
                                                    const char                  *method,
@@ -561,6 +566,33 @@ waytator_record_portal_attempt_is_screen(const WaytatorRecordPortalAttempt *atte
           && abs(attempt->height - request->height) <= WAYTATOR_RECORD_PORTAL_GEOMETRY_SLACK);
 }
 
+//the token is kept by the connector the screen was on, and the portal can know the screen by its make, model and
+//serial number instead. after screens have swapped connectors it stands for the other one, and gives that one
+//without a dialog every time. so the token is forgotten and the portal asked again, in a new session because
+//sources can only be selected once in each, and the dialog that brings up is the way back to the right screen.
+//
+//keeping tokens by make, model and serial number would not save this, there are screens without a serial number
+static void
+waytator_record_portal_attempt_ask_without_token(WaytatorRecordPortalAttempt *attempt)
+{
+  //set as well as forgotten, or a token that can't be taken out of the file would be passed again forever
+  attempt->token_refused = TRUE;
+  waytator_record_portal_token_store(attempt->output_name, NULL);
+
+  //closing the session is ours, so it isn't to be taken for the desktop ending it
+  g_dbus_connection_signal_unsubscribe(attempt->connection, attempt->session_closed_id);
+  attempt->session_closed_id = 0;
+  waytator_record_portal_send_close(attempt->connection,
+                                    attempt->session_handle,
+                                    "org.freedesktop.portal.Session");
+  g_clear_pointer(&attempt->session_handle, g_free);
+
+  attempt->node = 0;
+  attempt->width = 0;
+  attempt->height = 0;
+  waytator_record_portal_attempt_create_session(attempt);
+}
+
 static void
 waytator_record_portal_attempt_started(WaytatorRecordPortalAttempt *attempt,
                                        GVariant                    *results)
@@ -587,6 +619,12 @@ waytator_record_portal_attempt_started(WaytatorRecordPortalAttempt *attempt,
 
   if (attempt->request.source == WAYTATOR_RECORD_PORTAL_SCREEN
       && !waytator_record_portal_attempt_is_screen(attempt, properties)) {
+    if (attempt->token_passed) {
+      waytator_record_portal_attempt_ask_without_token(attempt);
+      return;
+    }
+
+    //without a token it was picked in the dialog
     waytator_record_portal_attempt_abort(attempt,
                                          g_error_new(WAYTATOR_RECORD_PORTAL_ERROR,
                                                      WAYTATOR_RECORD_PORTAL_ERROR_WRONG_SCREEN,
@@ -639,8 +677,9 @@ waytator_record_portal_attempt_select_sources(WaytatorRecordPortalAttempt *attem
                           "persist_mode",
                           g_variant_new_uint32(persists ? WAYTATOR_RECORD_PORTAL_PERSIST_ALWAYS
                                                         : WAYTATOR_RECORD_PORTAL_PERSIST_NEVER));
-    if (persists)
+    if (persists && !attempt->token_refused)
       token = waytator_record_portal_token_load(attempt->output_name);
+    attempt->token_passed = token != NULL;
     if (token != NULL)
       g_variant_builder_add(&options, "{sv}", "restore_token", g_variant_new_string(token));
   }

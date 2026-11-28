@@ -11,6 +11,8 @@ waytator_tool_icon_name(WaytatorTool tool)
   switch (tool) {
   case WAYTATOR_TOOL_PAN:
     return "waytator-pan-symbolic";
+  case WAYTATOR_TOOL_SELECT:
+    return "waytator-select-symbolic";
   case WAYTATOR_TOOL_RECTANGLE:
     return "waytator-rectangle-symbolic";
   case WAYTATOR_TOOL_CIRCLE:
@@ -34,6 +36,7 @@ static gboolean
 waytator_tool_has_size_control(WaytatorTool tool)
 {
   return tool != WAYTATOR_TOOL_PAN
+      && tool != WAYTATOR_TOOL_SELECT
       && tool != WAYTATOR_TOOL_CROP
       && tool != WAYTATOR_TOOL_OCR;
 }
@@ -281,12 +284,35 @@ waytator_window_size_drawer_toggled(GtkToggleButton *button,
   waytator_window_save_preferences(self);
 }
 
+//undo and redo swap the document's strokes for copies, which lets go of the selected one. a step that neither
+//added nor removed a stroke left them in the same order, so the stroke in the same place is picked again and a
+//move can be undone and tried again without clicking on it in between
+static void
+waytator_window_remember_selection(WaytatorWindow *self,
+                                   int            *selection_index,
+                                   guint          *n_strokes)
+{
+  *selection_index = waytator_window_get_selection_index(self);
+  *n_strokes = waytator_window_strokes(self)->len;
+}
+
+static void
+waytator_window_bring_back_selection(WaytatorWindow *self,
+                                     int             selection_index,
+                                     guint           n_strokes)
+{
+  if (selection_index >= 0 && waytator_window_strokes(self)->len == n_strokes)
+    waytator_window_set_selection_index(self, selection_index);
+}
+
 static void
 waytator_window_undo_clicked(GtkButton *button,
                              gpointer   user_data)
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
   GPtrArray *snapshot;
+  int selection_index;
+  guint n_strokes;
 
   (void) button;
 
@@ -298,8 +324,10 @@ waytator_window_undo_clicked(GtkButton *button,
   if (!waytator_document_can_undo(self->document))
     return;
 
+  waytator_window_remember_selection(self, &selection_index, &n_strokes);
   snapshot = waytator_document_undo(self->document);
   waytator_window_restore_strokes(self, snapshot);
+  waytator_window_bring_back_selection(self, selection_index, n_strokes);
 }
 
 static void
@@ -308,6 +336,8 @@ waytator_window_redo_clicked(GtkButton *button,
 {
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
   GPtrArray *snapshot;
+  int selection_index;
+  guint n_strokes;
 
   (void) button;
 
@@ -319,8 +349,10 @@ waytator_window_redo_clicked(GtkButton *button,
   if (!waytator_document_can_redo(self->document))
     return;
 
+  waytator_window_remember_selection(self, &selection_index, &n_strokes);
   snapshot = waytator_document_redo(self->document);
   waytator_window_restore_strokes(self, snapshot);
+  waytator_window_bring_back_selection(self, selection_index, n_strokes);
 }
 
 static void
@@ -356,6 +388,8 @@ waytator_window_tool_toggled(GtkToggleButton *button,
 
   if (button == self->pan_tool_button)
     self->active_tool = WAYTATOR_TOOL_PAN;
+  else if (button == self->select_tool_button)
+    self->active_tool = WAYTATOR_TOOL_SELECT;
   else if (button == self->crop_tool_button)
     self->active_tool = WAYTATOR_TOOL_CROP;
   else if (button == self->highlighter_tool_button)
@@ -383,6 +417,10 @@ waytator_window_tool_toggled(GtkToggleButton *button,
     gtk_popover_popdown(self->shapes_popover);
 
   waytator_window_stop_size_editing(self, FALSE, FALSE);
+
+  //the box and its handles belong to the select tool, another tool draws straight through where they were
+  if (self->active_tool != WAYTATOR_TOOL_SELECT)
+    waytator_window_clear_selection(self);
 
   self->updating_ui = TRUE;
   gtk_color_dialog_button_set_rgba(self->color_button, &self->tool_colors[self->active_tool]);
@@ -477,6 +515,8 @@ waytator_window_tool_button(WaytatorWindow *self,
   switch (tool) {
   case WAYTATOR_TOOL_PAN:
     return self->pan_tool_button;
+  case WAYTATOR_TOOL_SELECT:
+    return self->select_tool_button;
   case WAYTATOR_TOOL_CROP:
     return self->crop_tool_button;
   case WAYTATOR_TOOL_MARKER:
@@ -506,6 +546,10 @@ void
 waytator_window_select_tool(WaytatorWindow *self,
                             WaytatorTool    tool)
 {
+  //already active, the button won't toggle
+  if (!self->pen_eraser_switching)
+    waytator_pen_eraser_forget(&self->pen_eraser);
+
   gtk_toggle_button_set_active(waytator_window_tool_button(self, tool), TRUE);
 }
 
@@ -622,6 +666,8 @@ waytator_window_connect_tool_toggle(WaytatorWindow  *self,
                                     GtkToggleButton *button)
 {
   g_signal_connect(button, "toggled", G_CALLBACK(waytator_window_tool_toggled), self);
+  //a tap on the tool that's already active doesn't toggle, but it's still picked by hand
+  g_signal_connect_swapped(button, "clicked", G_CALLBACK(waytator_pen_eraser_forget), &self->pen_eraser);
 }
 
 void
@@ -636,7 +682,9 @@ waytator_window_restore_strokes(WaytatorWindow *self,
 void
 waytator_window_update_tool_ui(WaytatorWindow *self)
 {
-  const gboolean is_pan_tool = self->active_tool == WAYTATOR_TOOL_PAN;
+  //neither draws anything, so neither has options to show
+  const gboolean is_pan_tool = self->active_tool == WAYTATOR_TOOL_PAN
+                            || self->active_tool == WAYTATOR_TOOL_SELECT;
   const gboolean is_crop_tool = self->active_tool == WAYTATOR_TOOL_CROP;
   const gboolean is_ocr_tool = self->active_tool == WAYTATOR_TOOL_OCR;
   const gboolean has_fill_color = self->active_tool == WAYTATOR_TOOL_RECTANGLE
@@ -732,6 +780,7 @@ void
 waytator_window_setup_tool_signals(WaytatorWindow *self)
 {
   waytator_window_connect_tool_toggle(self, self->pan_tool_button);
+  waytator_window_connect_tool_toggle(self, self->select_tool_button);
   waytator_window_connect_tool_toggle(self, self->crop_tool_button);
   waytator_window_connect_tool_toggle(self, self->brush_tool_button);
   waytator_window_connect_tool_toggle(self, self->highlighter_tool_button);

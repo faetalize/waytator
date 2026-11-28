@@ -43,6 +43,36 @@ test_video_audio = executable(
 )
 test('video-audio', test_video_audio, timeout: 120)
 
+#which gpu drivers get B-frames, from the names they give themselves
+test_video_encoder = executable(
+  'test-video-encoder',
+  'test-video-encoder.c',
+  '../src/waytator-video-encoder.c',
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, m_dep, video_deps],
+)
+test('video-encoder', test_video_encoder)
+
+#which formats are offered, against a made-up ffmpeg and gpu. the real gpu check isn't run here
+test_video_support = executable(
+  'test-video-support',
+  'test-video-support.c',
+  files('../src/waytator-video-encoder.c', '../src/waytator-video-profile.c', '../src/waytator-video-support.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
+)
+test('video-support', test_video_support)
+
+#a drop-down with greyed out choices, on a Broadway display of the test's own
+test_choice_list = executable(
+  'test-choice-list',
+  'test-choice-list.c',
+  files('../src/waytator-choice-list.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep, gtk_dep, adw_dep],
+)
+test('choice-list', test_choice_list)
+
 #makes its own videos and saves them through every turn and flip, checking the corners land where the editor shows them
 test_video_export = executable(
   'test-video-export',
@@ -58,6 +88,8 @@ test_video_export = executable(
   waytator_video_edit_sources,
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
+  #lets the test break an encoder, see broken_encoder there
+  link_args: ['-Wl,--wrap=avcodec_open2'],
 )
 test('video-export', test_video_export, timeout: 300)
 
@@ -120,7 +152,7 @@ test('record-audio', test_record_audio, timeout: 180)
 test_recording_bar_place = executable(
   'test-recording-bar-place',
   'test-recording-bar-place.c',
-  files('../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-recording-bar.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [layer_shell_dep, gtk_dep, adw_dep, m_dep],
 )
@@ -155,20 +187,57 @@ test('record-stream', test_record_stream, timeout: 120)
 test_recording_settings = executable(
   'test-recording-settings',
   'test-recording-settings.c',
-  files('../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep],
 )
 test('recording-settings', test_recording_settings)
 
+#the names a template in the preferences gives screenshots and recordings
+test_file_name = executable(
+  'test-file-name',
+  'test-file-name.c',
+  files('../src/waytator-file-name.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('file-name', test_file_name)
+
 test_last_tool = executable(
   'test-last-tool',
   'test-last-tool.c',
-  files('../src/waytator-last-tool.c', '../src/waytator-settings.c'),
+  files('../src/waytator-file-name.c', '../src/waytator-last-tool.c', '../src/waytator-settings.c'),
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep],
 )
 test('last-tool', test_last_tool)
+
+test_pen_eraser = executable(
+  'test-pen-eraser',
+  'test-pen-eraser.c',
+  files('../src/waytator-pen-eraser.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep],
+)
+test('pen-eraser', test_pen_eraser)
+
+test_tablet_button = executable(
+  'test-tablet-button',
+  'test-tablet-button.c',
+  files('../src/waytator-tablet-button.c'),
+  include_directories: waytator_include,
+  dependencies: [gobject_dep],
+)
+test('tablet-button', test_tablet_button)
+
+test_command_line = executable(
+  'test-command-line',
+  'test-command-line.c',
+  files('../src/waytator-command-line.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep],
+)
+test('command-line', test_command_line)
 
 test_document = executable(
   'test-document',
@@ -178,6 +247,65 @@ test_document = executable(
   dependencies: [gtk_dep, adw_dep, m_dep],
 )
 test('document', test_document)
+
+#pen strokes with and without stylus pressure, rendered offscreen and measured
+test_stroke = executable(
+  'test-stroke',
+  'test-stroke.c',
+  files('../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('stroke', test_stroke)
+
+#the select tool's arithmetic: what a press picks and where a drag leaves a stroke, with no window
+test_select = executable(
+  'test-select',
+  'test-select.c',
+  files('../src/waytator-select.c', '../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('select', test_select)
+
+#crops, turns and flips of an image with strokes on it, drawn offscreen and compared
+test_transform = executable(
+  'test-transform',
+  'test-transform.c',
+  files('../src/waytator-stroke.c', '../src/waytator-transform.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('transform', test_transform)
+
+test_save = executable(
+  'test-save',
+  'test-save.c',
+  files('../src/waytator-save.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep],
+)
+test('save', test_save)
+
+#saving over a file that is already there, with no window
+test_export = executable(
+  'test-export',
+  'test-export.c',
+  files('../src/waytator-export.c', '../src/waytator-render.c', '../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('export', test_export)
+
+#notification text as it goes out, no server needed
+test_notification = executable(
+  'test-notification',
+  'test-notification.c',
+  files('../src/waytator-notification.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep],
+)
+test('notification', test_notification)
 
 #records a screen of a stand-in portal and a PipeWire daemon of the test's own and decodes the files, skipping without
 #pipewire or VA-API. the wait for the first picture is shortened so the case where none comes is quick
@@ -191,6 +319,7 @@ test_record_recorder = executable(
     '../src/waytator-record-mixer.c',
     '../src/waytator-record-portal.c',
     '../src/waytator-record-stream.c',
+    '../src/waytator-file-name.c',
     '../src/waytator-record-writer.c',
     '../src/waytator-recorder.c',
     '../src/waytator-video-cache.c',

@@ -7,6 +7,7 @@
   ninja,
   pkg-config,
   glib,
+  gettext,
   wayland-scanner,
   wrapGAppsHook4,
   gtk4,
@@ -16,6 +17,7 @@
   wayland-protocols,
   adwaita-icon-theme,
   ffmpeg,
+  libva,
   libdrm,
   libgbm,
   libGL,
@@ -25,7 +27,9 @@
   gifski,
   tesseract,
   dbus,
+  # enableOcr matches the flag of the nixpkgs package. withOcr is the older name and still works
   withOcr ? true,
+  enableOcr ? withOcr,
   # when the commit was made, the source has no .git to read it from
   commitTime ? 0,
 }:
@@ -44,6 +48,7 @@ stdenv.mkDerivation {
     ninja
     pkg-config
     glib
+    gettext
     wayland-scanner
     wrapGAppsHook4
   ];
@@ -56,6 +61,7 @@ stdenv.mkDerivation {
     wayland-protocols
     adwaita-icon-theme
     ffmpeg
+    libva
     libdrm
     libgbm
     libGL
@@ -75,16 +81,25 @@ stdenv.mkDerivation {
     export HOME=$(mktemp -d)
   '';
 
-  # the app runs wl-copy for the clipboard, gifski for GIFs and tesseract for OCR
+  # the app runs wl-copy for the clipboard, gifski for GIFs and tesseract for OCR. waytator only
+  # runs tesseract in English, so the other languages' data would be dead weight
   preFixup = ''
     gappsWrapperArgs+=(
-      --prefix PATH : ${lib.makeBinPath ([ wl-clipboard gifski ] ++ lib.optional withOcr tesseract)}
+      --prefix PATH : ${
+        lib.makeBinPath (
+          [
+            wl-clipboard
+            gifski
+          ]
+          ++ lib.optional enableOcr (tesseract.override { enableLanguages = [ "eng" ]; })
+        )
+      }
     )
   '';
 
   meta = {
     homepage = "https://github.com/faetalize/waytator";
-    description = "Screenshot annotator and lightweight image and video editor";
+    description = "Fast screen capture and editing";
     license = lib.licenses.gpl3Plus;
     mainProgram = "waytator";
     platforms = lib.platforms.linux;

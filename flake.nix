@@ -1,5 +1,5 @@
 {
-  description = "Screenshot annotator and lightweight image editor";
+  description = "Fast screen capture and editing";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -29,13 +29,20 @@
           inherit version;
           commitTime = self.lastModified or 0;
         };
+
+      # its own output rather than only an override, so it can be run straight from the flake
+      mkWaytatorMinimal = pkgs: (mkWaytator pkgs).override { enableOcr = false; };
     in
     {
       packages = forAllSystems (pkgs: {
         waytator = mkWaytator pkgs;
+        waytator-minimal = mkWaytatorMinimal pkgs;
         default = self.packages.${pkgs.stdenv.hostPlatform.system}.waytator;
       });
 
-      overlays.default = final: _prev: { waytator = mkWaytator final; };
+      overlays.default = final: _prev: {
+        waytator = mkWaytator final;
+        waytator-minimal = mkWaytatorMinimal final;
+      };
     };
 }

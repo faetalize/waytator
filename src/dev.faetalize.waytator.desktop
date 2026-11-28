@@ -2,12 +2,14 @@
 Type=Application
 Version=1.0
 Name=Waytator
-Comment=Take screenshots and recordings, and edit images and videos
-Comment[fr]=Prenez des captures et des enregistrements d’écran, et retouchez vos images et vidéos
+Comment=Fast screen capture and editing
+Comment[fr]=Capture d’écran et retouche rapide
 Exec=waytator %U
 Icon=dev.faetalize.waytator
 Terminal=false
 Categories=Graphics;
+Keywords=screenshot;screen recorder;recording;image editor;video editor;annotate;screen shot;video editing;
+Keywords[fr]=capture d’écran;enregistrement d’écran;retouche d’image;montage vidéo;annotation;
 StartupNotify=true
 Actions=screenshot-area;screenshot-screen;record;
 

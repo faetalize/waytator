@@ -45,4 +45,8 @@ void waytator_notification_open_uri(WaytatorNotification *notification,
                                     const char           *uri,
                                     const char           *what);
 
+//the body as sent, for a server that reads markup in it or one that doesn't
+char *waytator_notification_body_text(const char *body,
+                                      gboolean    markup);
+
 G_END_DECLS

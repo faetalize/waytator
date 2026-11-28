@@ -4,27 +4,92 @@
 
 #include "waytator-render.h"
 
+//the extension of the file name, not of a folder above it, or NULL when it has none
+static const char *
+waytator_export_extension(const char *path)
+{
+  const char *name = strrchr(path, '/');
+  const char *dot;
+
+  name = name != NULL ? name + 1 : path;
+  dot = strrchr(name, '.');
+  return dot != NULL && dot != name ? dot + 1 : NULL;
+}
+
+//the format an extension saves as, NULL for one waytator doesn't save
+static const char *
+waytator_export_format_for_extension(const char *extension)
+{
+  if (g_ascii_strcasecmp(extension, "jpg") == 0 || g_ascii_strcasecmp(extension, "jpeg") == 0)
+    return "jpeg";
+  if (g_ascii_strcasecmp(extension, "png") == 0)
+    return "png";
+  if (g_ascii_strcasecmp(extension, "webp") == 0)
+    return "webp";
+  if (g_ascii_strcasecmp(extension, "bmp") == 0)
+    return "bmp";
+  if (g_ascii_strcasecmp(extension, "tif") == 0 || g_ascii_strcasecmp(extension, "tiff") == 0)
+    return "tiff";
+  return NULL;
+}
+
+//png for a name without an extension or with one waytator doesn't save, the Save dialog's choice is kept
 static const char *
 waytator_export_format_from_path(const char *path)
 {
-  const char *dot = strrchr(path, '.');
+  const char *extension = waytator_export_extension(path);
+  const char *format = extension != NULL ? waytator_export_format_for_extension(extension) : NULL;
 
-  if (dot == NULL)
-    return "png";
+  return format != NULL ? format : "png";
+}
 
-  dot++;
-  if (g_ascii_strcasecmp(dot, "jpg") == 0 || g_ascii_strcasecmp(dot, "jpeg") == 0)
-    return "jpeg";
-  if (g_ascii_strcasecmp(dot, "png") == 0)
-    return "png";
-  if (g_ascii_strcasecmp(dot, "webp") == 0)
-    return "webp";
-  if (g_ascii_strcasecmp(dot, "bmp") == 0)
-    return "bmp";
-  if (g_ascii_strcasecmp(dot, "tif") == 0 || g_ascii_strcasecmp(dot, "tiff") == 0)
-    return "tiff";
+//whether gdk-pixbuf can write this format here, webp needs a loader that isn't always installed
+static gboolean
+waytator_export_format_is_writable(const char *format)
+{
+  g_autoptr(GSList) formats = gdk_pixbuf_get_formats();
 
-  return "png";
+  for (GSList *link = formats; link != NULL; link = link->next) {
+    g_autofree char *name = gdk_pixbuf_format_get_name(link->data);
+
+    if (g_strcmp0(name, format) == 0)
+      return gdk_pixbuf_format_is_writable(link->data);
+  }
+  return FALSE;
+}
+
+char *
+waytator_export_save_path_problem(const char *path)
+{
+  static const struct {
+    const char *extension;
+    const char *format;
+  } offered[] = {
+    { "png", "png" },
+    { "jpg", "jpeg" },
+    { "webp", "webp" },
+    { "bmp", "bmp" },
+    { "tiff", "tiff" },
+  };
+  const char *extension = waytator_export_extension(path);
+  const char *format = extension != NULL ? waytator_export_format_for_extension(extension) : NULL;
+  g_autoptr(GPtrArray) usable = NULL;
+  g_autofree char *list = NULL;
+
+  if (extension == NULL || (format != NULL && waytator_export_format_is_writable(format)))
+    return NULL;
+
+  usable = g_ptr_array_new_with_free_func(g_free);
+  for (guint i = 0; i < G_N_ELEMENTS(offered); i++) {
+    if (waytator_export_format_is_writable(offered[i].format))
+      g_ptr_array_add(usable, g_strconcat(".", offered[i].extension, NULL));
+  }
+  g_ptr_array_add(usable, NULL);
+  list = g_strjoinv(", ", (char **) usable->pdata);
+  // Translators: Keep the command-line option --save-path unchanged.
+  return g_strdup_printf(_("--save-path can't save .%s files here. Use %s, or no extension for PNG"),
+                         extension,
+                         list);
 }
 
 static const char *
@@ -256,6 +321,8 @@ waytator_export_run_task(GTask        *task,
   g_autoptr(GdkPixbuf) encoded_pixbuf = NULL;
   char *option_keys[] = { NULL, NULL };
   char *option_values[] = { NULL, NULL };
+  g_autofree char *buffer = NULL;
+  gsize length = 0;
   const char *format;
 
   if (path == NULL) {
@@ -290,21 +357,24 @@ waytator_export_run_task(GTask        *task,
     return;
   }
 
-  if (option_keys[0] != NULL) {
-    if (!gdk_pixbuf_savev(encoded_pixbuf,
-                          path,
-                          format,
-                          option_keys,
-                          option_values,
-                          &error)) {
-      g_task_return_error(task, g_steal_pointer(&error));
-      return;
-    }
-  } else if (!gdk_pixbuf_save(encoded_pixbuf,
-                              path,
-                              format,
-                              &error,
-                              NULL)) {
+  //encoded in memory first and swapped in whole, so a save that fails halfway leaves the file that was there.
+  //gdk_pixbuf_savev empties the file before encoding and deletes it when encoding fails
+  if (!gdk_pixbuf_save_to_bufferv(encoded_pixbuf,
+                                  &buffer,
+                                  &length,
+                                  format,
+                                  option_keys,
+                                  option_values,
+                                  &error)
+      || !g_file_replace_contents(request->file,
+                                  buffer,
+                                  length,
+                                  NULL,
+                                  FALSE,
+                                  G_FILE_CREATE_NONE,
+                                  NULL,
+                                  NULL,
+                                  &error)) {
     g_task_return_error(task, g_steal_pointer(&error));
     return;
   }

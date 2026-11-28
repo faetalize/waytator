@@ -147,6 +147,19 @@ mock_begin_request(GDBusMethodInvocation *invocation,
   return path;
 }
 
+//whether the pass that went in is one the portal remembers a screen by
+static gboolean
+mock_is_remembered(void)
+{
+  const MockBehaviour *behaviour = &mock.behaviour;
+  const char *passed = NULL;
+
+  return behaviour->remembered_token != NULL
+      && behaviour->select_options != NULL
+      && g_variant_lookup(behaviour->select_options, "restore_token", "&s", &passed)
+      && g_str_equal(passed, behaviour->remembered_token);
+}
+
 GVariant *
 mock_started_results(void)
 {
@@ -154,15 +167,26 @@ mock_started_results(void)
   GVariantBuilder properties;
   GVariantBuilder streams;
   GVariantBuilder results;
+  const char *token = behaviour->token;
+  int x = behaviour->x;
+  int y = behaviour->y;
+  int width = behaviour->width;
+  int height = behaviour->height;
+
+  if (mock_is_remembered()) {
+    //the same pass comes back, it stays good
+    token = behaviour->remembered_token;
+    x = behaviour->remembered_x;
+    y = behaviour->remembered_y;
+    width = behaviour->remembered_width;
+    height = behaviour->remembered_height;
+  }
 
   g_variant_builder_init(&properties, G_VARIANT_TYPE_VARDICT);
   if (behaviour->has_position)
-    g_variant_builder_add(&properties, "{sv}", "position", g_variant_new("(ii)", behaviour->x, behaviour->y));
+    g_variant_builder_add(&properties, "{sv}", "position", g_variant_new("(ii)", x, y));
   if (behaviour->has_size)
-    g_variant_builder_add(&properties,
-                          "{sv}",
-                          "size",
-                          g_variant_new("(ii)", behaviour->width, behaviour->height));
+    g_variant_builder_add(&properties, "{sv}", "size", g_variant_new("(ii)", width, height));
   g_variant_builder_add(&properties, "{sv}", "source_type", g_variant_new_uint32(1));
 
   g_variant_builder_init(&streams, G_VARIANT_TYPE("a(ua{sv})"));
@@ -173,8 +197,8 @@ mock_started_results(void)
 
   g_variant_builder_init(&results, G_VARIANT_TYPE_VARDICT);
   g_variant_builder_add(&results, "{sv}", "streams", g_variant_builder_end(&streams));
-  if (behaviour->token != NULL)
-    g_variant_builder_add(&results, "{sv}", "restore_token", g_variant_new_string(behaviour->token));
+  if (token != NULL)
+    g_variant_builder_add(&results, "{sv}", "restore_token", g_variant_new_string(token));
   return g_variant_builder_end(&results);
 }
 
@@ -300,7 +324,10 @@ mock_handle_portal_call(GDBusConnection       *connection,
 
     request_path = mock_begin_request(invocation, options);
     if (!behaviour->never_answer)
-      mock_queue_response(request_path, behaviour->start_code, mock_started_results());
+      mock_queue_response(request_path,
+                          behaviour->dialog_code != 0 && !mock_is_remembered() ? behaviour->dialog_code
+                                                                               : behaviour->start_code,
+                          mock_started_results());
   } else if (g_str_equal(method_name, "OpenPipeWireRemote")) {
     g_autoptr(GUnixFDList) fds = g_unix_fd_list_new();
     int pair[2];

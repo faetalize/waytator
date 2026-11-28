@@ -1,11 +1,13 @@
-!! this is still maintained, i just need issues to work on. if you face issues or have feature requests, don't hesitate to open issues and ping me !!
-
 # waytator
 
-`waytator` is a one stop shot for screenshotting and recording on supported wlroots based compositor. It is also a lightweight image and video editor.
+`waytator` is a fast screen-capture tool, image annotator and video editor, all in one.
+
+* Screenshot and record your screen
+* Edit images and videos
+* GPU-accelerated, super light on resources
+* CLI-friendly
 
 Using niri or GNOME? See [Desktop-specific notes](#desktop-specific-notes).
-
 
 <p  align="center">
   <img width="600" src="https://github.com/user-attachments/assets/489d2d45-5422-47c0-b8d4-d96d0b42dba1" />
@@ -25,9 +27,71 @@ Get it from the AUR:
 yay -S waytator
 ```
 
+### Fedora
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-fedora-x86_64.rpm
+```
+
+```bash
+dnf install ./waytator-fedora-x86_64.rpm
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-fedora-aarch64.rpm
+```
+
+```bash
+dnf install ./waytator-fedora-aarch64.rpm
+```
+
+For GPU-accelerated H.264 recording, add RPM Fusion's ffmpeg and drivers: see [RPM Fusion's multimedia guide](https://rpmfusion.org/Howto/Multimedia).
+
+### Debian 13
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-debian-amd64.deb
+```
+
+```bash
+apt install ./waytator-debian-amd64.deb
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-debian-arm64.deb
+```
+
+```bash
+apt install ./waytator-debian-arm64.deb
+```
+
+### Ubuntu 26.04 and 26.10
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-ubuntu-amd64.deb
+```
+
+```bash
+apt install ./waytator-ubuntu-amd64.deb
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-ubuntu-arm64.deb
+```
+
+```bash
+apt install ./waytator-ubuntu-arm64.deb
+```
+
 ### Nix
 
-Waytator is in nixpkgs, though it can lag a release or two behind:
+Waytator is in nixpkgs:
 
 ```bash
 nix run nixpkgs#waytator
@@ -45,17 +109,24 @@ To follow `master` instead:
 nix run github:faetalize/waytator
 ```
 
-On NixOS, add it as a flake input:
+For a smaller download without OCR, add `#waytator-minimal` to either:
+
+```bash
+nix run github:faetalize/waytator/stable#waytator-minimal
+# OR
+nix run github:faetalize/waytator#waytator-minimal
+```
+
+**Installing on NixOS:** add it as a flake input:
 
 ```nix
 # flake.nix
 inputs.waytator = {
   url = "github:faetalize/waytator/stable";
+  # to follow master instead: url = "github:faetalize/waytator";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
-
-To follow `master` instead, use `url = "github:faetalize/waytator";`.
 
 Then add the package to your system:
 
@@ -63,16 +134,17 @@ Then add the package to your system:
 # configuration.nix
 environment.systemPackages = [
   inputs.waytator.packages.${pkgs.stdenv.hostPlatform.system}.default
+  # use .waytator-minimal instead of .default to install without OCR
 ];
 ```
 
-OCR is included. For a smaller install without it, use `.default.override { withOcr = false; }` instead of `.default`.
+To turn OCR off on a package you build yourself, override it with `enableOcr = false`.
 
 ### From source
 
 1) Required build dependencies:
 
-`meson` - `ninja` - `pkg-config` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `ffmpeg` - `pipewire` - `rubberband` - `libdrm` - `gcc`/`clang`/any C compiler
+`meson` - `ninja` - `pkg-config` - `gettext` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `ffmpeg` - `libva` - `pipewire` - `rubberband` - `libdrm` - `gcc`/`clang`/any C compiler
 
 2) Required runtime dependencies:
 
@@ -123,9 +195,18 @@ grim -g "$(slurp)" - | waytator     # open an image piped in
 waytator                            # open the app empty
 ```
 
-Add `--name "Screenshot.png"` to name a piped image.
+Add `--name "Screenshot.png"` to name a piped image, or `--save-path ~/shot.png` to have Save write it there without asking. The extension picks the format.
 
-Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts.
+Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts, where any shortcut can also go on a right click or a drawing tablet's buttons.
+
+Annotations stay editable. With the Select tool, click one to get a box around it:
+
+* drag it to move it
+* drag a corner to resize a rectangle, an ellipse or a text, or an end to reshape a line or an arrow
+* drag the knob above the box to turn it
+* use the buttons beside the box to edit a text or delete the annotation, or press `Delete`
+
+Hold the snap key (`Shift`, changeable in Preferences) to turn in steps of 15°, keep a shape square and snap a line's end to 45°. Annotations stay editable after cropping, rotating or flipping the image.
 
 To start each time with the tool you last used, and its colour and size, turn on Remember last tool in Preferences.
 
@@ -157,6 +238,8 @@ waytator --screenshot --notify      # show a notification that lets you edit the
 While you pick what to screenshot, the bar on screen switches between area and screen, waits a few seconds first, and turns on a magnifier for pixel-exact selections. Hold `Shift` to slow the cursor down. `Esc` or a right click cancels. The app itself has the same Screenshot and Record buttons.
 
 Screenshots are saved to your Screenshots folder and copied to the clipboard. Both can be changed in Preferences.
+
+Files are named like `Screenshot from 2026-11-27 14-05-09.png`. Preferences → Screenshots and Preferences → Recordings take your own name with strftime codes, such as `%y%m%d-%H%M%S`, and show an example as you type.
 
 To prevent the editor from spawning after every screenshot, turn off Open in the editor in Preferences → Screenshots. `--notify` still lets you choose each time.
 

@@ -11,6 +11,7 @@
 #include <libavutil/frame.h>
 #include <math.h>
 
+#include "waytator-file-name.h"
 #include "waytator-record-audio.h"
 #include "waytator-record-portal.h"
 #include "waytator-record-stream.h"
@@ -96,6 +97,7 @@ waytator_recorder_unref(WaytatorRecorder *recorder)
   g_free((char *) recorder->options.output_name);
   g_free((char *) recorder->options.microphone_name);
   g_free((char *) recorder->options.folder);
+  g_free((char *) recorder->options.file_name);
   g_free(recorder->path);
   g_clear_error(&recorder->dead);
   g_free(recorder);
@@ -401,6 +403,7 @@ waytator_recorder_open_async(const WaytatorRecorderOptions *options,
   recorder->options.output_name = g_strdup(options->output_name);
   recorder->options.microphone_name = g_strdup(options->microphone_name);
   recorder->options.folder = g_strdup(options->folder);
+  recorder->options.file_name = g_strdup(options->file_name);
   recorder->cancellable = cancellable != NULL ? g_object_ref(cancellable) : NULL;
   recorder->open_task = g_task_new(NULL, cancellable, callback, user_data);
   g_task_set_source_tag(recorder->open_task, waytator_recorder_open_async);
@@ -432,13 +435,13 @@ waytator_recorder_open_finish(GAsyncResult *result,
 //after the time, and after a counter if that name is taken
 static gboolean
 waytator_recorder_pick_paths(const char *folder,
+                             const char *file_name,
                              char      **path,
                              char      **unfinished,
                              GError    **error)
 {
   g_autoptr(GDateTime) now = g_date_time_new_now_local();
-  // Translators: Filename stem; preserve the date/time directives and avoid slashes.
-  g_autofree char *stem = g_date_time_format(now, _("Screencast from %Y-%m-%d %H-%M-%S"));
+  g_autofree char *stem = waytator_file_name_make(file_name, _(WAYTATOR_RECORDING_NAME_DEFAULT), now);
 
   for (int attempt = 1; attempt <= WAYTATOR_RECORDER_MAX_NAMES; attempt++) {
     g_autofree char *name = attempt == 1 ? g_strdup(stem) : g_strdup_printf("%s %d", stem, attempt);
@@ -455,7 +458,7 @@ waytator_recorder_pick_paths(const char *folder,
     return TRUE;
   }
 
-  g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_EXISTS, _("Too many recordings were made at the same time"));
+  g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_EXISTS, _("Too many recordings share this name"));
   return FALSE;
 }
 
@@ -517,7 +520,7 @@ waytator_recorder_begin(WaytatorRecorder *recorder,
     return FALSE;
   }
 
-  if (!waytator_recorder_pick_paths(recorder->options.folder, &path, &unfinished, error))
+  if (!waytator_recorder_pick_paths(recorder->options.folder, recorder->options.file_name, &path, &unfinished, error))
     return FALSE;
 
   g_mutex_lock(&recorder->lock);

@@ -1,0 +1,30 @@
+name: Update flake.lock
+
+# moves the flake's nixpkgs pin forward once a week, as a PR so the Nix build checks it before it lands
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - uses: DeterminateSystems/update-flake-lock@v29
+        with:
+          branch: update-flake-lock
+          commit-msg: Update flake.lock
+          pr-title: Update flake.lock
+          pr-body: |
+            The weekly move of the flake's nixpkgs pin. GitHub may hold its checks until they're approved
+            on this PR. Merge it once they're green.
+
+            ```
+            {{ env.GIT_COMMIT_MESSAGE }}
+            ```

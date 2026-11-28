@@ -345,29 +345,63 @@ waytator_export_plan(WaytatorExporter *exporter,
   return TRUE;
 }
 
+//whether the export aims for its size limit in two passes, which land closest to it. only libx264 takes them
+static gboolean
+waytator_export_takes_two_passes(const WaytatorExporter *exporter)
+{
+  return exporter->plan.video_bitrate > 0
+      && exporter->choice.device == NULL
+      && exporter->choice.codec != NULL
+      && g_str_equal(exporter->choice.codec->name, "libx264");
+}
+
 static gboolean
 waytator_export_pick_encoder(WaytatorExporter *exporter,
                              GError          **error)
 {
   const WaytatorVideoProfile *profile = exporter->profile;
-  WaytatorVideoEncoder preference = profile->encoder;
+  const char *software = NULL;
+  g_autoptr(GError) choose_error = NULL;
 
   if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
     return TRUE;
 
-  //two passes to land just under a size limit only work on the cpu
-  if (exporter->plan.video_bitrate > 0 && preference == WAYTATOR_VIDEO_ENCODER_AUTO)
-    preference = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
+  //two passes to land just under a size limit only work on the cpu, so a size limit starts on the encoder
+  //there that opens, which has been tried to find it. two passes are then planned for the encoder that
+  //runs them
+  if (exporter->plan.video_bitrate > 0)
+    software = waytator_video_encoder_for_size_limit(profile->codec, profile->encoder,
+                                                     waytator_video_encoder_exists,
+                                                     waytator_video_encoder_probe_software);
+  if (software != NULL) {
+    waytator_video_encoder_choice_clear(&exporter->choice);
+    exporter->choice.codec = avcodec_find_encoder_by_name(software);
+  } else if (!waytator_video_encoder_choose(profile->codec, profile->encoder,
+                                            exporter->plan.scaled_width, exporter->plan.scaled_height,
+                                            waytator_video_encoder_exists, &exporter->choice, &choose_error)) {
+    //no encoder at all is said in the profile's terms, FFmpeg's encoder names mean nothing to most people
+    if (g_error_matches(choose_error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED)) {
+      g_autofree char *message = waytator_video_profile_describe_unavailable(profile);
 
-  if (!waytator_video_encoder_choose(profile->codec, preference,
-                                     exporter->plan.scaled_width, exporter->plan.scaled_height,
-                                     &exporter->choice, error))
+      g_debug("%s", choose_error->message);
+      g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, message);
+      return FALSE;
+    }
+    //the profile list offers the format, so what fails is this video's size
+    if (g_error_matches(choose_error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT)) {
+      g_debug("%s", choose_error->message);
+      g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+                  _("The “%s” profile uses %s, which this system can't encode at %d×%d"), profile->name,
+                  waytator_video_codec_get_name(profile->codec), exporter->plan.scaled_width,
+                  exporter->plan.scaled_height);
+      return FALSE;
+    }
+    g_propagate_error(error, g_steal_pointer(&choose_error));
     return FALSE;
+  }
 
   exporter->plan.hardware_encode = exporter->choice.device != NULL;
-  exporter->plan.two_pass = !exporter->plan.hardware_encode
-                         && exporter->plan.video_bitrate > 0
-                         && g_str_equal(exporter->choice.codec->name, "libx264");
+  exporter->plan.two_pass = waytator_export_takes_two_passes(exporter);
   return TRUE;
 }
 
@@ -550,24 +584,19 @@ failed:
   return NULL;
 }
 
-static gboolean
-waytator_export_open_video_encoder(WaytatorExporter  *exporter,
-                                   AVFilterContext   *sink,
-                                   const AVFrame     *source_frame,
-                                   WaytatorExportPass pass,
-                                   GError           **error)
+//codec set up for the export, not yet open
+static AVCodecContext *
+waytator_export_new_video_encoder(WaytatorExporter  *exporter,
+                                  const AVCodec     *codec,
+                                  AVFilterContext   *sink,
+                                  const AVFrame     *source_frame,
+                                  WaytatorExportPass pass)
 {
   const WaytatorExportPlan *plan = &exporter->plan;
   const WaytatorVideoProfile *profile = exporter->profile;
-  const AVCodec *codec = exporter->choice.codec;
-  AVCodecContext *encoder;
+  AVCodecContext *encoder = avcodec_alloc_context3(codec);
   AVBufferRef *frames;
-  int code;
 
-  if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
-    codec = avcodec_find_encoder(AV_CODEC_ID_GIF);
-
-  encoder = exporter->video_encoder = avcodec_alloc_context3(codec);
   encoder->width = av_buffersink_get_w(sink);
   encoder->height = av_buffersink_get_h(sink);
   encoder->pix_fmt = av_buffersink_get_format(sink);
@@ -581,10 +610,8 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
   encoder->color_primaries = source_frame->color_primaries;
   encoder->color_trc = source_frame->color_trc;
   encoder->colorspace = source_frame->colorspace;
-  //temporary: Mesa's VA driver misreads some of h264_vaapi's headers and hangs for good in vaRenderPicture,
-  //and B-frames make it far more likely. revert once Mesa ships the fix for
-  //https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16715, see #42
-  if (g_str_equal(codec->name, "h264_vaapi"))
+  //older Mesa hangs on B-frames from h264_vaapi
+  if (g_str_equal(codec->name, "h264_vaapi") && waytator_video_encoder_device_hangs_on_b_frames(exporter->choice.device))
     encoder->max_b_frames = 0;
   if (exporter->muxer != NULL && (exporter->muxer->oformat->flags & AVFMT_GLOBALHEADER) != 0)
     encoder->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -607,10 +634,42 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
   if (profile->codec != WAYTATOR_VIDEO_CODEC_GIF)
     waytator_video_encoder_configure(encoder, plan->video_bitrate > 0 ? -1 : profile->quality,
                                      WAYTATOR_EXPORT_KEYFRAME_SECONDS, WAYTATOR_VIDEO_ENCODE_SAVE);
+  return encoder;
+}
 
-  code = avcodec_open2(encoder, codec, NULL);
-  if (code < 0)
-    return waytator_video_encoder_fail(error, code, _("Could not start the video encoder"));
+static gboolean
+waytator_export_open_video_encoder(WaytatorExporter  *exporter,
+                                   AVFilterContext   *sink,
+                                   const AVFrame     *source_frame,
+                                   WaytatorExportPass pass,
+                                   GError           **error)
+{
+  WaytatorExportPlan *plan = &exporter->plan;
+  const WaytatorVideoProfile *profile = exporter->profile;
+  const AVCodec *codec = exporter->choice.codec;
+  AVCodecContext *encoder;
+  int code;
+
+  if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
+    codec = avcodec_find_encoder(AV_CODEC_ID_GIF);
+
+  //an encoder on the cpu that ffmpeg lists can be a stand-in for a library that was left out, so the next one
+  //it has for the format is tried before giving up. a GIF has no choice to move on from. moving off one that
+  //takes two passes in the first pass leaves that pass's work unused and makes the export one pass, which
+  //still comes out right, and a second pass is never started without a first
+  for (;;) {
+    encoder = exporter->video_encoder = waytator_export_new_video_encoder(exporter, codec, sink, source_frame, pass);
+    code = avcodec_open2(encoder, codec, NULL);
+    if (code >= 0)
+      break;
+    g_debug("%s doesn't open", codec->name);
+    avcodec_free_context(&exporter->video_encoder);
+    if (!waytator_video_encoder_choose_next_software(profile->codec, waytator_video_encoder_exists,
+                                                     &exporter->choice))
+      return waytator_video_encoder_fail(error, code, _("Could not start the video encoder"));
+    codec = exporter->choice.codec;
+    plan->two_pass = plan->two_pass && waytator_export_takes_two_passes(exporter);
+  }
 
   if (exporter->muxer != NULL) {
     exporter->video_stream = avformat_new_stream(exporter->muxer, NULL);
@@ -816,6 +875,35 @@ waytator_export_write_png(WaytatorExporter *exporter,
   return written;
 }
 
+//whether a frame's rows run bottom to top in memory, which is how ffmpeg's vflip turns a picture over without
+//copying it
+static gboolean
+waytator_export_rows_upward(const AVFrame *frame)
+{
+  for (int i = 0; i < AV_NUM_DATA_POINTERS && frame->data[i] != NULL; i++) {
+    if (frame->linesize[i] < 0)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+//the same picture with its rows top to bottom. libopenh264, which Fedora's ffmpeg makes H.264 with, reads a picture
+//with upward rows as garbage, so a vertically flipped export gets copied for it. only flipped frames pay for it
+static AVFrame *
+waytator_export_copy_rows_downward(const AVFrame *frame)
+{
+  AVFrame *copy = av_frame_alloc();
+
+  if (copy == NULL)
+    return NULL;
+  copy->format = frame->format;
+  copy->width = frame->width;
+  copy->height = frame->height;
+  if (av_frame_get_buffer(copy, 0) < 0 || av_frame_copy(copy, frame) < 0 || av_frame_copy_props(copy, frame) < 0)
+    av_frame_free(&copy);
+  return copy;
+}
+
 //hands a filtered frame to whatever the pass makes of it
 static gboolean
 waytator_export_take_filtered(WaytatorExporter  *exporter,
@@ -834,7 +922,16 @@ waytator_export_take_filtered(WaytatorExporter  *exporter,
 
   frame->pts = index;
   frame->pict_type = AV_PICTURE_TYPE_NONE;
-  code = avcodec_send_frame(exporter->video_encoder, frame);
+  if (waytator_export_rows_upward(frame)) {
+    AVFrame *copy = waytator_export_copy_rows_downward(frame);
+
+    if (copy == NULL)
+      return waytator_video_encoder_fail(error, AVERROR(ENOMEM), _("Could not encode the video"));
+    code = avcodec_send_frame(exporter->video_encoder, copy);
+    av_frame_free(&copy);
+  } else {
+    code = avcodec_send_frame(exporter->video_encoder, frame);
+  }
   if (code < 0)
     return waytator_video_encoder_fail(error, code, _("Could not encode the video"));
   return waytator_export_write_packets(exporter, exporter->video_encoder, exporter->video_stream, error);
@@ -1208,7 +1305,7 @@ waytator_export_run(WaytatorExporter *exporter,
                     GError          **error)
 {
   const gboolean gif = exporter->profile->codec == WAYTATOR_VIDEO_CODEC_GIF;
-  g_autofree char *gifski = gif ? g_find_program_in_path("gifski") : NULL;
+  g_autofree char *gifski = gif ? waytator_video_encoder_find_gifski() : NULL;
 
   if (!waytator_export_plan(exporter, error) || !waytator_export_pick_encoder(exporter, error))
     return FALSE;

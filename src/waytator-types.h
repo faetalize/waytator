@@ -8,6 +8,7 @@
 
 typedef enum {
   WAYTATOR_TOOL_PAN,
+  WAYTATOR_TOOL_SELECT,
   WAYTATOR_TOOL_CROP,
   WAYTATOR_TOOL_BRUSH,
   WAYTATOR_TOOL_MARKER,
@@ -76,6 +77,8 @@ typedef enum {
 typedef struct {
   double x;
   double y;
+  //0 to 1, only read when the stroke has pressure
+  double pressure;
 } WaytatorPoint;
 
 typedef struct {
@@ -90,6 +93,11 @@ typedef struct {
   double fill_b;
   double fill_a;
   int blur_type;
+  //a pen stroke drawn with a stylus, its width follows each point's pressure
+  gboolean pressure;
+  //how far it is turned about its pivot, in radians, clockwise on screen. lines and arrows keep it at 0 and
+  //move their ends instead, see waytator_stroke_get_pivot
+  double rotation;
   GArray *points;
   char *text;
 } WaytatorStroke;

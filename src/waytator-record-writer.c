@@ -1173,7 +1173,8 @@ waytator_record_writer_choose(WaytatorRecordWriter *writer,
 
   waytator_record_writer_region(&writer->options, picture, &x, &y, &writer->width, &writer->height);
   writer->chosen = waytator_video_encoder_choose(WAYTATOR_VIDEO_CODEC_H264, writer->options.encoder,
-                                                 writer->width, writer->height, &writer->choice, error);
+                                                 writer->width, writer->height, waytator_video_encoder_exists,
+                                                 &writer->choice, error);
   return writer->chosen;
 }
 

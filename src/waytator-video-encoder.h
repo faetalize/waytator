@@ -34,16 +34,63 @@ typedef struct {
   AVBufferRef *device;
 } WaytatorVideoEncoderChoice;
 
+//gifski's path, NULL when it isn't installed. an export makes a GIF with it when it is. free with g_free
+char *waytator_video_encoder_find_gifski(void);
+
+//the encoders ffmpeg may have for codec, on the gpu or on the cpu, in the order they are tried. a GIF has
+//only ffmpeg's own on the cpu, gifski aside
+const char *const *waytator_video_encoder_get_names(WaytatorVideoCodec codec,
+                                                    gboolean           hardware);
+
+//whether ffmpeg has the encoder called name, which doesn't say that it opens
+gboolean waytator_video_encoder_exists(const char *name);
+//the encoder on the cpu that choose takes for codec, going by has_encoder, NULL when there is none. with
+//after, the one an export tries once the encoder called after doesn't open, in the same order
+const char *waytator_video_encoder_find_software(WaytatorVideoCodec codec,
+                                                 const char        *after,
+                                                 gboolean         (*has_encoder)(const char *name));
+
+//for each encoder in names, whether the gpu really encodes with it, into works. opens the gpu and an encoder
+//for each, so it takes a while: call it from a worker thread
+void waytator_video_encoder_probe_hardware(const char *const *names,
+                                           gboolean          *works);
+
+//whether the encoder for the cpu called name opens, which ffmpeg having it doesn't say: it can be a stand-in
+//for a library that was left out. takes a while: call it from a worker thread
+gboolean waytator_video_encoder_probe_software(const char *name);
+//the first encoder on the cpu for codec that opens, going by has_encoder and cpu_opens, which is the one an
+//export ends up with. NULL when none does. has_encoder and cpu_opens are what the checks ask too, see
+//waytator-video-support.h
+const char *waytator_video_encoder_find_working_software(WaytatorVideoCodec codec,
+                                                         gboolean         (*has_encoder)(const char *name),
+                                                         gboolean         (*cpu_opens)(const char *name));
+
+//the encoder on the cpu an export aiming at a size starts on, preference being what its profile says: the
+//first that opens, since the processor gets closer to the size. NULL when preference is the gpu, or when
+//none opens, which leaves Automatic free to take the gpu
+const char *waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
+                                                  WaytatorVideoEncoder preference,
+                                                  gboolean           (*has_encoder)(const char *name),
+                                                  gboolean           (*cpu_opens)(const char *name));
+
 //on the gpu unless preference says the cpu or the gpu can't encode a width by height picture in codec, on
-//the cpu otherwise. fails with G_IO_ERROR_NOT_SUPPORTED when this ffmpeg can't encode codec at all. not for
-//GIFs. whatever choice held is cleared first, and it is left cleared on failure. clear it with
-//waytator_video_encoder_choice_clear once it is done with, which also lets go of the device
+//the first encoder for the cpu otherwise, going by has_encoder for which encoders ffmpeg has. fails with G_IO_ERROR_NOT_SUPPORTED
+//when this ffmpeg can't encode codec at all, and with G_IO_ERROR_INVALID_ARGUMENT when only the gpu encodes
+//codec and not at width by height. not for GIFs. whatever choice held is cleared first, and it is left
+//cleared on failure. clear it with waytator_video_encoder_choice_clear once it is done with, which also lets
+//go of the device
 gboolean waytator_video_encoder_choose(WaytatorVideoCodec          codec,
                                        WaytatorVideoEncoder        preference,
                                        int                         width,
                                        int                         height,
+                                       gboolean                  (*has_encoder)(const char *name),
                                        WaytatorVideoEncoderChoice *choice,
                                        GError                    **error);
+//moves a choice on the cpu to the encoder for codec that comes after its own, going by has_encoder, for when
+//its own doesn't open. FALSE, leaving choice as it was, when there is none or choice is on the gpu
+gboolean waytator_video_encoder_choose_next_software(WaytatorVideoCodec          codec,
+                                                     gboolean                  (*has_encoder)(const char *name),
+                                                     WaytatorVideoEncoderChoice *choice);
 void waytator_video_encoder_choice_clear(WaytatorVideoEncoderChoice *choice);
 
 //sets how good and how fast on an encoder that has its codec, size, pixel format and frame rate but isn't
@@ -54,6 +101,14 @@ void waytator_video_encoder_configure(AVCodecContext          *encoder,
                                       int                      quality,
                                       double                   keyframe_seconds,
                                       WaytatorVideoEncodeSpeed speed);
+
+//whether a va-api driver that names itself vendor hangs for good in vaRenderPicture on B-frames from
+//h264_vaapi. Mesa before 26.2.7, and the 26.3.0 release candidates, misread some of its headers and B-frames
+//make that far more likely, see https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16715. TRUE for a
+//vendor it cannot read, since a wrong FALSE costs a hang and a wrong TRUE only a slightly bigger file
+gboolean waytator_video_encoder_vendor_hangs_on_b_frames(const char *vendor);
+//the same for the driver behind device, TRUE when there is none
+gboolean waytator_video_encoder_device_hangs_on_b_frames(AVBufferRef *device);
 
 //sets error to what failed and ffmpeg's reason for code, and returns FALSE
 gboolean waytator_video_encoder_fail(GError    **error,

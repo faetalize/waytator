@@ -1,0 +1,46 @@
+Source: waytator
+Section: graphics
+Priority: optional
+Maintainer: faetalize <oss@faetalize.dev>
+Build-Depends:
+ debhelper-compat (= 13),
+ meson,
+ gettext,
+ ninja-build,
+ pkg-config,
+ libglib2.0-dev,
+ libglib2.0-dev-bin,
+ libgtk-4-dev (>= 4.18),
+ libadwaita-1-dev (>= 1.6),
+ libgtk4-layer-shell-dev,
+ libwayland-dev,
+ libwayland-bin,
+ wayland-protocols,
+ libavformat-dev,
+ libavcodec-dev,
+ libavfilter-dev,
+ libavutil-dev,
+ libswscale-dev,
+ libswresample-dev,
+ libva-dev,
+ libdrm-dev,
+ libgbm-dev,
+ libegl-dev,
+ libpipewire-0.3-dev,
+ librubberband-dev (>= 3.0),
+ dbus <!nocheck>,
+Standards-Version: 4.7.2
+Homepage: https://github.com/faetalize/waytator
+Rules-Requires-Root: no
+
+Package: waytator
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ wl-clipboard,
+Recommends:
+ tesseract-ocr,
+Description: Fast screen capture and editing
+ Screenshot and record the screen, annotate images and edit videos,
+ all in one GTK app for Wayland desktops.

@@ -41,9 +41,10 @@ typedef struct _WaytatorRecordPortal WaytatorRecordPortal;
 
 typedef void (*WaytatorRecordPortalClosedFunc)(gpointer user_data);
 
-//asks the portal for the source, which shows its own dialog unless it remembers this screen. fails with
-//G_IO_ERROR_CANCELLED when the dialog was dismissed or cancellable was cancelled, and with the errors
-//above. main thread only. the request is copied, it doesn't have to outlive the call
+//asks the portal for the source, which shows its own dialog unless it remembers this screen. a pass that gives
+//another screen is forgotten, and the portal asked again for its dialog. fails with G_IO_ERROR_CANCELLED when
+//the dialog was dismissed or cancellable was cancelled, and with the errors above. main thread only. the
+//request is copied, it doesn't have to outlive the call
 void waytator_record_portal_open_async(const WaytatorRecordPortalRequest *request,
                                        GCancellable                      *cancellable,
                                        GAsyncReadyCallback                callback,

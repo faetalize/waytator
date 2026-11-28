@@ -479,6 +479,7 @@ waytator_recording_open(WaytatorRecording *rec)
     .show_pointer = rec->settings.recording_show_pointer,
     .rate = rec->settings.recording_rate,
     .folder = rec->settings.recording_save_dir,
+    .file_name = rec->settings.recording_file_name,
   };
 
   rec->state = WAYTATOR_RECORDING_OPENING;

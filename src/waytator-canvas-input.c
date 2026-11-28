@@ -1,6 +1,8 @@
 #include "waytator-window-private.h"
 
 #include "waytator-stroke.h"
+#include "waytator-tablet-button.h"
+#include "waytator-transform.h"
 
 #include <glib/gi18n.h>
 #include <math.h>
@@ -83,7 +85,7 @@ waytator_window_show_blur_warning(WaytatorWindow *self)
                           g_object_ref(self));
 }
 
-static gboolean
+gboolean
 waytator_window_cancel_current_interaction(WaytatorWindow *self)
 {
   GPtrArray *strokes;
@@ -95,6 +97,11 @@ waytator_window_cancel_current_interaction(WaytatorWindow *self)
 
   if (self->active_tool == WAYTATOR_TOOL_PAN)
     return TRUE;
+
+  if (self->active_tool == WAYTATOR_TOOL_SELECT) {
+    waytator_window_cancel_selection_drag(self);
+    return TRUE;
+  }
 
   if (self->active_tool == WAYTATOR_TOOL_CROP) {
     self->crop_start_x = 0.0;
@@ -137,6 +144,9 @@ waytator_window_cancel_touch_tool_gestures(WaytatorWindow *self)
 
   if (self->draw_gesture != NULL)
     gtk_gesture_set_state(self->draw_gesture, GTK_EVENT_SEQUENCE_DENIED);
+
+  if (self->select_gesture != NULL)
+    gtk_gesture_set_state(self->select_gesture, GTK_EVENT_SEQUENCE_DENIED);
 }
 
 static void
@@ -279,7 +289,65 @@ waytator_window_touch_event(GtkEventControllerLegacy *controller,
   return FALSE;
 }
 
-static void
+static WaytatorPenInput
+waytator_window_classify_pen_input(GdkEvent *event)
+{
+  GdkDeviceTool *tool = gdk_event_get_device_tool(event);
+  GdkDevice *device = gdk_event_get_device(event);
+
+  return waytator_pen_input_classify(tool != NULL,
+                                     tool != NULL ? gdk_device_tool_get_tool_type(tool) : GDK_DEVICE_TOOL_TYPE_UNKNOWN,
+                                     device != NULL ? gdk_device_get_source(device) : GDK_SOURCE_KEYBOARD,
+                                     gdk_event_get_pointer_emulated(event),
+                                     gdk_event_get_time(event));
+}
+
+//flipping the pen to its eraser end picks the eraser, the nib or the mouse brings the tool back, see waytator-pen-eraser.c
+static gboolean
+waytator_window_pen_eraser_event(GtkEventControllerLegacy *controller,
+                                 GdkEvent                 *event,
+                                 gpointer                  user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  const GdkEventType type = gdk_event_get_event_type(event);
+  WaytatorPenInput input;
+  WaytatorTool next_tool;
+
+  (void) controller;
+
+  if (type != GDK_MOTION_NOTIFY && type != GDK_PROXIMITY_IN && type != GDK_BUTTON_PRESS)
+    return FALSE;
+
+  input = waytator_window_classify_pen_input(event);
+
+  //GTK's layout motion, kept from every gesture in the window, mid-stroke included
+  if (type == GDK_MOTION_NOTIFY && waytator_pen_input_swallows_layout_motion(self->last_pointer_input, input))
+    return TRUE;
+
+  self->last_pointer_input = waytator_pen_input_note(self->last_pointer_input, input);
+
+  //not halfway through a drag, the tool under it would change
+  if (type == GDK_MOTION_NOTIFY
+      && (gdk_event_get_modifier_state(event) & (GDK_BUTTON1_MASK | GDK_BUTTON2_MASK | GDK_BUTTON3_MASK)))
+    return FALSE;
+
+  //like the tool shortcuts: the image tools have nothing to work on in a video, and dialogs aren't the canvas
+  if (self->drawing
+      || waytator_window_is_video(self)
+      || adw_application_window_get_visible_dialog(ADW_APPLICATION_WINDOW(self)) != NULL)
+    return FALSE;
+
+  if (!waytator_pen_eraser_step(&self->pen_eraser, input, self->active_tool, &next_tool))
+    return FALSE;
+
+  self->pen_eraser_switching = TRUE;
+  waytator_window_select_tool(self, next_tool);
+  self->pen_eraser_switching = FALSE;
+
+  return FALSE;
+}
+
+void
 waytator_window_record_interaction_undo_step(WaytatorWindow *self)
 {
   if (self->interaction_has_undo_step)
@@ -287,6 +355,33 @@ waytator_window_record_interaction_undo_step(WaytatorWindow *self)
 
   waytator_window_record_undo_step(self);
   self->interaction_has_undo_step = TRUE;
+}
+
+//only the pen follows pressure, the highlighter keeps an even width
+static double
+waytator_window_event_pressure(WaytatorWindow     *self,
+                               GtkEventController *controller)
+{
+  GdkEvent *event = gtk_event_controller_get_current_event(controller);
+  double pressure;
+
+  if (self->active_tool != WAYTATOR_TOOL_BRUSH
+      || event == NULL
+      || !gdk_event_get_axis(event, GDK_AXIS_PRESSURE, &pressure))
+    return -1.0;
+
+  return pressure;
+}
+
+static void
+waytator_window_add_draw_point(WaytatorWindow *self,
+                               double          x,
+                               double          y)
+{
+  if (self->draw_pressure >= 0.0)
+    waytator_stroke_add_pressure_point(self->current_stroke, x, y, self->draw_pressure);
+  else
+    waytator_stroke_add_point(self->current_stroke, x, y);
 }
 
 static void
@@ -301,12 +396,16 @@ waytator_window_begin_draw_stroke(WaytatorWindow *self)
                                              &self->tool_colors[self->active_tool],
                                              &self->tool_fill_colors[self->active_tool],
                                              self->blur_type);
-  waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
+  waytator_window_add_draw_point(self, self->last_draw_x, self->last_draw_y);
 
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_add_point(self->current_stroke, self->last_draw_x, self->last_draw_y);
 
-  g_ptr_array_add(waytator_window_strokes(self), self->current_stroke);
+  //a blur becomes part of the image, which is under every stroke, so it is shown under them while it is drawn too
+  if (self->active_tool == WAYTATOR_TOOL_BLUR)
+    g_ptr_array_insert(waytator_window_strokes(self), 0, self->current_stroke);
+  else
+    g_ptr_array_add(waytator_window_strokes(self), self->current_stroke);
   waytator_window_reset_save_button(self);
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
@@ -338,6 +437,8 @@ waytator_window_surface_copy_bytes(cairo_surface_t *surface,
   return g_bytes_new_take(pixels, rowstride * image_height);
 }
 
+//the blur is merged into the image and stops being a stroke. the other strokes are left as they are, on top of
+//it: they are notes on the picture, not part of what the blur hides
 static void
 waytator_window_commit_blur_stroke(WaytatorWindow *self)
 {
@@ -347,20 +448,20 @@ waytator_window_commit_blur_stroke(WaytatorWindow *self)
   int height = 0;
   gsize stride = 0;
 
-  if (self->current_stroke == NULL || self->current_stroke->tool != WAYTATOR_TOOL_BLUR)
+  if (self->current_stroke == NULL
+      || self->current_stroke->tool != WAYTATOR_TOOL_BLUR
+      || self->image_surface == NULL)
     return;
 
-  surface = waytator_window_render_composited_surface(self);
-  if (surface == NULL)
-    return;
-
+  surface = waytator_transform_merge_stroke(self->image_surface, self->current_stroke);
   pixels = waytator_window_surface_copy_bytes(surface, &width, &height, &stride);
   cairo_surface_destroy(surface);
   if (pixels == NULL)
     return;
 
   waytator_document_set_image(self->document, pixels, width, height, stride);
-  g_ptr_array_set_size(waytator_window_strokes(self), 0);
+  g_ptr_array_remove(waytator_window_strokes(self), self->current_stroke);
+  self->current_stroke = NULL;
   waytator_window_refresh_document_state(self);
 }
 
@@ -463,11 +564,22 @@ waytator_window_global_key_pressed(GtkEventControllerKey *controller,
     if (waytator_window_cancel_current_interaction(self))
       return TRUE;
 
+    //the first press lets go of the selected stroke, the window only closes on the next
+    if (waytator_window_clear_selection(self))
+      return TRUE;
+
     if (adw_bottom_sheet_get_open(self->ocr_panel_bottom_sheet)) {
       gtk_widget_activate_action(GTK_WIDGET(self), "win.dismiss", NULL);
       return TRUE;
     }
   }
+
+  //like the tool shortcuts, not from inside preferences and friends
+  if ((keyval == GDK_KEY_Delete || keyval == GDK_KEY_KP_Delete || keyval == GDK_KEY_BackSpace)
+      && (state & gtk_accelerator_get_default_mod_mask()) == 0
+      && (focus == NULL || gtk_widget_get_ancestor(focus, ADW_TYPE_DIALOG) == NULL)
+      && waytator_window_delete_selection(self))
+    return TRUE;
 
   for (int i = 0; i < WAYTATOR_N_SHORTCUTS; i++) {
     if (!waytator_window_shortcut_is_active(self, i)
@@ -478,6 +590,49 @@ waytator_window_global_key_pressed(GtkEventControllerKey *controller,
       continue;
 
     //the toolbar ones are mostly bare letters, keep them out of preferences and friends
+    if (i >= WAYTATOR_SHORTCUT_TOOL_FIRST
+        && focus != NULL
+        && gtk_widget_get_ancestor(focus, ADW_TYPE_DIALOG) != NULL)
+      return FALSE;
+
+    waytator_window_activate_shortcut(self, i);
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+//tablet pad buttons reach the window itself, whatever has focus, and fire their shortcut the way a key does
+static gboolean
+waytator_window_pad_event(GtkEventControllerLegacy *controller,
+                          GdkEvent                 *event,
+                          gpointer                  user_data)
+{
+  WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
+  g_autofree char *accelerator = NULL;
+  GtkWidget *focus;
+  guint button;
+
+  (void) controller;
+
+  if (gdk_event_get_event_type(event) != GDK_PAD_BUTTON_PRESS)
+    return FALSE;
+
+  button = gdk_pad_event_get_button(event);
+  if (waytator_window_capture_tablet_button(self, button))
+    return TRUE;
+
+  accelerator = waytator_tablet_button_shortcut(button);
+  focus = gtk_root_get_focus(GTK_ROOT(self));
+  for (int i = 0; i < WAYTATOR_N_SHORTCUTS; i++) {
+    if (!waytator_window_shortcut_is_active(self, i)
+        || g_strcmp0(waytator_window_shortcut_accel(self, i), accelerator) != 0)
+      continue;
+
+    if (i >= WAYTATOR_SHORTCUT_TOOL_FIRST && waytator_window_is_video(self))
+      continue;
+
+    //same as the keys, the toolbar ones stay out of preferences and friends
     if (i >= WAYTATOR_SHORTCUT_TOOL_FIRST
         && focus != NULL
         && gtk_widget_get_ancestor(focus, ADW_TYPE_DIALOG) != NULL)
@@ -504,7 +659,7 @@ waytator_tool_uses_aspect_ratio_snapping(WaytatorTool tool)
   return tool == WAYTATOR_TOOL_RECTANGLE || tool == WAYTATOR_TOOL_CIRCLE;
 }
 
-static gboolean
+gboolean
 waytator_window_snap_modifier_active(GtkGestureDrag *gesture,
                                      WaytatorWindow *self)
 {
@@ -514,7 +669,7 @@ waytator_window_snap_modifier_active(GtkGestureDrag *gesture,
       && (state & self->angle_snap_modifiers) == self->angle_snap_modifiers;
 }
 
-static gboolean
+gboolean
 waytator_window_event_is_touch(GtkEventController *controller)
 {
   GdkDevice *device = gtk_event_controller_get_current_event_device(controller);
@@ -880,6 +1035,37 @@ waytator_window_crop_end(GtkGestureDrag *gesture,
   gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
 }
 
+GtkWidget *
+waytator_window_new_text_popover(WaytatorWindow *self,
+                                 double          image_x,
+                                 double          image_y,
+                                 GtkWidget     **entry)
+{
+  GtkWidget *popover = gtk_popover_new();
+  GdkRectangle rect;
+  const int img_w = gdk_paintable_get_intrinsic_width(GDK_PAINTABLE(self->texture));
+  const int img_h = gdk_paintable_get_intrinsic_height(GDK_PAINTABLE(self->texture));
+  const double disp_w = gtk_widget_get_width(GTK_WIDGET(self->drawing_area));
+  const double disp_h = gtk_widget_get_height(GTK_WIDGET(self->drawing_area));
+
+  *entry = gtk_entry_new();
+  gtk_popover_set_child(GTK_POPOVER(popover), *entry);
+  gtk_widget_set_parent(popover, self->canvas_surface);
+
+  rect.x = (int) lround(image_x * (disp_w / img_w));
+  rect.y = (int) lround(image_y * (disp_h / img_h));
+  rect.width = 1;
+  rect.height = 1;
+
+  gtk_popover_set_has_arrow(GTK_POPOVER(popover), FALSE);
+  gtk_popover_set_position(GTK_POPOVER(popover),
+                           rect.y < gtk_widget_get_height(GTK_WIDGET(self->drawing_area)) / 2
+                             ? GTK_POS_BOTTOM
+                             : GTK_POS_TOP);
+  gtk_popover_set_pointing_to(GTK_POPOVER(popover), &rect);
+  return popover;
+}
+
 static void
 waytator_window_text_popover_closed(GtkPopover     *popover,
                                     WaytatorWindow *self)
@@ -948,6 +1134,8 @@ waytator_window_draw_begin(GtkGestureDrag *gesture,
 
   self->drawing = TRUE;
   self->interaction_has_undo_step = FALSE;
+  //a stroke follows pressure only if it starts with it, so it never jumps from full width to the pen's
+  self->draw_pressure = waytator_window_event_pressure(self, GTK_EVENT_CONTROLLER(gesture));
   if (is_touch) {
     self->active_touch_draw_sequence = gtk_gesture_single_get_current_sequence(GTK_GESTURE_SINGLE(gesture));
     self->cancelled_touch_draw_sequence = NULL;
@@ -1022,10 +1210,17 @@ waytator_window_draw_update(GtkGestureDrag *gesture,
 
     waytator_window_maybe_snap_shape_endpoint(gesture, self, &image_x, &image_y);
 
+    if (self->draw_pressure >= 0.0) {
+      const double pressure = waytator_window_event_pressure(self, GTK_EVENT_CONTROLLER(gesture));
+
+      if (pressure >= 0.0)
+        self->draw_pressure = pressure;
+    }
+
     if (waytator_tool_is_shape(self->active_tool))
       waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);
     else
-      waytator_stroke_add_point(self->current_stroke, image_x, image_y);
+      waytator_window_add_draw_point(self, image_x, image_y);
 
     gtk_widget_queue_draw(GTK_WIDGET(self->drawing_area));
   }
@@ -1100,7 +1295,7 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
   if (waytator_tool_is_shape(self->active_tool))
     waytator_stroke_set_last_point(self->current_stroke, image_x, image_y);
   else
-    waytator_stroke_add_point(self->current_stroke, image_x, image_y);
+    waytator_stroke_add_release_point(self->current_stroke, image_x, image_y);
 
   if (self->active_tool == WAYTATOR_TOOL_BLUR && !self->blur_commit_warning_accepted) {
     if (sequence != NULL && sequence == self->cancelled_touch_draw_sequence)
@@ -1113,29 +1308,10 @@ waytator_window_draw_end(GtkGestureDrag *gesture,
     waytator_window_commit_blur_stroke(self);
 
   if (self->active_tool == WAYTATOR_TOOL_TEXT) {
-    GtkWidget *popover = gtk_popover_new();
-    GtkWidget *entry = gtk_entry_new();
-    GdkRectangle rect;
-    const int img_w = gdk_paintable_get_intrinsic_width(GDK_PAINTABLE(self->texture));
-    const int img_h = gdk_paintable_get_intrinsic_height(GDK_PAINTABLE(self->texture));
-    const double disp_w = gtk_widget_get_width(GTK_WIDGET(self->drawing_area));
-    const double disp_h = gtk_widget_get_height(GTK_WIDGET(self->drawing_area));
     const WaytatorPoint *p = &g_array_index(self->current_stroke->points, WaytatorPoint, 0);
+    GtkWidget *entry;
+    GtkWidget *popover = waytator_window_new_text_popover(self, p->x, p->y, &entry);
 
-    gtk_popover_set_child(GTK_POPOVER(popover), entry);
-    gtk_widget_set_parent(popover, self->canvas_surface);
-
-    rect.x = (int) lround(p->x * (disp_w / img_w));
-    rect.y = (int) lround(p->y * (disp_h / img_h));
-    rect.width = 1;
-    rect.height = 1;
-
-    gtk_popover_set_has_arrow(GTK_POPOVER(popover), FALSE);
-    gtk_popover_set_position(GTK_POPOVER(popover),
-                             rect.y < gtk_widget_get_height(GTK_WIDGET(self->drawing_area)) / 2
-                               ? GTK_POS_BOTTOM
-                               : GTK_POS_TOP);
-    gtk_popover_set_pointing_to(GTK_POPOVER(popover), &rect);
     g_signal_connect(entry, "activate", G_CALLBACK(waytator_window_text_entry_activated), self);
     g_signal_connect(popover, "closed", G_CALLBACK(waytator_window_text_popover_closed), self);
 
@@ -1281,6 +1457,7 @@ waytator_window_canvas_pointer_motion(GtkEventControllerMotion *controller,
   self->pointer_over_canvas = TRUE;
   self->pointer_viewport_x = x;
   self->pointer_viewport_y = y;
+  waytator_window_update_select_cursor(self, x, y);
 }
 
 static void
@@ -1385,6 +1562,8 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   GtkGesture *zoom;
   GtkGesture *right_click;
   GtkEventController *legacy;
+  GtkEventController *pen_eraser;
+  GtkEventController *pad;
   GtkEventController *motion;
   GtkEventController *canvas_motion;
 
@@ -1442,6 +1621,12 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   gtk_widget_add_controller(self->canvas_surface, legacy);
   self->touch_legacy_controller = legacy;
 
+  //on the whole window, so the mouse over the toolbar takes back control too
+  pen_eraser = gtk_event_controller_legacy_new();
+  gtk_event_controller_set_propagation_phase(pen_eraser, GTK_PHASE_CAPTURE);
+  g_signal_connect(pen_eraser, "event", G_CALLBACK(waytator_window_pen_eraser_event), self);
+  gtk_widget_add_controller(GTK_WIDGET(self), pen_eraser);
+
   motion = gtk_event_controller_motion_new();
   g_signal_connect(motion, "enter", G_CALLBACK(waytator_window_pointer_enter), self);
   g_signal_connect(motion, "leave", G_CALLBACK(waytator_window_pointer_leave), self);
@@ -1457,6 +1642,10 @@ waytator_window_setup_controllers(WaytatorWindow *self)
   scroll = gtk_event_controller_scroll_new(GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
   g_signal_connect(scroll, "scroll", G_CALLBACK(waytator_window_scroll_zoom), self);
   gtk_widget_add_controller(GTK_WIDGET(self->canvas_view), scroll);
+
+  pad = gtk_event_controller_legacy_new();
+  g_signal_connect(pad, "event", G_CALLBACK(waytator_window_pad_event), self);
+  gtk_widget_add_controller(GTK_WIDGET(self), pad);
 
   keys = gtk_event_controller_key_new();
   g_signal_connect(keys, "key-pressed", G_CALLBACK(waytator_window_global_key_pressed), self);
