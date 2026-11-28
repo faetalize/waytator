@@ -21,8 +21,17 @@ waytator_video_support_real_has_encoder(const char *name)
   return avcodec_find_encoder_by_name(name) != NULL;
 }
 
+static gboolean
+waytator_video_support_real_has_gifski(void)
+{
+  g_autofree char *gifski = waytator_video_encoder_find_gifski();
+
+  return gifski != NULL;
+}
+
 static const WaytatorVideoSupportLookup waytator_video_support_real = {
   .has_encoder = waytator_video_support_real_has_encoder,
+  .has_gifski = waytator_video_support_real_has_gifski,
   .gpu_encodes = waytator_video_encoder_probe_hardware,
 };
 
@@ -60,6 +69,9 @@ waytator_video_support_has_any(const char *const *names)
 static gboolean
 waytator_video_support_cpu_encodes(WaytatorVideoCodec codec)
 {
+  //gifski makes a GIF without ffmpeg's encoder
+  if (codec == WAYTATOR_VIDEO_CODEC_GIF && waytator_video_support_lookup->has_gifski())
+    return TRUE;
   return waytator_video_support_has_any(waytator_video_encoder_get_names(codec, FALSE));
 }
 

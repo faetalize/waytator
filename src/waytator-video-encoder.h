@@ -34,6 +34,9 @@ typedef struct {
   AVBufferRef *device;
 } WaytatorVideoEncoderChoice;
 
+//gifski's path, NULL when it isn't installed. an export makes a GIF with it when it is. free with g_free
+char *waytator_video_encoder_find_gifski(void);
+
 //the encoders ffmpeg may have for codec, on the gpu or on the cpu, in the order they are tried. a GIF has
 //only ffmpeg's own on the cpu, gifski aside
 const char *const *waytator_video_encoder_get_names(WaytatorVideoCodec codec,

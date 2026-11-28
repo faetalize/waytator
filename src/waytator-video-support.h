@@ -10,6 +10,8 @@ G_BEGIN_DECLS
 typedef struct {
   //whether ffmpeg has the encoder called name. cheap, asked as often as needed
   gboolean (*has_encoder)(const char *name);
+  //whether gifski is installed, which makes GIFs without ffmpeg's encoder. cheap too
+  gboolean (*has_gifski)(void);
   //for each encoder in names, whether the gpu really encodes with it, into works. slow, asked once on a
   //worker thread, and only about encoders has_encoder said ffmpeg has
   void (*gpu_encodes)(const char *const *names,

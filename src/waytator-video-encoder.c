@@ -120,6 +120,12 @@ waytator_video_encoder_quality(const char *encoder,
   return (int) round(40 - quality * 0.25);
 }
 
+char *
+waytator_video_encoder_find_gifski(void)
+{
+  return g_find_program_in_path("gifski");
+}
+
 const char *const *
 waytator_video_encoder_get_names(WaytatorVideoCodec codec,
                                  gboolean           hardware)

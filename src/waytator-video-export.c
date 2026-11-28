@@ -1204,7 +1204,7 @@ waytator_export_run(WaytatorExporter *exporter,
                     GError          **error)
 {
   const gboolean gif = exporter->profile->codec == WAYTATOR_VIDEO_CODEC_GIF;
-  g_autofree char *gifski = gif ? g_find_program_in_path("gifski") : NULL;
+  g_autofree char *gifski = gif ? waytator_video_encoder_find_gifski() : NULL;
 
   if (!waytator_export_plan(exporter, error) || !waytator_export_pick_encoder(exporter, error))
     return FALSE;

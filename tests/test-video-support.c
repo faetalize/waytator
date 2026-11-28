@@ -5,6 +5,7 @@
 
 static const char *const *fake_missing;
 static const char *const *fake_gpu_works;
+static gboolean fake_gifski;
 static int fake_gpu_checks;
 
 static gboolean
@@ -20,6 +21,12 @@ fake_has_encoder(const char *name)
   return !fake_listed(fake_missing, name);
 }
 
+static gboolean
+fake_has_gifski(void)
+{
+  return fake_gifski;
+}
+
 static void
 fake_gpu_encodes(const char *const *names,
                  gboolean          *works)
@@ -33,6 +40,7 @@ fake_gpu_encodes(const char *const *names,
 
 static const WaytatorVideoSupportLookup fake_lookup = {
   .has_encoder = fake_has_encoder,
+  .has_gifski = fake_has_gifski,
   .gpu_encodes = fake_gpu_encodes,
 };
 
@@ -42,6 +50,7 @@ fake_use(const char *const *missing,
 {
   fake_missing = missing;
   fake_gpu_works = gpu_works;
+  fake_gifski = FALSE;
   fake_gpu_checks = 0;
   waytator_video_support_set_lookup(&fake_lookup);
 }
@@ -180,6 +189,22 @@ test_no_advice_before_check(void)
                 "Not available on this system");
 }
 
+//gifski makes the GIF on its own, whatever ffmpeg has
+static void
+test_gifski_makes_gifs(void)
+{
+  static const char *const missing[] = { "gif", NULL };
+
+  fake_use(missing, NULL);
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_GIF, WAYTATOR_VIDEO_ENCODER_AUTO),
+                "Not available on this system");
+
+  fake_gifski = TRUE;
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_GIF, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
+  check_gpu();
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_GIF, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
+}
+
 static void
 cancelled_done(GObject      *source_object,
                GAsyncResult *result,
@@ -224,6 +249,7 @@ main(int   argc,
   g_test_add_func("/video-support/gpu-checked-once", test_gpu_checked_once);
   g_test_add_func("/video-support/no-encoder-known-before-gpu", test_no_encoder_known_before_gpu);
   g_test_add_func("/video-support/cancelled", test_cancelled);
+  g_test_add_func("/video-support/gifski-makes-gifs", test_gifski_makes_gifs);
   g_test_add_func("/video-support/no-advice-before-check", test_no_advice_before_check);
 
   return g_test_run();
