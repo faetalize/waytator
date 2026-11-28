@@ -343,6 +343,16 @@ waytator_export_plan(WaytatorExporter *exporter,
   return TRUE;
 }
 
+//whether the export aims for its size limit in two passes, which land closest to it. only libx264 takes them
+static gboolean
+waytator_export_takes_two_passes(const WaytatorExporter *exporter)
+{
+  return exporter->plan.video_bitrate > 0
+      && exporter->choice.device == NULL
+      && exporter->choice.codec != NULL
+      && g_str_equal(exporter->choice.codec->name, "libx264");
+}
+
 static gboolean
 waytator_export_pick_encoder(WaytatorExporter *exporter,
                              GError          **error)
@@ -389,9 +399,7 @@ waytator_export_pick_encoder(WaytatorExporter *exporter,
   }
 
   exporter->plan.hardware_encode = exporter->choice.device != NULL;
-  exporter->plan.two_pass = !exporter->plan.hardware_encode
-                         && exporter->plan.video_bitrate > 0
-                         && g_str_equal(exporter->choice.codec->name, "libx264");
+  exporter->plan.two_pass = waytator_export_takes_two_passes(exporter);
   return TRUE;
 }
 
@@ -644,9 +652,9 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
     codec = avcodec_find_encoder(AV_CODEC_ID_GIF);
 
   //an encoder on the cpu that ffmpeg lists can be a stand-in for a library that was left out, so the next one
-  //it has for the format is tried before giving up. a GIF has no choice to move on from. only libx264 does
-  //two passes: moving off it in the first pass leaves that pass's work unused and makes the export one pass,
-  //which still comes out right
+  //it has for the format is tried before giving up. a GIF has no choice to move on from. moving off one that
+  //takes two passes in the first pass leaves that pass's work unused and makes the export one pass, which
+  //still comes out right, and a second pass is never started without a first
   for (;;) {
     encoder = exporter->video_encoder = waytator_export_new_video_encoder(exporter, codec, sink, source_frame, pass);
     code = avcodec_open2(encoder, codec, NULL);
@@ -658,7 +666,7 @@ waytator_export_open_video_encoder(WaytatorExporter  *exporter,
                                                      &exporter->choice))
       return waytator_video_encoder_fail(error, code, "Could not start the video encoder");
     codec = exporter->choice.codec;
-    plan->two_pass = plan->two_pass && g_str_equal(codec->name, "libx264");
+    plan->two_pass = plan->two_pass && waytator_export_takes_two_passes(exporter);
   }
 
   if (exporter->muxer != NULL) {
