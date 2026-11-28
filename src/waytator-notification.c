@@ -4,6 +4,8 @@
 #define WAYTATOR_NOTIFICATIONS_PATH "/org/freedesktop/Notifications"
 //nobody answers a notification this late, and without a limit an ignored one would keep us around forever
 #define WAYTATOR_NOTIFICATION_WAIT_SECONDS 600
+//a running server answers at once, this only bounds one that is still starting
+#define WAYTATOR_NOTIFICATION_ASK_MS 500
 
 struct _WaytatorNotification {
   GApplication *app;
@@ -16,6 +18,61 @@ struct _WaytatorNotification {
   WaytatorNotificationGoneFunc gone;
   gpointer user_data;
 };
+
+//only what markup needs, servers read a small subset of it and not every entity GLib would write
+char *
+waytator_notification_body_text(const char *body,
+                                gboolean    markup)
+{
+  GString *text;
+
+  if (!markup)
+    return g_strdup(body);
+
+  text = g_string_new(NULL);
+  for (const char *c = body; *c != '\0'; c++) {
+    if (*c == '&')
+      g_string_append(text, "&amp;");
+    else if (*c == '<')
+      g_string_append(text, "&lt;");
+    else if (*c == '>')
+      g_string_append(text, "&gt;");
+    else
+      g_string_append_c(text, *c);
+  }
+  return g_string_free(text, FALSE);
+}
+
+//whether the notification server reads markup in bodies, asked once and kept. a server that can't be asked right
+//now is asked again next time
+static gboolean
+waytator_notification_body_markup(GDBusConnection *connection)
+{
+  static int markup = -1;
+  g_autoptr(GVariant) reply = NULL;
+  g_autofree const char **capabilities = NULL;
+
+  if (markup >= 0)
+    return markup;
+
+  reply = g_dbus_connection_call_sync(connection,
+                                      WAYTATOR_NOTIFICATIONS_NAME,
+                                      WAYTATOR_NOTIFICATIONS_PATH,
+                                      WAYTATOR_NOTIFICATIONS_NAME,
+                                      "GetCapabilities",
+                                      NULL,
+                                      G_VARIANT_TYPE("(as)"),
+                                      G_DBUS_CALL_FLAGS_NONE,
+                                      WAYTATOR_NOTIFICATION_ASK_MS,
+                                      NULL,
+                                      NULL);
+  if (reply == NULL)
+    return FALSE;
+
+  g_variant_get(reply, "(^a&s)", &capabilities);
+  markup = g_strv_contains(capabilities, "body-markup");
+  return markup;
+}
 
 WaytatorNotification *
 waytator_notification_new(GApplication                  *app,
@@ -222,6 +279,7 @@ waytator_notification_show(WaytatorNotification *notification,
 {
   GVariantBuilder action_builder;
   GVariantBuilder hints;
+  g_autofree char *body_text = NULL;
 
   g_variant_builder_init(&action_builder, G_VARIANT_TYPE("as"));
   for (guint i = 0; actions[i] != NULL; i++)
@@ -254,6 +312,7 @@ waytator_notification_show(WaytatorNotification *notification,
                                                                          notification,
                                                                          NULL);
 
+  body_text = waytator_notification_body_text(body, waytator_notification_body_markup(notification->connection));
   g_dbus_connection_call(notification->connection,
                          WAYTATOR_NOTIFICATIONS_NAME,
                          WAYTATOR_NOTIFICATIONS_PATH,
@@ -264,7 +323,7 @@ waytator_notification_show(WaytatorNotification *notification,
                                        (guint32) 0,
                                        g_application_get_application_id(notification->app),
                                        summary,
-                                       body,
+                                       body_text,
                                        &action_builder,
                                        &hints,
                                        -1),
@@ -281,6 +340,9 @@ waytator_notification_post(WaytatorNotification *notification,
                            const char           *summary,
                            const char           *body)
 {
+  g_autofree char *body_text = waytator_notification_body_text(body,
+                                                               waytator_notification_body_markup(notification->connection));
+
   g_dbus_connection_call(notification->connection,
                          WAYTATOR_NOTIFICATIONS_NAME,
                          WAYTATOR_NOTIFICATIONS_PATH,
@@ -291,7 +353,7 @@ waytator_notification_post(WaytatorNotification *notification,
                                        (guint32) 0,
                                        g_application_get_application_id(notification->app),
                                        summary,
-                                       body,
+                                       body_text,
                                        NULL,
                                        NULL,
                                        -1),

@@ -228,6 +228,9 @@ struct _WaytatorWindow {
   //counts the images this window has shown, so late news about an old one can be told apart
   guint image_serial;
   GFile *adopt_file;
+  //where the first save of a piped image goes, from --save-path. kept until that save is over, then the saved file is
+  //the open one, or after a failure the next save asks
+  GFile *save_target;
   //adopt_file is an empty one made to claim a name in the screenshot folder
   gboolean adopt_file_reserved;
   WaytatorSettings settings;

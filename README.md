@@ -195,7 +195,7 @@ grim -g "$(slurp)" - | waytator     # open an image piped in
 waytator                            # open the app empty
 ```
 
-Add `--name "Screenshot.png"` to name a piped image.
+Add `--name "Screenshot.png"` to name a piped image, or `--save-path ~/shot.png` to have Save write it there without asking. The extension picks the format.
 
 Tools have single-key shortcuts, shown on their buttons, and `[` and `]` change the size. They can all be changed in Preferences → Shortcuts, where any shortcut can also go on a right click or a drawing tablet's buttons.
 
