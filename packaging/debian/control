@@ -5,6 +5,7 @@ Maintainer: faetalize <oss@faetalize.dev>
 Build-Depends:
  debhelper-compat (= 13),
  meson,
+ gettext,
  ninja-build,
  pkg-config,
  libglib2.0-dev,

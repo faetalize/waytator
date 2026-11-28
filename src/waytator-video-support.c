@@ -2,14 +2,15 @@
 
 #include "waytator-video-encoder.h"
 
+#include <glib/gi18n.h>
 #include <string.h>
 
 #define WAYTATOR_VIDEO_SUPPORT_CODECS (WAYTATOR_VIDEO_CODEC_GIF + 1)
 
-static const char waytator_video_support_none[] = "Not available on this system";
-static const char waytator_video_support_not_for_format[] = "Not available for this format";
-static const char waytator_video_support_on_cpu[] = "Not available, using the processor";
-static const char waytator_video_support_pick_auto[] = "Not available, pick Automatic";
+static const char waytator_video_support_none[] = N_("Not available on this system");
+static const char waytator_video_support_not_for_format[] = N_("Not available for this format");
+static const char waytator_video_support_on_cpu[] = N_("Not available, using the processor");
+static const char waytator_video_support_pick_auto[] = N_("Not available, pick Automatic");
 
 typedef enum {
   WAYTATOR_VIDEO_UNCHECKED,
@@ -96,10 +97,10 @@ waytator_video_support_unavailable(WaytatorVideoCodec   codec,
     preference = WAYTATOR_VIDEO_ENCODER_AUTO;
 
   if (!cpu && !gpu)
-    return g_strdup(waytator_video_support_none);
+    return g_strdup(_(waytator_video_support_none));
   //the processor it is, as asked, even when the gpu could
   if (preference == WAYTATOR_VIDEO_ENCODER_SOFTWARE && !cpu)
-    return g_strdup_printf("The processor can't encode %s on this system", waytator_video_codec_get_name(codec));
+    return g_strdup_printf(_("The processor can't encode %s on this system"), waytator_video_codec_get_name(codec));
   return NULL;
 }
 
@@ -109,9 +110,9 @@ waytator_video_support_encoder_unavailable(WaytatorVideoCodec   codec,
 {
   switch (encoder) {
   case WAYTATOR_VIDEO_ENCODER_HARDWARE:
-    return waytator_video_support_gpu_may_encode(codec) ? NULL : waytator_video_support_not_for_format;
+    return waytator_video_support_gpu_may_encode(codec) ? NULL : _(waytator_video_support_not_for_format);
   case WAYTATOR_VIDEO_ENCODER_SOFTWARE:
-    return waytator_video_support_cpu_may_encode(codec) ? NULL : waytator_video_support_not_for_format;
+    return waytator_video_support_cpu_may_encode(codec) ? NULL : _(waytator_video_support_not_for_format);
   default:
     return NULL;
   }
@@ -129,9 +130,9 @@ waytator_video_support_encoder_note(WaytatorVideoCodec   codec,
   if (!waytator_video_support_checked || codec == WAYTATOR_VIDEO_CODEC_GIF)
     return NULL;
   if (preference == WAYTATOR_VIDEO_ENCODER_SOFTWARE && !cpu && gpu)
-    return waytator_video_support_pick_auto;
+    return _(waytator_video_support_pick_auto);
   if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE && cpu && !gpu)
-    return waytator_video_support_on_cpu;
+    return _(waytator_video_support_on_cpu);
   return NULL;
 }
 

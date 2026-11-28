@@ -1,6 +1,8 @@
 //F_DUPFD_CLOEXEC
 #define _GNU_SOURCE
 
+#include <glib/gi18n.h>
+
 #include "waytator-recorder.h"
 
 #include <errno.h>
@@ -199,7 +201,7 @@ waytator_recorder_portal_closed(gpointer user_data)
 {
   g_autoptr(GError) error = g_error_new_literal(G_IO_ERROR,
                                                 G_IO_ERROR_CLOSED,
-                                                "The desktop ended the recording");
+                                                _("The desktop ended the recording"));
 
   waytator_recorder_end(user_data, error);
 }
@@ -295,7 +297,7 @@ waytator_recorder_first_picture_timeout(gpointer user_data)
   waytator_recorder_open_fail(recorder,
                               g_error_new_literal(G_IO_ERROR,
                                                   G_IO_ERROR_TIMED_OUT,
-                                                  "No picture came from the screen"));
+                                                  _("No picture came from the screen")));
   return G_SOURCE_REMOVE;
 }
 
@@ -328,7 +330,7 @@ waytator_recorder_connect(WaytatorRecorder *recorder,
     g_set_error(error,
                 G_IO_ERROR,
                 g_io_error_from_errno(errno),
-                "Couldn't reach PipeWire: %s",
+                _("Couldn't reach PipeWire: %s"),
                 g_strerror(errno));
     return FALSE;
   }
@@ -439,7 +441,7 @@ waytator_recorder_pick_paths(const char *folder,
                              GError    **error)
 {
   g_autoptr(GDateTime) now = g_date_time_new_now_local();
-  g_autofree char *stem = waytator_file_name_make(file_name, WAYTATOR_RECORDING_NAME_DEFAULT, now);
+  g_autofree char *stem = waytator_file_name_make(file_name, _(WAYTATOR_RECORDING_NAME_DEFAULT), now);
 
   for (int attempt = 1; attempt <= WAYTATOR_RECORDER_MAX_NAMES; attempt++) {
     g_autofree char *name = attempt == 1 ? g_strdup(stem) : g_strdup_printf("%s %d", stem, attempt);
@@ -456,7 +458,7 @@ waytator_recorder_pick_paths(const char *folder,
     return TRUE;
   }
 
-  g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_EXISTS, "Too many recordings share this name");
+  g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_EXISTS, _("Too many recordings share this name"));
   return FALSE;
 }
 
@@ -513,7 +515,7 @@ waytator_recorder_begin(WaytatorRecorder *recorder,
     g_set_error(error,
                 G_IO_ERROR,
                 g_io_error_from_errno(code),
-                "Could not make the folder for the recording: %s",
+                _("Could not make the folder for the recording: %s"),
                 g_strerror(code));
     return FALSE;
   }
@@ -527,7 +529,7 @@ waytator_recorder_begin(WaytatorRecorder *recorder,
     waytator_recorder_area_crop(&recorder->options, recorder->newest, &writer_options);
   g_mutex_unlock(&recorder->lock);
   if (!has_newest) {
-    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, "No picture came from the screen");
+    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("No picture came from the screen"));
     return FALSE;
   }
 
@@ -633,12 +635,12 @@ waytator_recorder_stop_async(WaytatorRecorder   *recorder,
   g_task_set_source_tag(task, waytator_recorder_stop_async);
 
   if (!recorder->began) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, "Nothing was recorded");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, _("Nothing was recorded"));
     g_object_unref(task);
     return;
   }
   if (recorder->stopped) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, "The recording was already stopped");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, _("The recording was already stopped"));
     g_object_unref(task);
     return;
   }

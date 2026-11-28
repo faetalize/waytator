@@ -1,5 +1,7 @@
 #include "waytator-clipboard.h"
 
+#include <glib/gi18n.h>
+
 #include <string.h>
 
 static void
@@ -13,7 +15,7 @@ waytator_clipboard_copied(GObject      *source_object,
 
   if (!g_subprocess_communicate_finish(process, result, NULL, NULL, &error)
       || !g_subprocess_get_successful(process)) {
-    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, "wl-copy could not put the file on the clipboard");
+    g_task_return_new_error(task, G_IO_ERROR, G_IO_ERROR_FAILED, _("wl-copy could not put the file on the clipboard"));
     return;
   }
 
@@ -35,7 +37,7 @@ waytator_clipboard_copy_file_async(GFile              *file,
   process = g_subprocess_new(G_SUBPROCESS_FLAGS_STDIN_PIPE, &error,
                              "wl-copy", "--type", "text/uri-list", NULL);
   if (process == NULL) {
-    g_prefix_error(&error, "Could not run wl-copy: ");
+    g_prefix_error(&error, _("Could not run wl-copy: "));
     g_task_return_error(task, g_steal_pointer(&error));
     g_object_unref(task);
     return;

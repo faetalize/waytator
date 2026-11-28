@@ -1,5 +1,6 @@
 #include "waytator-window-private.h"
 
+#include <glib/gi18n.h>
 #include <math.h>
 
 #include "waytator-stroke.h"
@@ -71,7 +72,7 @@ waytator_tool_size_preset(WaytatorTool tool,
 void
 waytator_window_update_size_controls(WaytatorWindow *self)
 {
-  static const char *preset_names[WAYTATOR_N_SIZE_PRESETS] = { "Thin", "Medium", "Thick" };
+  static const char *preset_names[WAYTATOR_N_SIZE_PRESETS] = { N_("Thin"), N_("Medium"), N_("Thick") };
   GtkAdjustment *text_adjustment = gtk_spin_button_get_adjustment(self->text_size_spin);
   const gboolean is_text_tool = self->active_tool == WAYTATOR_TOOL_TEXT;
   const double value = self->tool_widths[self->active_tool];
@@ -88,7 +89,7 @@ waytator_window_update_size_controls(WaytatorWindow *self)
 
   for (guint i = 0; i < WAYTATOR_N_SIZE_PRESETS; i++) {
     const double preset = waytator_tool_size_preset(self->active_tool, i);
-    g_autofree char *tooltip = g_strdup_printf("%s, %.0f px", preset_names[i], preset);
+    g_autofree char *tooltip = g_strdup_printf(_("%s, %.0f px"), _(preset_names[i]), preset);
 
     if (self->size_preset_buttons[i] == NULL)
       continue;
@@ -276,7 +277,7 @@ waytator_window_size_drawer_toggled(GtkToggleButton *button,
 
   self->size_drawer_open = gtk_toggle_button_get_active(button);
   gtk_widget_set_tooltip_text(GTK_WIDGET(button),
-                              self->size_drawer_open ? "Hide size slider" : "Show size slider");
+                              self->size_drawer_open ? _("Hide size slider") : _("Show size slider"));
   gtk_revealer_set_reveal_child(self->size_drawer,
                                 self->size_drawer_open
                                 && waytator_tool_has_size_presets(self->active_tool));
@@ -771,7 +772,7 @@ waytator_window_setup_size_controls(WaytatorWindow *self)
   //restore before connecting, so reading the preference back does not write it out again
   gtk_toggle_button_set_active(self->size_drawer_button, self->size_drawer_open);
   if (self->size_drawer_open)
-    gtk_widget_set_tooltip_text(GTK_WIDGET(self->size_drawer_button), "Hide size slider");
+    gtk_widget_set_tooltip_text(GTK_WIDGET(self->size_drawer_button), _("Hide size slider"));
   g_signal_connect(self->size_drawer_button, "toggled", G_CALLBACK(waytator_window_size_drawer_toggled), self);
 }
 

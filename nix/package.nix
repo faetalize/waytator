@@ -7,6 +7,7 @@
   ninja,
   pkg-config,
   glib,
+  gettext,
   wayland-scanner,
   wrapGAppsHook4,
   gtk4,
@@ -47,6 +48,7 @@ stdenv.mkDerivation {
     ninja
     pkg-config
     glib
+    gettext
     wayland-scanner
     wrapGAppsHook4
   ];

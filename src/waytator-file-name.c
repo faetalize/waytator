@@ -80,9 +80,9 @@ waytator_file_name_preview(const char *text,
 
   if (*stripped == '\0') {
     instead = waytator_file_name_format(fallback, time);
-    return g_strdup_printf("Left empty, files get the default name %s.%s", instead, extension);
+    return g_strdup_printf(_("Left empty, files get the default name %s.%s"), instead, extension);
   }
 
   instead = waytator_file_name_make(saved, fallback, time);
-  return g_strdup_printf("No name comes out of this, files keep the name %s.%s", instead, extension);
+  return g_strdup_printf(_("No name comes out of this, files keep the name %s.%s"), instead, extension);
 }

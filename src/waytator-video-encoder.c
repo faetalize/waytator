@@ -1,5 +1,7 @@
 #include "waytator-video-encoder.h"
 
+#include <glib/gi18n.h>
+
 #include <libavutil/hwcontext.h>
 #include <libavutil/hwcontext_vaapi.h>
 #include <libavutil/opt.h>
@@ -347,14 +349,14 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
   av_buffer_unref(&device);
   if (other_sizes) {
     g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
-                "Only the GPU encodes this profile's video here, and it can't encode a %dx%d picture",
+                _("Only the GPU encodes this profile's video here, and it can't encode a %dx%d picture"),
                 width, height);
     return FALSE;
   }
 
   wanted = g_strjoinv(", ", (char **) waytator_video_encoder_get_names(codec, FALSE));
   g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-              "This system's FFmpeg can't encode this profile's video, it needs one of: %s", wanted);
+              _("This system's FFmpeg can't encode this profile's video, it needs one of: %s"), wanted);
   return FALSE;
 }
 
@@ -448,6 +450,6 @@ waytator_video_encoder_fail(GError    **error,
   char message[AV_ERROR_MAX_STRING_SIZE] = "";
 
   av_strerror(code, message, sizeof message);
-  g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "%s: %s", what, message);
+  g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("%s: %s"), what, message);
   return FALSE;
 }

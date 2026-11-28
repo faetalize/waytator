@@ -3,6 +3,8 @@
 #include "waytator-settings.h"
 #include "waytator-window.h"
 
+#include <glib/gi18n.h>
+
 #include <gtk4-layer-shell.h>
 #include <math.h>
 
@@ -169,7 +171,7 @@ waytator_capture_pick_output(GPtrArray          *outputs,
       return output;
   }
 
-  g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, "There is no screen named %s", output_name);
+  g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND, _("There is no screen named %s"), output_name);
   return NULL;
 }
 
@@ -392,7 +394,7 @@ waytator_capture_overlay_set_delay(WaytatorCaptureOverlay *overlay,
   for (guint i = 0; i < overlay->views->len; i++) {
     WaytatorCaptureView *view = g_ptr_array_index(overlay->views, i);
     GtkWidget *choices = gtk_revealer_get_child(view->delay_choices);
-    g_autofree char *text = g_strdup_printf("%us", seconds);
+    g_autofree char *text = g_strdup_printf(_("%us"), seconds);
 
     for (GtkWidget *choice = gtk_widget_get_first_child(choices);
          choice != NULL;
@@ -1389,7 +1391,7 @@ static void
 waytator_capture_overlay_append_delay(WaytatorCaptureView *view)
 {
   static const guint delays[] = { 1, 3, 5, 10 };
-  GtkWidget *button = waytator_capture_overlay_append_toggle(view, "alarm-symbolic", "Delay", FALSE);
+  GtkWidget *button = waytator_capture_overlay_append_toggle(view, "alarm-symbolic", _("Delay"), FALSE);
   GtkWidget *choices = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 2);
 
   view->delay_button = GTK_TOGGLE_BUTTON(button);
@@ -1407,7 +1409,7 @@ waytator_capture_overlay_append_delay(WaytatorCaptureView *view)
   }
 
   for (guint i = 0; i < G_N_ELEMENTS(delays); i++) {
-    g_autofree char *label = g_strdup_printf("%us", delays[i]);
+    g_autofree char *label = g_strdup_printf(_("%us"), delays[i]);
     GtkWidget *choice = gtk_button_new_with_label(label);
 
     waytator_capture_overlay_init_pill_button(choice, NULL);
@@ -1540,7 +1542,7 @@ waytator_capture_overlay_append_handle(WaytatorCaptureView *view)
   GtkGesture *drag = gtk_gesture_drag_new();
 
   gtk_widget_add_css_class(handle, "capture-handle");
-  gtk_widget_set_tooltip_text(handle, "Move");
+  gtk_widget_set_tooltip_text(handle, _("Move"));
   gtk_widget_set_cursor_from_name(handle, "grab");
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(drag), GDK_BUTTON_PRIMARY);
   g_signal_connect(drag, "drag-begin", G_CALLBACK(waytator_capture_overlay_handle_drag_begin), view);
@@ -1554,15 +1556,15 @@ waytator_capture_overlay_append_handle(WaytatorCaptureView *view)
 static void
 waytator_capture_overlay_append_shift_hint(WaytatorCaptureView *view)
 {
-  GtkWidget *key = gtk_label_new("Shift");
+  GtkWidget *key = gtk_label_new(_("Shift"));
   GtkWidget *hint = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
 
   gtk_widget_add_css_class(hint, "capture-shortcut");
   gtk_widget_add_css_class(key, "capture-keycap");
   gtk_widget_set_valign(key, GTK_ALIGN_CENTER);
-  gtk_box_append(GTK_BOX(hint), gtk_label_new("Hold"));
+  gtk_box_append(GTK_BOX(hint), gtk_label_new(_("Hold")));
   gtk_box_append(GTK_BOX(hint), key);
-  gtk_box_append(GTK_BOX(hint), gtk_label_new("to slow the cursor"));
+  gtk_box_append(GTK_BOX(hint), gtk_label_new(_("to slow the cursor")));
 
   //only Area has a use for it, and the bar eases to its new width rather than jumping when it goes
   view->shift_hint = GTK_REVEALER(gtk_revealer_new());
@@ -1595,11 +1597,11 @@ waytator_capture_overlay_build_pill(WaytatorCaptureView *view)
   if (view->overlay->record)
     waytator_capture_overlay_append_record_mark(view);
 
-  view->area_button = waytator_capture_overlay_new_mode_button(view, modes, "Area");
-  view->screen_button = waytator_capture_overlay_new_mode_button(view, modes, "Screen");
+  view->area_button = waytator_capture_overlay_new_mode_button(view, modes, _("Area"));
+  view->screen_button = waytator_capture_overlay_new_mode_button(view, modes, _("Screen"));
   gtk_toggle_button_set_group(view->screen_button, view->area_button);
   if (view->overlay->record) {
-    view->window_button = waytator_capture_overlay_new_mode_button(view, modes, "Window");
+    view->window_button = waytator_capture_overlay_new_mode_button(view, modes, _("Window"));
     gtk_toggle_button_set_group(view->window_button, view->area_button);
   }
   gtk_box_append(GTK_BOX(view->pill), GTK_WIDGET(modes));
@@ -1607,7 +1609,7 @@ waytator_capture_overlay_build_pill(WaytatorCaptureView *view)
 
   button = waytator_capture_overlay_append_toggle(view,
                                                   "waytator-magnifier-symbolic",
-                                                  "Magnifier",
+                                                  _("Magnifier"),
                                                   view->overlay->magnifier);
   g_signal_connect(button, "toggled", G_CALLBACK(waytator_capture_overlay_magnifier_toggled), view);
   view->magnifier_button = GTK_TOGGLE_BUTTON(button);
@@ -1615,7 +1617,7 @@ waytator_capture_overlay_build_pill(WaytatorCaptureView *view)
   if (view->overlay->offer_hide) {
     button = waytator_capture_overlay_append_toggle(view,
                                                     "view-conceal-symbolic",
-                                                    "Hide waytator",
+                                                    _("Hide waytator"),
                                                     view->overlay->hide_waytator);
     g_signal_connect(button, "toggled", G_CALLBACK(waytator_capture_overlay_hide_toggled), view->overlay);
   }
@@ -1626,14 +1628,14 @@ waytator_capture_overlay_build_pill(WaytatorCaptureView *view)
   if (view->overlay->record) {
     button = waytator_capture_overlay_append_toggle(view,
                                                     "audio-volume-high-symbolic",
-                                                    "System sound",
+                                                    _("System sound"),
                                                     view->overlay->system_sound);
     g_signal_connect(button, "toggled", G_CALLBACK(waytator_capture_overlay_sound_toggled), view);
     view->system_sound_button = GTK_TOGGLE_BUTTON(button);
 
     button = waytator_capture_overlay_append_toggle(view,
                                                     "audio-input-microphone-symbolic",
-                                                    "Microphone",
+                                                    _("Microphone"),
                                                     view->overlay->microphone);
     g_signal_connect(button, "toggled", G_CALLBACK(waytator_capture_overlay_sound_toggled), view);
     view->microphone_button = GTK_TOGGLE_BUTTON(button);
@@ -1642,7 +1644,7 @@ waytator_capture_overlay_build_pill(WaytatorCaptureView *view)
 
   waytator_capture_overlay_append_shift_hint(view);
 
-  waytator_capture_overlay_init_pill_button(cancel, "Cancel (Esc)");
+  waytator_capture_overlay_init_pill_button(cancel, _("Cancel (Esc)"));
   gtk_widget_add_css_class(cancel, "capture-cancel");
   g_signal_connect(cancel, "clicked", G_CALLBACK(waytator_capture_overlay_cancel_clicked), view);
   gtk_box_append(GTK_BOX(view->pill), cancel);

@@ -1,5 +1,7 @@
 #include "waytator-video-copy.h"
 
+#include <glib/gi18n.h>
+
 #include "waytator-video-cache.h"
 
 struct _WaytatorVideoCopy {
@@ -100,10 +102,10 @@ waytator_video_close_question(gboolean                    exporting,
     //about the closing, which is what was asked for. keeping the window keeps the export, an edit made while it
     //runs isn't in it, so keeping on editing is not what is on offer
     *question = (WaytatorVideoCloseQuestion) {
-      "Close this video?",
-      unsaved ? "The export will stop and your edit will be lost." : "The export will stop.",
-      "_Keep Exporting",
-      "_Close",
+      _("Close this video?"),
+      unsaved ? _("The export will stop and your edit will be lost.") : _("The export will stop."),
+      _("_Keep Exporting"),
+      _("_Close"),
     };
     return TRUE;
   }
@@ -111,6 +113,6 @@ waytator_video_close_question(gboolean                    exporting,
   if (!unsaved)
     return FALSE;
 
-  *question = (WaytatorVideoCloseQuestion) { "Discard the edit?", NULL, "_Keep Editing", "_Discard" };
+  *question = (WaytatorVideoCloseQuestion) { _("Discard the edit?"), NULL, _("_Keep Editing"), _("_Discard") };
   return TRUE;
 }

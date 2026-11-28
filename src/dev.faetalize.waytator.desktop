@@ -3,22 +3,27 @@ Type=Application
 Version=1.0
 Name=Waytator
 Comment=Fast screen capture and editing
+Comment[fr]=Capture d’écran et retouche rapide
 Exec=waytator %U
 Icon=dev.faetalize.waytator
 Terminal=false
 Categories=Graphics;
 Keywords=screenshot;screen recorder;recording;image editor;video editor;annotate;screen shot;video editing;
+Keywords[fr]=capture d’écran;enregistrement d’écran;retouche d’image;montage vidéo;annotation;
 StartupNotify=true
 Actions=screenshot-area;screenshot-screen;record;
 
 [Desktop Action screenshot-area]
 Name=Screenshot Area
+Name[fr]=Capturer une zone
 Exec=waytator --screenshot area
 
 [Desktop Action screenshot-screen]
 Name=Screenshot Screen
+Name[fr]=Capturer l’écran
 Exec=waytator --screenshot screen
 
 [Desktop Action record]
 Name=Record
+Name[fr]=Enregistrer l’écran
 Exec=waytator --record

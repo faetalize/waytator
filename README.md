@@ -144,7 +144,7 @@ To turn OCR off on a package you build yourself, override it with `enableOcr = f
 
 1) Required build dependencies:
 
-`meson` - `ninja` - `pkg-config` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `ffmpeg` - `libva` - `pipewire` - `rubberband` - `libdrm` - `gcc`/`clang`/any C compiler
+`meson` - `ninja` - `pkg-config` - `gettext` - `gtk4` - `libadwaita-1` - `gtk4-layer-shell` - `wayland` - `wayland-protocols` - `ffmpeg` - `libva` - `pipewire` - `rubberband` - `libdrm` - `gcc`/`clang`/any C compiler
 
 2) Required runtime dependencies:
 

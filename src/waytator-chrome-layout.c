@@ -2,6 +2,8 @@
 #include "waytator-recording.h"
 #include "waytator-video-editor.h"
 
+#include <glib/gi18n.h>
+
 #include <string.h>
 
 //the floating controls fit any window from a phone up: they measure what they need and give up room in a
@@ -314,7 +316,7 @@ waytator_chrome_zoom_drawer_toggled(GtkToggleButton *button,
   WaytatorWindow *self = WAYTATOR_WINDOW(user_data);
   const gboolean open = gtk_toggle_button_get_active(button);
 
-  gtk_widget_set_tooltip_text(GTK_WIDGET(button), open ? "Hide zoom controls" : "Show zoom controls");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(button), open ? _("Hide zoom controls") : _("Show zoom controls"));
   gtk_revealer_set_reveal_child(self->zoom_drawer, open);
 }
 
@@ -348,13 +350,13 @@ waytator_chrome_layout_main_menu(WaytatorWindow *self)
                              : g_strdup(file_name);
 
     if (!folds->save) {
-      g_menu_append(section, "Save", "win.save-image");
-      g_menu_append(section, "Save as…", "win.save-as");
+      g_menu_append(section, _("Save"), "win.save-image");
+      g_menu_append(section, _("Save as…"), "win.save-as");
     }
     if (!folds->keep_open && closes_on_copy)
-      g_menu_append(section, "Copy without closing", "win.copy-keep-open");
-    g_menu_append(section, "Open file", "win.open-current-file");
-    g_menu_append(section, "Open containing folder", "win.open-containing-folder");
+      g_menu_append(section, _("Copy without closing"), "win.copy-keep-open");
+    g_menu_append(section, _("Open file"), "win.open-current-file");
+    g_menu_append(section, _("Open containing folder"), "win.open-containing-folder");
     g_menu_append_section(self->app_menu, heading, G_MENU_MODEL(section));
   }
 
@@ -367,8 +369,8 @@ waytator_chrome_layout_main_menu(WaytatorWindow *self)
     g_menu_append_section(self->app_menu, NULL, G_MENU_MODEL(section));
   }
 
-  g_menu_append(common, "Preferences", "win.preferences");
-  g_menu_append(common, "About Waytator", "win.about");
+  g_menu_append(common, _("Preferences"), "win.preferences");
+  g_menu_append(common, _("About Waytator"), "win.about");
   g_menu_append_section(self->app_menu, NULL, G_MENU_MODEL(common));
 
   //a custom row only lands in a menu that already has its place, so it moves in again each time
@@ -388,7 +390,7 @@ waytator_chrome_zoom_row(GtkLabel  **label,
   GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 4);
   GtkWidget *zoom_out = gtk_button_new_from_icon_name("zoom-out-symbolic");
   GtkWidget *zoom_in = gtk_button_new_from_icon_name("zoom-in-symbolic");
-  GtkWidget *fit = gtk_button_new_with_label("Fit");
+  GtkWidget *fit = gtk_button_new_with_label(_("Fit"));
   GtkWidget *value = gtk_label_new("100%");
   GtkWidget *level = gtk_button_new();
 
@@ -396,14 +398,14 @@ waytator_chrome_zoom_row(GtkLabel  **label,
   gtk_actionable_set_action_name(GTK_ACTIONABLE(zoom_out), "win.zoom-out");
   gtk_actionable_set_action_name(GTK_ACTIONABLE(zoom_in), "win.zoom-in");
   gtk_actionable_set_action_name(GTK_ACTIONABLE(fit), "win.zoom-fit");
-  gtk_widget_set_tooltip_text(zoom_out, "Zoom out");
-  gtk_widget_set_tooltip_text(zoom_in, "Zoom in");
-  gtk_widget_set_tooltip_text(fit, "Fit image to window");
+  gtk_widget_set_tooltip_text(zoom_out, _("Zoom out"));
+  gtk_widget_set_tooltip_text(zoom_in, _("Zoom in"));
+  gtk_widget_set_tooltip_text(fit, _("Fit image to window"));
   gtk_widget_add_css_class(value, "zoom-label");
   gtk_label_set_width_chars(GTK_LABEL(value), 4);
   gtk_button_set_child(GTK_BUTTON(level), value);
   gtk_actionable_set_action_name(GTK_ACTIONABLE(level), "win.zoom-actual-size");
-  gtk_widget_set_tooltip_text(level, "Reset zoom to 100%");
+  gtk_widget_set_tooltip_text(level, _("Reset zoom to 100%"));
   gtk_widget_add_css_class(level, "zoom-level");
   for (GtkWidget *button = zoom_out; button != NULL; button = button == zoom_out ? level : button == level ? zoom_in : button == zoom_in ? fit : NULL)
     gtk_widget_add_css_class(button, "flat");

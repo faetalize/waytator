@@ -1,5 +1,6 @@
 #include "waytator-window-private.h"
 
+#include <glib/gi18n.h>
 #include <math.h>
 #include <string.h>
 
@@ -780,13 +781,13 @@ waytator_window_setup_selection(WaytatorWindow *self)
   gtk_widget_set_visible(self->selection_actions, FALSE);
   self->selection_edit_button = waytator_window_new_selection_button(self,
                                                                      "waytator-text-symbolic",
-                                                                     "Edit text",
+                                                                     _("Edit text"),
                                                                      G_CALLBACK(waytator_window_selection_edit_clicked));
   gtk_box_append(GTK_BOX(self->selection_actions), self->selection_edit_button);
   gtk_box_append(GTK_BOX(self->selection_actions),
                  waytator_window_new_selection_button(self,
                                                       "user-trash-symbolic",
-                                                      "Delete",
+                                                      _("Delete"),
                                                       G_CALLBACK(waytator_window_selection_delete_clicked)));
   gtk_widget_set_parent(self->selection_actions, GTK_WIDGET(self->canvas_view));
   waytator_canvas_view_set_place_func(self->canvas_view, waytator_window_place_selection, self);

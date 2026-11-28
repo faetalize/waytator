@@ -3,6 +3,8 @@
 #include "waytator-pointer-brake.h"
 #include "waytator-window.h"
 
+#include <glib/gi18n.h>
+
 #include <gtk4-layer-shell.h>
 #include <math.h>
 
@@ -402,7 +404,7 @@ waytator_recording_bar_append_handle(WaytatorRecordingBar *bar)
   GtkGesture *drag = gtk_gesture_drag_new();
 
   gtk_widget_add_css_class(handle, "capture-handle");
-  gtk_widget_set_tooltip_text(handle, "Move");
+  gtk_widget_set_tooltip_text(handle, _("Move"));
   gtk_widget_set_cursor_from_name(handle, "grab");
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(drag), GDK_BUTTON_PRIMARY);
   g_signal_connect(drag, "drag-begin", G_CALLBACK(waytator_recording_bar_handle_drag_begin), bar);
@@ -447,7 +449,7 @@ waytator_recording_bar_mute_toggled(GtkToggleButton      *button,
   const gboolean muted = gtk_toggle_button_get_active(button);
 
   gtk_button_set_icon_name(GTK_BUTTON(button), muted ? "microphone-disabled-symbolic" : "audio-input-microphone-symbolic");
-  gtk_widget_set_tooltip_text(GTK_WIDGET(button), muted ? "Unmute microphone" : "Mute microphone");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(button), muted ? _("Unmute microphone") : _("Mute microphone"));
   bar->mute(muted, bar->user_data);
 }
 
@@ -492,14 +494,14 @@ waytator_recording_bar_build_pill(WaytatorRecordingBar *bar,
   if (microphone) {
     mute = gtk_toggle_button_new();
     gtk_button_set_icon_name(GTK_BUTTON(mute), "audio-input-microphone-symbolic");
-    waytator_recording_bar_init_button(mute, "Mute microphone");
+    waytator_recording_bar_init_button(mute, _("Mute microphone"));
     gtk_widget_add_css_class(mute, "recording-mute");
     g_signal_connect(mute, "toggled", G_CALLBACK(waytator_recording_bar_mute_toggled), bar);
     gtk_box_append(GTK_BOX(bar->pill), mute);
   }
 
   bar->stop_button = gtk_button_new_from_icon_name("media-playback-stop-symbolic");
-  waytator_recording_bar_init_button(bar->stop_button, "Stop recording");
+  waytator_recording_bar_init_button(bar->stop_button, _("Stop recording"));
   gtk_widget_add_css_class(bar->stop_button, "recording-stop");
   g_signal_connect(bar->stop_button, "clicked", G_CALLBACK(waytator_recording_bar_stop_clicked), bar);
   gtk_box_append(GTK_BOX(bar->pill), bar->stop_button);
@@ -565,7 +567,7 @@ waytator_recording_bar_new(GdkMonitor                  *monitor,
   bar->window = GTK_WINDOW(gtk_window_new());
   gtk_window_set_child(bar->window, bar->pill);
   gtk_window_set_decorated(bar->window, FALSE);
-  gtk_window_set_title(bar->window, "Recording");
+  gtk_window_set_title(bar->window, _("Recording"));
   gtk_widget_add_css_class(GTK_WIDGET(bar->window), "recording-surface");
 
   //gnome has no layer shell, there the desktop places the window and moves it
@@ -609,7 +611,7 @@ waytator_recording_bar_set_saving(WaytatorRecordingBar *bar)
   bar->saving = TRUE;
   g_clear_handle_id(&bar->tick_id, g_source_remove);
   gtk_widget_set_sensitive(bar->stop_button, FALSE);
-  gtk_label_set_text(GTK_LABEL(bar->time_label), "Saving…");
+  gtk_label_set_text(GTK_LABEL(bar->time_label), _("Saving…"));
   waytator_recording_bar_keep_on_screen(bar);
 }
 

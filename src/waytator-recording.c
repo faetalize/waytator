@@ -1,5 +1,7 @@
 #include "waytator-recording.h"
 
+#include <glib/gi18n.h>
+
 #include "waytator-capture.h"
 #include "waytator-capture-overlay.h"
 #include "waytator-clipboard.h"
@@ -143,9 +145,9 @@ static void
 waytator_recording_fail(WaytatorRecording *rec,
                         const char        *reason)
 {
-  g_printerr("Recording failed: %s\n", reason);
+  g_printerr(_("Recording failed: %s\n"), reason);
   if (rec->notification != NULL)
-    waytator_notification_post(rec->notification, "Recording failed", reason);
+    waytator_notification_post(rec->notification, _("Recording failed"), reason);
   waytator_recording_free(rec);
 }
 
@@ -194,8 +196,8 @@ waytator_recording_notification_body(WaytatorRecording *rec)
 {
   g_autofree char *folder = waytator_screenshot_display_path(rec->settings.recording_save_dir);
   g_autofree char *saved = rec->copied
-                         ? g_strdup_printf("Saved to %s and copied to the clipboard.", folder)
-                         : g_strdup_printf("Saved to %s.", folder);
+                         ? g_strdup_printf(_("Saved to %s and copied to the clipboard."), folder)
+                         : g_strdup_printf(_("Saved to %s."), folder);
   g_autofree char *reason = NULL;
 
   if (rec->ended_reason == NULL)
@@ -207,7 +209,7 @@ waytator_recording_notification_body(WaytatorRecording *rec)
   if (g_str_has_suffix(reason, "."))
     reason[strlen(reason) - 1] = '\0';
 
-  return g_strdup_printf("The recording stopped on its own: %s. %s", reason, saved);
+  return g_strdup_printf(_("The recording stopped on its own: %s. %s"), reason, saved);
 }
 
 static void
@@ -242,7 +244,7 @@ waytator_recording_notification_gone(WaytatorNotification *notification,
 
   //with nothing to show a notification, the terminal is the only place left to say where it went
   if (!shown)
-    g_printerr("Recording saved: %s\n", rec->body);
+    g_printerr(_("Recording saved: %s\n"), rec->body);
   waytator_recording_free(rec);
 }
 
@@ -257,7 +259,7 @@ waytator_recording_saved(WaytatorRecording *rec)
 
   if (!rec->notify) {
     if (rec->ended_reason != NULL)
-      g_printerr("The recording stopped on its own: %s\n", rec->ended_reason);
+      g_printerr(_("The recording stopped on its own: %s\n"), rec->ended_reason);
     //without an editor to open it is only saved and copied
     if (rec->edit != NULL)
       rec->edit(rec->file, rec->user_data);
@@ -267,15 +269,15 @@ waytator_recording_saved(WaytatorRecording *rec)
 
   rec->body = waytator_recording_notification_body(rec);
   if (rec->notification == NULL) {
-    g_printerr("Recording saved: %s\n", rec->body);
+    g_printerr(_("Recording saved: %s\n"), rec->body);
     waytator_recording_free(rec);
     return;
   }
 
   waytator_notification_show(rec->notification,
-                             "Recording saved",
+                             _("Recording saved"),
                              rec->body,
-                             (const char *const[]) { "default", "Edit", "open", "Open folder", "edit", "Edit", NULL },
+                             (const char *const[]) { "default", _("Edit"), "open", _("Open folder"), "edit", _("Edit"), NULL },
                              NULL);
 }
 
@@ -313,7 +315,7 @@ waytator_recording_stopped(GObject      *source_object,
 
   //the file that was being written stays in the folder, the error says where when it knows
   if (file == NULL) {
-    g_autofree char *reason = g_strdup_printf("Could not save the recording: %s", error->message);
+    g_autofree char *reason = g_strdup_printf(_("Could not save the recording: %s"), error->message);
 
     waytator_recording_fail(rec, reason);
     return;
@@ -382,7 +384,7 @@ waytator_recording_begin(WaytatorRecording *rec)
   GdkMonitor *monitor;
 
   if (!waytator_recorder_begin(rec->recorder, &error)) {
-    g_autofree char *reason = g_strdup_printf("Could not start the recording: %s", error->message);
+    g_autofree char *reason = g_strdup_printf(_("Could not start the recording: %s"), error->message);
 
     waytator_recording_fail(rec, reason);
     return;
@@ -434,7 +436,7 @@ waytator_recording_opened(GObject      *source_object,
     if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
       waytator_recording_free(rec);
     else if (g_error_matches(error, WAYTATOR_RECORD_PORTAL_ERROR, WAYTATOR_RECORD_PORTAL_ERROR_WRONG_SCREEN))
-      waytator_recording_fail(rec, "Pick the same screen in the desktop's dialog as in waytator's");
+      waytator_recording_fail(rec, _("Pick the same screen in the desktop's dialog as in waytator's"));
     else
       waytator_recording_fail(rec, error->message);
     return;
@@ -574,7 +576,7 @@ waytator_recording_outputs_ready(GObject      *source_object,
                                            rec))
     return;
 
-  waytator_recording_fail(rec, "Could not match the capture to a screen");
+  waytator_recording_fail(rec, _("Could not match the capture to a screen"));
 }
 
 static gboolean
@@ -627,7 +629,7 @@ waytator_recording_start_screen(WaytatorRecording *rec)
   GdkRectangle geometry;
 
   if (monitor == NULL) {
-    g_autofree char *reason = g_strdup_printf("There is no screen called %s", rec->output_name);
+    g_autofree char *reason = g_strdup_printf(_("There is no screen called %s"), rec->output_name);
 
     waytator_recording_fail(rec, reason);
     return;

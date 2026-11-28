@@ -1,5 +1,6 @@
 #include "waytator-command-line.h"
 
+#include <glib/gi18n.h>
 #include <string.h>
 
 //only a screenshot is taken without a window, with --notify or the editor switched off.
@@ -42,22 +43,22 @@ waytator_command_line_save_path_problem(const WaytatorSavePathUse *use,
   *read_stdin = FALSE;
 
   if (use->name)
-    return g_strdup("--save-path already names the file, remove --name");
+    return g_strdup(_("--save-path already names the file, remove --name"));
 
   if (use->file_arg != NULL) {
     g_autofree char *file = waytator_command_line_shell_word(use->file_arg);
 
-    return g_strdup_printf("--save-path only works with stdin, try: waytator --save-path %s < %s", save, file);
+    return g_strdup_printf(_("--save-path only works with stdin, try: waytator --save-path %s < %s"), save, file);
   }
 
   //both most likely took it for where a screenshot is saved
   if (use->screenshot || (!use->record && !use->stdin_given && !use->stdin_piped))
-    return g_strdup("--save-path only works with stdin. To choose where screenshots go, set Save folder in "
-                    "Preferences → Screenshots");
+    return g_strdup(_("--save-path only works with stdin. To choose where screenshots go, set Save folder in "
+                      "Preferences → Screenshots"));
 
   if (use->record)
-    return g_strdup("--save-path only works with stdin. Recordings are saved to the Save folder in "
-                    "Preferences → Recordings");
+    return g_strdup(_("--save-path only works with stdin. Recordings are saved to the Save folder in "
+                      "Preferences → Recordings"));
 
   *read_stdin = TRUE;
   return NULL;
@@ -93,10 +94,10 @@ waytator_command_line_save_path_unusable(const char *arg,
   g_autofree char *folder = path != NULL ? g_path_get_dirname(path) : NULL;
 
   if (*arg == '\0')
-    return g_strdup("--save-path needs a file name");
+    return g_strdup(_("--save-path needs a file name"));
   if (g_str_has_suffix(arg, "/") || g_file_test(path, G_FILE_TEST_IS_DIR))
-    return g_strdup("--save-path needs a file name, not a folder");
+    return g_strdup(_("--save-path needs a file name, not a folder"));
   if (!g_file_test(folder, G_FILE_TEST_IS_DIR))
-    return g_strdup_printf("--save-path names a folder that doesn't exist: %s", folder);
+    return g_strdup_printf(_("--save-path names a folder that doesn't exist: %s"), folder);
   return NULL;
 }

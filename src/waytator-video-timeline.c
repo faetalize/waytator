@@ -1,5 +1,7 @@
 #include "waytator-video-timeline.h"
 
+#include <glib/gi18n.h>
+
 #include <math.h>
 #include <string.h>
 
@@ -1279,7 +1281,7 @@ waytator_video_timeline_draw_block(WaytatorVideoTimeline         *self,
     if (segment->pitch != 0.0) {
       g_strlcpy(text, segment->pitch > 0 ? "+" : "−", sizeof text);
       waytator_video_timeline_format_number(fabs(segment->pitch), text + strlen(text), sizeof text - strlen(text) - 3);
-      g_strlcat(text, " st", sizeof text);
+      g_strlcat(text, _(" st"), sizeof text);
       waytator_video_timeline_draw_badge(self, snapshot, layout, text, NULL, x, y, room);
     }
   }

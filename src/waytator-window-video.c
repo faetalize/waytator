@@ -1,5 +1,7 @@
 #include "waytator-window-private.h"
 
+#include <glib/gi18n.h>
+
 #include <errno.h>
 #include <glib/gstdio.h>
 #include <math.h>
@@ -131,7 +133,7 @@ waytator_window_video_opened(GObject      *source_object,
     if (g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
       return;
 
-    g_printerr("Error opening video: %s\n", error->message);
+    g_printerr(_("Error opening video: %s\n"), error->message);
     if (!self->disposed) {
       waytator_window_sync_state(self);
       waytator_window_show_error(self, error->message);
@@ -265,13 +267,13 @@ waytator_window_video_free_name(WaytatorWindow             *self,
   } else {
     g_autoptr(GDateTime) now = g_date_time_new_now_local();
 
-    base = g_date_time_format(now, "Video from %Y-%m-%d %H-%M-%S");
+    base = g_date_time_format(now, _("Video from %Y-%m-%d %H-%M-%S"));
   }
 
   for (int i = 1; i < 1000; i++) {
     g_autofree char *file_name = i == 1
-                               ? g_strdup_printf("%s edited.%s", base, extension)
-                               : g_strdup_printf("%s edited %d.%s", base, i, extension);
+                               ? g_strdup_printf(_("%s edited.%s"), base, extension)
+                               : g_strdup_printf(_("%s edited %d.%s"), base, i, extension);
     g_autofree char *path = g_build_filename(folder, file_name, NULL);
 
     if (!g_file_test(path, G_FILE_TEST_EXISTS))
@@ -292,7 +294,7 @@ waytator_window_video_new_file(WaytatorWindow             *self,
   g_autofree char *path = NULL;
 
   if (folder == NULL) {
-    g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Could not make a folder for the copy: %s",
+    g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), _("Could not make a folder for the copy: %s"),
                 g_strerror(errno));
     return NULL;
   }
@@ -416,7 +418,7 @@ waytator_window_video_saved(GObject      *source_object,
     g_autoptr(GError) delete_error = NULL;
 
     if (!g_file_delete(save->replaces, NULL, &delete_error)) {
-      g_autofree char *message = g_strdup_printf("The export was made, but the original could not be removed: %s",
+      g_autofree char *message = g_strdup_printf(_("The export was made, but the original could not be removed: %s"),
                                                  delete_error->message);
 
       waytator_window_show_error(self, message);
@@ -610,7 +612,7 @@ waytator_window_video_ask_file(WaytatorWindowVideoChoice *choice)
   //accepting the suggestion shouldn't land on replacing the last export
   name = waytator_window_video_free_name(self, profile, path);
 
-  gtk_file_dialog_set_title(dialog, original != NULL ? "Export a copy" : "Export video");
+  gtk_file_dialog_set_title(dialog, original != NULL ? _("Export a copy") : _("Export video"));
   gtk_file_dialog_set_initial_name(dialog, name);
   gtk_file_dialog_save(dialog, GTK_WINDOW(self), NULL, waytator_window_video_file_picked, choice);
 }
@@ -719,7 +721,7 @@ waytator_window_video_ask_profile(WaytatorWindowVideoChoice *choice)
 {
   WaytatorWindow *self = choice->window;
   g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
-  AdwDialog *dialog = adw_alert_dialog_new("Export As", NULL);
+  AdwDialog *dialog = adw_alert_dialog_new(_("Export As"), NULL);
   GtkWidget *list = gtk_list_box_new();
 
   gtk_list_box_set_selection_mode(GTK_LIST_BOX(list), GTK_SELECTION_NONE);
@@ -740,7 +742,7 @@ waytator_window_video_ask_profile(WaytatorWindowVideoChoice *choice)
   adw_alert_dialog_set_extra_child(ADW_ALERT_DIALOG(dialog), list);
   //whether an encoder works is only known once it has been tried
   waytator_video_support_check_async(NULL, waytator_window_video_profiles_checked, g_object_ref(list));
-  adw_alert_dialog_add_response(ADW_ALERT_DIALOG(dialog), "cancel", "_Cancel");
+  adw_alert_dialog_add_response(ADW_ALERT_DIALOG(dialog), "cancel", _("_Cancel"));
   adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
   g_signal_connect(dialog, "closed", G_CALLBACK(waytator_window_video_profiles_closed), choice);
   adw_dialog_present(dialog, GTK_WIDGET(self));
@@ -797,11 +799,11 @@ waytator_window_video_save(WaytatorWindow          *self,
     return;
   }
 
-  dialog = adw_alert_dialog_new("Export", NULL);
+  dialog = adw_alert_dialog_new(_("Export"), NULL);
   adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog),
-                                 "cancel", "_Cancel",
-                                 "replace", "_Replace Original",
-                                 "copy", "Export as _Copy",
+                                 "cancel", _("_Cancel"),
+                                 "replace", _("_Replace Original"),
+                                 "copy", _("Export as _Copy"),
                                  NULL);
   adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "replace", ADW_RESPONSE_DESTRUCTIVE);
   adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "copy", ADW_RESPONSE_SUGGESTED);
@@ -816,7 +818,7 @@ waytator_window_video_save(WaytatorWindow          *self,
 void
 waytator_window_update_video_save_menu(WaytatorWindow *self)
 {
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_as_button), "Export");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_as_button), _("Export"));
   gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), self->folds.save);
   gtk_widget_set_visible(GTK_WIDGET(self->save_button), FALSE);
   if (self->save_menu_key == NULL || *self->save_menu_key != '\0') {
@@ -1179,7 +1181,7 @@ waytator_video_profiles_add(GtkButton *button,
   g_free(profile->id);
   g_free(profile->name);
   profile->id = g_strdup_printf("custom-%" G_GINT64_FORMAT, g_get_real_time());
-  profile->name = g_strdup_printf("Profile %u", number);
+  profile->name = g_strdup_printf(_("Profile %u"), number);
   g_ptr_array_add(page->profiles, profile);
   waytator_video_profiles_page_store(page);
   waytator_video_profiles_page_rebuild(page);
@@ -1203,10 +1205,10 @@ static void
 waytator_video_profiles_page_rebuild(WaytatorVideoProfilesPage *page)
 {
   static const char *const codecs[] = { "MP4, H.264", "MP4, HEVC", "MP4, AV1", "WebM, VP9", "GIF", NULL };
-  static const char *const encoders[] = { "Automatic", "Graphics card", "Processor", NULL };
-  static const char *const sizes[] = { "Original", "2160p", "1440p", "1080p", "720p", "540p", "480p", "360p", NULL };
-  static const char *const rates[] = { "Original", "60 fps", "50 fps", "30 fps", "25 fps", "24 fps", "15 fps", "10 fps", NULL };
-  static const char *const sounds[] = { "AAC", "Opus", "None", NULL };
+  const char *const encoders[] = { _("Automatic"), _("Graphics card"), _("Processor"), NULL };
+  const char *const sizes[] = { _("Original"), "2160p", "1440p", "1080p", "720p", "540p", "480p", "360p", NULL };
+  const char *const rates[] = { _("Original"), _("60 fps"), _("50 fps"), _("30 fps"), _("25 fps"), _("24 fps"), _("15 fps"), _("10 fps"), NULL };
+  const char *const sounds[] = { "AAC", "Opus", _("None"), NULL };
 
   for (guint i = 0; i < page->rows->len; i++)
     adw_preferences_group_remove(page->group, g_ptr_array_index(page->rows, i));
@@ -1220,7 +1222,7 @@ waytator_video_profiles_page_rebuild(WaytatorVideoProfilesPage *page)
     GtkWidget *encoder;
     GtkWidget *name = adw_entry_row_new();
     GtkWidget *actions = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    GtkWidget *remove = gtk_button_new_with_label("Remove");
+    GtkWidget *remove = gtk_button_new_with_label(_("Remove"));
     GtkWidget *actions_row = adw_preferences_row_new();
 
     //the name is plain text, see the Export As list
@@ -1229,14 +1231,14 @@ waytator_video_profiles_page_rebuild(WaytatorVideoProfilesPage *page)
     gtk_widget_add_css_class(warning, "warning");
     adw_expander_row_add_suffix(expander, warning);
 
-    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(name), "Name");
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(name), _("Name"));
     gtk_editable_set_text(GTK_EDITABLE(name), profile->name);
     waytator_video_profiles_add_row(expander, page, i, name, "name", "changed");
     codec = waytator_video_profiles_add_row(expander, page, i,
-                                            waytator_video_profiles_combo("Format", codecs, profile->codec),
+                                            waytator_video_profiles_combo(_("Format"), codecs, profile->codec),
                                             "codec", "notify::selected");
     encoder = waytator_video_profiles_add_row(expander, page, i,
-                                              waytator_video_profiles_combo("Encoder", encoders, profile->encoder),
+                                              waytator_video_profiles_combo(_("Encoder"), encoders, profile->encoder),
                                               "encoder", "notify::selected");
     g_object_set_data(G_OBJECT(expander), "warning", warning);
     g_object_set_data(G_OBJECT(expander), "codec-row", codec);
@@ -1244,27 +1246,27 @@ waytator_video_profiles_page_rebuild(WaytatorVideoProfilesPage *page)
     waytator_video_profiles_set_list_factories(expander);
     waytator_video_profiles_show_support(expander, profile);
     waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_spin("Quality", "Used when there is no size limit",
+                                    waytator_video_profiles_spin(_("Quality"), _("Used when there is no size limit"),
                                                                  0, 100, 5, 0, profile->quality),
                                     "quality", "notify::value");
     waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_spin("Size limit in MB",
-                                                                 "0 for none. Smaller and choppier if it has to be",
+                                    waytator_video_profiles_spin(_("Size limit in MB"),
+                                                                 _("0 for none. Smaller and choppier if it has to be"),
                                                                  0, 4000, 1, 1, profile->size_limit),
                                     "size-limit", "notify::value");
     waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_combo("Largest size", sizes,
+                                    waytator_video_profiles_combo(_("Largest size"), sizes,
                                                                   waytator_video_profiles_closest_size(profile->max_size)),
                                     "max-size", "notify::selected");
     waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_combo("Frame rate", rates,
+                                    waytator_video_profiles_combo(_("Frame rate"), rates,
                                                                   waytator_video_profiles_closest_rate(profile->max_rate)),
                                     "max-rate", "notify::selected");
     waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_combo("Sound", sounds, profile->sound),
+                                    waytator_video_profiles_combo(_("Sound"), sounds, profile->sound),
                                     "sound", "notify::selected");
     waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_spin("Sound bitrate in kbit/s", NULL,
+                                    waytator_video_profiles_spin(_("Sound bitrate in kbit/s"), NULL,
                                                                  32, 320, 16, 0, profile->sound_bitrate),
                                     "sound-bitrate", "notify::value");
 
@@ -1310,27 +1312,27 @@ waytator_window_new_videos_page(WaytatorWindow *self)
   AdwSwitchRow *optimize_row = ADW_SWITCH_ROW(adw_switch_row_new());
   GtkWidget *buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
   GtkWidget *add = gtk_button_new_from_icon_name("list-add-symbolic");
-  GtkWidget *reset = gtk_button_new_with_label("Reset");
+  GtkWidget *reset = gtk_button_new_with_label(_("Reset"));
   g_autofree char *path = waytator_settings_path();
   g_autoptr(GKeyFile) key_file = g_key_file_new();
   WaytatorVideoProfilesPage *profiles_page = g_new0(WaytatorVideoProfilesPage, 1);
 
-  adw_preferences_page_set_title(page, "Videos");
+  adw_preferences_page_set_title(page, _("Videos"));
   adw_preferences_page_set_icon_name(page, "media-record-symbolic");
 
-  adw_preferences_group_set_title(editing, "Timeline");
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(optimize_row), "Optimize media");
+  adw_preferences_group_set_title(editing, _("Timeline"));
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(optimize_row), _("Optimize media"));
   adw_action_row_set_subtitle(ADW_ACTION_ROW(optimize_row),
-                              "Turn this on if you have scrubbing performance issues – recommended off");
+                              _("Turn this on if you have scrubbing performance issues – recommended off"));
   adw_switch_row_set_active(optimize_row, self->settings.video_optimize_media);
   g_signal_connect(optimize_row, "notify::active", G_CALLBACK(waytator_window_optimize_media_changed), self);
   adw_preferences_group_add(editing, GTK_WIDGET(optimize_row));
 
-  adw_preferences_group_set_title(profiles, "Exporting");
+  adw_preferences_group_set_title(profiles, _("Exporting"));
   gtk_widget_set_valign(add, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(reset, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(add, "Add a profile");
-  gtk_widget_set_tooltip_text(reset, "Go back to the profiles waytator comes with");
+  gtk_widget_set_tooltip_text(add, _("Add a profile"));
+  gtk_widget_set_tooltip_text(reset, _("Go back to the profiles waytator comes with"));
   gtk_widget_add_css_class(add, "flat");
   gtk_widget_add_css_class(reset, "flat");
   gtk_box_append(GTK_BOX(buttons), reset);
@@ -1343,7 +1345,7 @@ waytator_window_new_videos_page(WaytatorWindow *self)
   profiles_page->group = profiles;
   profiles_page->rows = g_ptr_array_new();
   profiles_page->copy_row = ADW_COMBO_ROW(adw_combo_row_new());
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(profiles_page->copy_row), "Profile used for Copy");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(profiles_page->copy_row), _("Profile used for Copy"));
   adw_preferences_group_add(profiles, GTK_WIDGET(profiles_page->copy_row));
   g_signal_connect(profiles_page->copy_row, "notify::selected",
                    G_CALLBACK(waytator_video_profiles_copy_changed), profiles_page);

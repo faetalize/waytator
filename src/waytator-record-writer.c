@@ -1,6 +1,8 @@
 //renameat2
 #define _GNU_SOURCE
 
+#include <glib/gi18n.h>
+
 #include "waytator-record-writer.h"
 
 #include <errno.h>
@@ -183,7 +185,7 @@ waytator_record_item_free(WaytatorRecordItem *item)
   av_frame_free(&item->frame);
   g_free(item->samples);
   if (item->task != NULL) {
-    g_task_return_new_error(item->task, G_IO_ERROR, G_IO_ERROR_CANCELLED, "The recording was thrown away");
+    g_task_return_new_error(item->task, G_IO_ERROR, G_IO_ERROR_CANCELLED, _("The recording was thrown away"));
     g_object_unref(item->task);
   }
   g_free(item);
@@ -309,11 +311,11 @@ waytator_record_writer_close_muxer(WaytatorRecordWriter *writer,
   if (trailer && writer->header_written && !writer->failed) {
     code = av_write_trailer(writer->muxer);
     if (code < 0)
-      ok = waytator_video_encoder_fail(error, code, "Could not write the recording");
+      ok = waytator_video_encoder_fail(error, code, _("Could not write the recording"));
   }
   code = avio_closep(&writer->muxer->pb);
   if (code < 0 && ok)
-    ok = waytator_video_encoder_fail(error, code, "Could not write the recording");
+    ok = waytator_video_encoder_fail(error, code, _("Could not write the recording"));
   avformat_free_context(writer->muxer);
   writer->muxer = NULL;
   return ok;
@@ -337,13 +339,13 @@ waytator_record_writer_write_packets(WaytatorRecordWriter *writer,
     code = av_interleaved_write_frame(writer->muxer, packet);
     if (code < 0) {
       av_packet_free(&packet);
-      return waytator_video_encoder_fail(error, code, "Could not write the recording");
+      return waytator_video_encoder_fail(error, code, _("Could not write the recording"));
     }
   }
 
   av_packet_free(&packet);
   if (code != AVERROR(EAGAIN) && code != AVERROR_EOF)
-    return waytator_video_encoder_fail(error, code, "Could not encode the recording");
+    return waytator_video_encoder_fail(error, code, _("Could not encode the recording"));
   return TRUE;
 }
 
@@ -358,7 +360,7 @@ waytator_record_writer_open_sound(WaytatorRecordWriter *writer,
   int code;
 
   if (codec == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, "This system's FFmpeg can't encode the sound");
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, _("This system's FFmpeg can't encode the sound"));
     return FALSE;
   }
 
@@ -373,14 +375,14 @@ waytator_record_writer_open_sound(WaytatorRecordWriter *writer,
 
   code = avcodec_open2(encoder, codec, NULL);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not start the sound encoder");
+    return waytator_video_encoder_fail(error, code, _("Could not start the sound encoder"));
 
   code = swr_alloc_set_opts2(&writer->resampler,
                              &encoder->ch_layout, encoder->sample_fmt, encoder->sample_rate,
                              &layout, AV_SAMPLE_FMT_FLT, WAYTATOR_RECORD_WRITER_SOUND_RATE,
                              0, NULL);
   if (code < 0 || (code = swr_init(writer->resampler)) < 0)
-    return waytator_video_encoder_fail(error, code, "Could not set up the sound");
+    return waytator_video_encoder_fail(error, code, _("Could not set up the sound"));
 
   writer->sound_frame = av_frame_alloc();
   writer->sound_buffer = g_new(float, (gsize) encoder->frame_size * 2);
@@ -407,14 +409,14 @@ waytator_record_writer_encode_sound(WaytatorRecordWriter *writer,
   if (code >= 0)
     code = swr_convert(writer->resampler, frame->data, (int) n_frames, in, (int) n_frames);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not convert the sound");
+    return waytator_video_encoder_fail(error, code, _("Could not convert the sound"));
 
   //the encoder takes its padding off the timestamps again
   frame->pts = writer->sound_encoded + encoder->initial_padding;
   writer->sound_encoded += n_frames;
   code = avcodec_send_frame(encoder, frame);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not encode the sound");
+    return waytator_video_encoder_fail(error, code, _("Could not encode the sound"));
   return waytator_record_writer_write_packets(writer, encoder, writer->sound_stream, error);
 }
 
@@ -536,7 +538,7 @@ waytator_record_writer_flush_sound(WaytatorRecordWriter *writer,
 
   code = avcodec_send_frame(encoder, NULL);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not encode the sound");
+    return waytator_video_encoder_fail(error, code, _("Could not encode the sound"));
   return waytator_record_writer_write_packets(writer, encoder, writer->sound_stream, error);
 }
 
@@ -761,7 +763,7 @@ failed:
   avfilter_inout_free(&outputs);
   writer->n_graphs--;
   waytator_record_writer_graph_clear(graph);
-  waytator_video_encoder_fail(error, code, "Could not set up the picture filters");
+  waytator_video_encoder_fail(error, code, _("Could not set up the picture filters"));
   return NULL;
 }
 
@@ -804,21 +806,21 @@ waytator_record_writer_open_video(WaytatorRecordWriter *writer,
 
   code = avcodec_open2(encoder, codec, NULL);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not start the video encoder");
+    return waytator_video_encoder_fail(error, code, _("Could not start the video encoder"));
 
   writer->video_stream = avformat_new_stream(writer->muxer, NULL);
   writer->video_stream->time_base = encoder->time_base;
   writer->video_stream->avg_frame_rate = encoder->framerate;
   code = avcodec_parameters_from_context(writer->video_stream->codecpar, encoder);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not set up the video stream");
+    return waytator_video_encoder_fail(error, code, _("Could not set up the video stream"));
 
   if (writer->sound_encoder != NULL) {
     writer->sound_stream = avformat_new_stream(writer->muxer, NULL);
     writer->sound_stream->time_base = writer->sound_encoder->time_base;
     code = avcodec_parameters_from_context(writer->sound_stream->codecpar, writer->sound_encoder);
     if (code < 0)
-      return waytator_video_encoder_fail(error, code, "Could not set up the sound stream");
+      return waytator_video_encoder_fail(error, code, _("Could not set up the sound stream"));
   }
 
   //playable as it goes: a fragment with its own index at every keyframe, and at least every couple of
@@ -832,7 +834,7 @@ waytator_record_writer_open_video(WaytatorRecordWriter *writer,
   code = avformat_write_header(writer->muxer, &muxer_options);
   av_dict_free(&muxer_options);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not write the recording");
+    return waytator_video_encoder_fail(error, code, _("Could not write the recording"));
   writer->header_written = TRUE;
   avio_flush(writer->muxer->pb);
 
@@ -870,7 +872,7 @@ waytator_record_writer_send(WaytatorRecordWriter *writer,
 
   code = avcodec_send_frame(writer->video_encoder, filtered);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not encode the recording");
+    return waytator_video_encoder_fail(error, code, _("Could not encode the recording"));
   return waytator_record_writer_write_packets(writer, writer->video_encoder, writer->video_stream, error);
 }
 
@@ -890,7 +892,7 @@ waytator_record_writer_filter(WaytatorRecordWriter *writer,
   prepared->pts = pts;
   code = av_buffersrc_add_frame_flags(graph->source, prepared, AV_BUFFERSRC_FLAG_KEEP_REF);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not filter the picture");
+    return waytator_video_encoder_fail(error, code, _("Could not filter the picture"));
 
   while ((code = av_buffersink_get_frame(graph->sink, writer->filtered)) >= 0) {
     AVFrame *filtered = writer->filtered;
@@ -908,7 +910,7 @@ waytator_record_writer_filter(WaytatorRecordWriter *writer,
   }
 
   if (code != AVERROR(EAGAIN) && code != AVERROR_EOF)
-    return waytator_video_encoder_fail(error, code, "Could not filter the picture");
+    return waytator_video_encoder_fail(error, code, _("Could not filter the picture"));
   return TRUE;
 }
 
@@ -1137,11 +1139,11 @@ waytator_record_writer_prepare(WaytatorRecordWriter *writer,
   } else if (waytator_record_writer_supported(picture)) {
     frame = writer->choice.device != NULL ? waytator_record_writer_upload(writer, picture) : av_frame_clone(picture);
     if (frame == NULL) {
-      g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Could not move the picture to the graphics card");
+      g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Could not move the picture to the graphics card"));
       return NULL;
     }
   } else {
-    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, "Pictures in this format can't be recorded");
+    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, _("Pictures in this format can't be recorded"));
     return NULL;
   }
 
@@ -1264,7 +1266,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
   //created here rather than by ffmpeg, so the name is ours alone, and open to others like any file of ours
   fd = g_mkstemp_full(partial, O_WRONLY | O_CLOEXEC, 0666);
   if (fd < 0) {
-    g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), "Could not write to %s: %s",
+    g_set_error(error, G_IO_ERROR, g_io_error_from_errno(errno), _("Could not write to %s: %s"),
                 folder, g_strerror(errno));
     return FALSE;
   }
@@ -1277,7 +1279,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
   if (code >= 0)
     code = avformat_find_stream_info(input, NULL);
   if (code < 0) {
-    waytator_video_encoder_fail(error, code, "Could not read the recording back");
+    waytator_video_encoder_fail(error, code, _("Could not read the recording back"));
     goto done;
   }
 
@@ -1285,7 +1287,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
   if (code >= 0)
     code = avio_open(&output->pb, partial, AVIO_FLAG_WRITE);
   if (code < 0) {
-    waytator_video_encoder_fail(error, code, "Could not write the recording");
+    waytator_video_encoder_fail(error, code, _("Could not write the recording"));
     goto done;
   }
 
@@ -1301,7 +1303,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
     out = avformat_new_stream(output, NULL);
     code = out != NULL ? avcodec_parameters_copy(out->codecpar, in->codecpar) : AVERROR(ENOMEM);
     if (code < 0) {
-      waytator_video_encoder_fail(error, code, "Could not write the recording");
+      waytator_video_encoder_fail(error, code, _("Could not write the recording"));
       goto done;
     }
     out->codecpar->codec_tag = 0;
@@ -1314,7 +1316,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
   av_dict_set(&options, "movflags", "+faststart", 0);
   code = avformat_write_header(output, &options);
   if (code < 0) {
-    waytator_video_encoder_fail(error, code, "Could not write the recording");
+    waytator_video_encoder_fail(error, code, _("Could not write the recording"));
     goto done;
   }
 
@@ -1323,7 +1325,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
     const int index = packet->stream_index;
 
     if (waytator_record_writer_quit(writer)) {
-      g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_CANCELLED, "The recording was thrown away");
+      g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_CANCELLED, _("The recording was thrown away"));
       goto done;
     }
 
@@ -1338,7 +1340,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
     packet->pos = -1;
     code = av_interleaved_write_frame(output, packet);
     if (code < 0) {
-      waytator_video_encoder_fail(error, code, "Could not write the recording");
+      waytator_video_encoder_fail(error, code, _("Could not write the recording"));
       goto done;
     }
     n_copied++;
@@ -1346,12 +1348,12 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
 
   //a recording cut short by a failed write ends in half a fragment, which is no reason to lose the rest
   if (code != AVERROR_EOF && !writer->failed) {
-    waytator_video_encoder_fail(error, code, "Could not read the recording back");
+    waytator_video_encoder_fail(error, code, _("Could not read the recording back"));
     goto done;
   }
 
   if (n_copied == 0) {
-    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Nothing could be saved from the recording");
+    g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Nothing could be saved from the recording"));
     goto done;
   }
 
@@ -1359,7 +1361,7 @@ waytator_record_writer_tidy(WaytatorRecordWriter *writer,
   if (code >= 0)
     code = avio_closep(&output->pb);
   if (code < 0) {
-    waytator_video_encoder_fail(error, code, "Could not write the recording");
+    waytator_video_encoder_fail(error, code, _("Could not write the recording"));
     goto done;
   }
 
@@ -1385,7 +1387,7 @@ done:
       close(fd);
     }
     if (saved != 0) {
-      g_set_error(error, G_IO_ERROR, g_io_error_from_errno(saved), "Could not write the recording: %s",
+      g_set_error(error, G_IO_ERROR, g_io_error_from_errno(saved), _("Could not write the recording: %s"),
                   g_strerror(saved));
       ok = FALSE;
     }
@@ -1402,10 +1404,10 @@ done:
             : errno;
     }
     if (saved == EEXIST)
-      g_set_error(error, G_IO_ERROR, G_IO_ERROR_EXISTS, "Could not save %s: there is a file by that name already",
+      g_set_error(error, G_IO_ERROR, G_IO_ERROR_EXISTS, _("Could not save %s: there is a file by that name already"),
                   writer->options.path);
     else if (saved != 0)
-      g_set_error(error, G_IO_ERROR, g_io_error_from_errno(saved), "Could not save %s: %s",
+      g_set_error(error, G_IO_ERROR, g_io_error_from_errno(saved), _("Could not save %s: %s"),
                   writer->options.path, g_strerror(saved));
     ok = saved == 0;
   }
@@ -1456,7 +1458,7 @@ waytator_record_writer_flush_video(WaytatorRecordWriter *writer,
 
   code = avcodec_send_frame(writer->video_encoder, NULL);
   if (code < 0)
-    return waytator_video_encoder_fail(error, code, "Could not encode the recording");
+    return waytator_video_encoder_fail(error, code, _("Could not encode the recording"));
   return waytator_record_writer_write_packets(writer, writer->video_encoder, writer->video_stream, error);
 }
 
@@ -1483,7 +1485,7 @@ waytator_record_writer_item_finish(WaytatorRecordWriter *writer,
       g_task_return_error(item->task, g_error_copy(writer->failure));
     else
       g_task_return_new_error(item->task, G_IO_ERROR, G_IO_ERROR_FAILED,
-                              "Nothing was recorded, no picture came from the screen");
+                              _("Nothing was recorded, no picture came from the screen"));
     g_clear_object(&item->task);
     return;
   }
@@ -1575,7 +1577,7 @@ waytator_record_writer_new(const WaytatorRecordWriterOptions *options,
   if (code >= 0)
     code = avio_open(&writer->muxer->pb, options->unfinished_path, AVIO_FLAG_WRITE);
   if (code < 0) {
-    waytator_video_encoder_fail(error, code, "Could not create the recording");
+    waytator_video_encoder_fail(error, code, _("Could not create the recording"));
     waytator_record_writer_free(writer);
     return NULL;
   }

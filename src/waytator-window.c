@@ -21,6 +21,7 @@
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
 
+#include <glib/gi18n.h>
 #include <cairo.h>
 #include <string.h>
 
@@ -134,13 +135,13 @@ waytator_window_background_mode_label(WaytatorWindowBackgroundMode mode)
 {
   switch (mode) {
   case WAYTATOR_WINDOW_BACKGROUND_FOLLOW_SYSTEM:
-    return "Follow system theme";
+    return _("Follow system theme");
   case WAYTATOR_WINDOW_BACKGROUND_OPAQUE:
-    return "Opaque";
+    return _("Opaque");
   case WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT:
-    return "Transparent";
+    return _("Transparent");
   default:
-    return "Follow system theme";
+    return _("Follow system theme");
   }
 }
 
@@ -158,38 +159,38 @@ static const struct {
   const char *action;
   const char *default_accel;
 } waytator_shortcuts[WAYTATOR_N_SHORTCUTS] = {
-  [WAYTATOR_SHORTCUT_CLOSE_WINDOW] = { "close_window_shortcut", "close-window", "Close window", "win.close-window", "Escape" },
-  [WAYTATOR_SHORTCUT_COPY] = { "copy_shortcut", "copy", "Copy", "win.copy-buffer", "<Primary>c" },
-  [WAYTATOR_SHORTCUT_COPY_KEEP_OPEN] = { "copy_keep_open_shortcut", "copy-without-closing", "Copy without closing", "win.copy-keep-open", "<Primary><Shift>c" },
-  [WAYTATOR_SHORTCUT_SAVE] = { "save_shortcut", "save", "Save", "win.save-image", "<Primary>s" },
-  [WAYTATOR_SHORTCUT_SAVE_CLOSE] = { "save_close_shortcut", "save-and-close", "Save and close", "win.save-and-close", "" },
-  [WAYTATOR_SHORTCUT_SAVE_COPY_CLOSE] = { "save_copy_close_shortcut", "save-copy-and-close", "Save, copy and close", "win.save-copy-and-close", "" },
-  [WAYTATOR_SHORTCUT_CAPTURE_AREA] = { "capture_area_shortcut", "capture-area", "Screenshot area", "win.capture-area", "<Primary><Shift>a" },
-  [WAYTATOR_SHORTCUT_CAPTURE_SCREEN] = { "capture_screen_shortcut", "capture-screen", "Screenshot screen", "win.capture-screen", "<Primary><Shift>s" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_PAN)] = { "pan_tool_shortcut", NULL, "Pan", NULL, "p" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_SELECT)] = { "select_tool_shortcut", NULL, "Select", NULL, "v" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_CROP)] = { "crop_tool_shortcut", NULL, "Transform", NULL, "c" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_BRUSH)] = { "brush_tool_shortcut", NULL, "Brush", NULL, "b" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_MARKER)] = { "highlighter_tool_shortcut", NULL, "Highlighter", NULL, "h" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_ERASER)] = { "eraser_tool_shortcut", NULL, "Eraser", NULL, "e" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_RECTANGLE)] = { "rectangle_tool_shortcut", NULL, "Rectangle", NULL, "r" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_CIRCLE)] = { "circle_tool_shortcut", NULL, "Circle", NULL, "o" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_LINE)] = { "line_tool_shortcut", NULL, "Line", NULL, "l" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_ARROW)] = { "arrow_tool_shortcut", NULL, "Arrow", NULL, "a" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_OCR)] = { "ocr_tool_shortcut", NULL, "Recognize text", NULL, "g" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_TEXT)] = { "text_tool_shortcut", NULL, "Text", NULL, "t" },
-  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_BLUR)] = { "blur_tool_shortcut", NULL, "Blur", NULL, "u" },
-  [WAYTATOR_SHORTCUT_SIZE_DECREASE] = { "size_decrease_shortcut", NULL, "Decrease size", NULL, "bracketleft" },
-  [WAYTATOR_SHORTCUT_SIZE_INCREASE] = { "size_increase_shortcut", NULL, "Increase size", NULL, "bracketright" },
-  [WAYTATOR_COLOR_SHORTCUT(0)] = { "color_1_shortcut", NULL, "Color 1", NULL, "1" },
-  [WAYTATOR_COLOR_SHORTCUT(1)] = { "color_2_shortcut", NULL, "Color 2", NULL, "2" },
-  [WAYTATOR_COLOR_SHORTCUT(2)] = { "color_3_shortcut", NULL, "Color 3", NULL, "3" },
-  [WAYTATOR_COLOR_SHORTCUT(3)] = { "color_4_shortcut", NULL, "Color 4", NULL, "4" },
-  [WAYTATOR_COLOR_SHORTCUT(4)] = { "color_5_shortcut", NULL, "Color 5", NULL, "5" },
-  [WAYTATOR_COLOR_SHORTCUT(5)] = { "color_6_shortcut", NULL, "Color 6", NULL, "6" },
-  [WAYTATOR_COLOR_SHORTCUT(6)] = { "color_7_shortcut", NULL, "Color 7", NULL, "7" },
-  [WAYTATOR_COLOR_SHORTCUT(7)] = { "color_8_shortcut", NULL, "Color 8", NULL, "8" },
-  [WAYTATOR_COLOR_SHORTCUT(8)] = { "color_9_shortcut", NULL, "Color 9", NULL, "9" },
+  [WAYTATOR_SHORTCUT_CLOSE_WINDOW] = { "close_window_shortcut", "close-window", N_("Close window"), "win.close-window", "Escape" },
+  [WAYTATOR_SHORTCUT_COPY] = { "copy_shortcut", "copy", N_("Copy"), "win.copy-buffer", "<Primary>c" },
+  [WAYTATOR_SHORTCUT_COPY_KEEP_OPEN] = { "copy_keep_open_shortcut", "copy-without-closing", N_("Copy without closing"), "win.copy-keep-open", "<Primary><Shift>c" },
+  [WAYTATOR_SHORTCUT_SAVE] = { "save_shortcut", "save", N_("Save"), "win.save-image", "<Primary>s" },
+  [WAYTATOR_SHORTCUT_SAVE_CLOSE] = { "save_close_shortcut", "save-and-close", N_("Save and close"), "win.save-and-close", "" },
+  [WAYTATOR_SHORTCUT_SAVE_COPY_CLOSE] = { "save_copy_close_shortcut", "save-copy-and-close", N_("Save, copy and close"), "win.save-copy-and-close", "" },
+  [WAYTATOR_SHORTCUT_CAPTURE_AREA] = { "capture_area_shortcut", "capture-area", N_("Screenshot area"), "win.capture-area", "<Primary><Shift>a" },
+  [WAYTATOR_SHORTCUT_CAPTURE_SCREEN] = { "capture_screen_shortcut", "capture-screen", N_("Screenshot screen"), "win.capture-screen", "<Primary><Shift>s" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_PAN)] = { "pan_tool_shortcut", NULL, N_("Pan"), NULL, "p" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_SELECT)] = { "select_tool_shortcut", NULL, N_("Select"), NULL, "v" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_CROP)] = { "crop_tool_shortcut", NULL, N_("Transform"), NULL, "c" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_BRUSH)] = { "brush_tool_shortcut", NULL, N_("Brush"), NULL, "b" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_MARKER)] = { "highlighter_tool_shortcut", NULL, N_("Highlighter"), NULL, "h" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_ERASER)] = { "eraser_tool_shortcut", NULL, N_("Eraser"), NULL, "e" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_RECTANGLE)] = { "rectangle_tool_shortcut", NULL, N_("Rectangle"), NULL, "r" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_CIRCLE)] = { "circle_tool_shortcut", NULL, N_("Circle"), NULL, "o" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_LINE)] = { "line_tool_shortcut", NULL, N_("Line"), NULL, "l" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_ARROW)] = { "arrow_tool_shortcut", NULL, N_("Arrow"), NULL, "a" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_OCR)] = { "ocr_tool_shortcut", NULL, N_("Recognize text"), NULL, "g" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_TEXT)] = { "text_tool_shortcut", NULL, N_("Text"), NULL, "t" },
+  [WAYTATOR_TOOL_SHORTCUT(WAYTATOR_TOOL_BLUR)] = { "blur_tool_shortcut", NULL, N_("Blur"), NULL, "u" },
+  [WAYTATOR_SHORTCUT_SIZE_DECREASE] = { "size_decrease_shortcut", NULL, N_("Decrease size"), NULL, "bracketleft" },
+  [WAYTATOR_SHORTCUT_SIZE_INCREASE] = { "size_increase_shortcut", NULL, N_("Increase size"), NULL, "bracketright" },
+  [WAYTATOR_COLOR_SHORTCUT(0)] = { "color_1_shortcut", NULL, N_("Color 1"), NULL, "1" },
+  [WAYTATOR_COLOR_SHORTCUT(1)] = { "color_2_shortcut", NULL, N_("Color 2"), NULL, "2" },
+  [WAYTATOR_COLOR_SHORTCUT(2)] = { "color_3_shortcut", NULL, N_("Color 3"), NULL, "3" },
+  [WAYTATOR_COLOR_SHORTCUT(3)] = { "color_4_shortcut", NULL, N_("Color 4"), NULL, "4" },
+  [WAYTATOR_COLOR_SHORTCUT(4)] = { "color_5_shortcut", NULL, N_("Color 5"), NULL, "5" },
+  [WAYTATOR_COLOR_SHORTCUT(5)] = { "color_6_shortcut", NULL, N_("Color 6"), NULL, "6" },
+  [WAYTATOR_COLOR_SHORTCUT(6)] = { "color_7_shortcut", NULL, N_("Color 7"), NULL, "7" },
+  [WAYTATOR_COLOR_SHORTCUT(7)] = { "color_8_shortcut", NULL, N_("Color 8"), NULL, "8" },
+  [WAYTATOR_COLOR_SHORTCUT(8)] = { "color_9_shortcut", NULL, N_("Color 9"), NULL, "9" },
 };
 
 #define WAYTATOR_DEFAULT_N_PALETTE_COLORS 3
@@ -393,7 +394,7 @@ waytator_window_shortcut_accel(WaytatorWindow  *self,
 const char *
 waytator_window_shortcut_title(WaytatorShortcut shortcut)
 {
-  return waytator_shortcuts[shortcut].title;
+  return _(waytator_shortcuts[shortcut].title);
 }
 
 //color slots past the end of the palette keep their key but do nothing
@@ -448,18 +449,18 @@ static const struct {
   const char *action;
   const char *title;
 } waytator_fixed_shortcuts[] = {
-  { "win.open", "Open" },
-  { "win.preferences", "Preferences" },
-  { "win.undo", "Undo" },
-  { "win.redo", "Redo" },
-  { "win.zoom-in", "Zoom in" },
-  { "win.zoom-out", "Zoom out" },
-  { "win.zoom-fit", "Fit" },
-  { "win.zoom-actual-size", "Reset zoom to 100%" },
-  { "win.rotate-counter-clockwise", "Rotate counter clockwise" },
-  { "win.flip-horizontal", "Flip horizontal" },
-  { "win.flip-vertical", "Flip vertical" },
-  { "app.quit", "Quit" },
+  { "win.open", N_("Open") },
+  { "win.preferences", N_("Preferences") },
+  { "win.undo", N_("Undo") },
+  { "win.redo", N_("Redo") },
+  { "win.zoom-in", N_("Zoom in") },
+  { "win.zoom-out", N_("Zoom out") },
+  { "win.zoom-fit", N_("Fit") },
+  { "win.zoom-actual-size", N_("Reset zoom to 100%") },
+  { "win.rotate-counter-clockwise", N_("Rotate counter clockwise") },
+  { "win.flip-horizontal", N_("Flip horizontal") },
+  { "win.flip-vertical", N_("Flip vertical") },
+  { "app.quit", N_("Quit") },
 };
 
 //what a key bound in main.c does, or NULL. those come first, a shortcut on the same key never fires
@@ -481,7 +482,7 @@ waytator_window_fixed_shortcut_title(WaytatorWindow *self,
   for (guint i = 0; actions != NULL && actions[i] != NULL; i++) {
     for (guint j = 0; j < G_N_ELEMENTS(waytator_fixed_shortcuts); j++) {
       if (g_strcmp0(actions[i], waytator_fixed_shortcuts[j].action) == 0)
-        return waytator_fixed_shortcuts[j].title;
+        return _(waytator_fixed_shortcuts[j].title);
     }
   }
 
@@ -585,20 +586,20 @@ waytator_window_update_shortcut_label(GtkShortcutLabel *label,
   guint tablet_button;
 
   if (g_strcmp0(accelerator, WAYTATOR_SHORTCUT_RIGHT_CLICK) == 0) {
-    gtk_shortcut_label_set_disabled_text(label, "Right click");
+    gtk_shortcut_label_set_disabled_text(label, _("Right click"));
     gtk_shortcut_label_set_accelerator(label, "");
     return;
   }
 
   if (waytator_tablet_button_parse(accelerator, &tablet_button)) {
-    g_autofree char *text = g_strdup_printf("Tablet button %u", tablet_button + 1);
+    g_autofree char *text = g_strdup_printf(_("Tablet button %u"), tablet_button + 1);
 
     gtk_shortcut_label_set_disabled_text(label, text);
     gtk_shortcut_label_set_accelerator(label, "");
     return;
   }
 
-  gtk_shortcut_label_set_disabled_text(label, "None");
+  gtk_shortcut_label_set_disabled_text(label, _("None"));
   gtk_shortcut_label_set_accelerator(label,
                                      accelerator != NULL ? accelerator : "");
 
@@ -617,17 +618,17 @@ waytator_window_angle_snap_modifier_label(GdkModifierType modifiers)
 {
   switch (modifiers & gtk_accelerator_get_default_mod_mask()) {
   case 0:
-    return "Disabled";
+    return _("Disabled");
   case GDK_SHIFT_MASK:
-    return "Shift";
+    return _("Shift");
   case GDK_CONTROL_MASK:
-    return "Ctrl";
+    return _("Ctrl");
   case GDK_ALT_MASK:
-    return "Alt";
+    return _("Alt");
   case GDK_SUPER_MASK:
-    return "Super";
+    return _("Super");
   default:
-    return "Shift";
+    return _("Shift");
   }
 }
 
@@ -928,13 +929,13 @@ waytator_window_eraser_style_label(WaytatorEraserStyle style)
 {
   switch (style) {
   case WAYTATOR_ERASER_STYLE_DUAL_RING:
-    return "Dual ring";
+    return _("Dual ring");
   case WAYTATOR_ERASER_STYLE_DASHED_RING:
-    return "Dashed ring";
+    return _("Dashed ring");
   case WAYTATOR_ERASER_STYLE_PATTERN:
-    return "Pattern fill";
+    return _("Pattern fill");
   default:
-    return "Dual ring";
+    return _("Dual ring");
   }
 }
 
@@ -1176,8 +1177,8 @@ waytator_window_update_shortcut_conflicts(WaytatorWindow *self)
       continue;
 
     if (fixed != NULL || conflict >= 0) {
-      subtitle = g_strdup_printf("Already used by %s, which takes priority",
-                                 fixed != NULL ? fixed : waytator_shortcuts[conflict].title);
+      subtitle = g_strdup_printf(_("Already used by %s, which takes priority"),
+                                 fixed != NULL ? fixed : waytator_window_shortcut_title(conflict));
       gtk_widget_add_css_class(GTK_WIDGET(self->shortcut_rows[i]), "warning");
     } else {
       gtk_widget_remove_css_class(GTK_WIDGET(self->shortcut_rows[i]), "warning");
@@ -1348,7 +1349,7 @@ waytator_window_new_shortcut_row(WaytatorWindow  *self,
   GtkEventController *focus_controller = gtk_event_controller_focus_new();
   GtkGesture *right_click = gtk_gesture_click_new();
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), waytator_shortcuts[shortcut].title);
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), waytator_window_shortcut_title(shortcut));
   waytator_window_update_shortcut_label(GTK_SHORTCUT_LABEL(shortcut_label), self->shortcut_accels[shortcut]);
   gtk_widget_set_valign(shortcut_label, GTK_ALIGN_CENTER);
   gtk_widget_set_halign(shortcut_label, GTK_ALIGN_END);
@@ -1357,10 +1358,10 @@ waytator_window_new_shortcut_row(WaytatorWindow  *self,
   gtk_box_append(GTK_BOX(button_box), shortcut_label);
   gtk_button_set_child(GTK_BUTTON(button), button_box);
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(button, "Click, then press a key combination, right-click or a tablet button");
+  gtk_widget_set_tooltip_text(button, _("Click, then press a key combination, right-click or a tablet button"));
   gtk_button_set_has_frame(GTK_BUTTON(clear_button), FALSE);
   gtk_widget_set_valign(clear_button, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(clear_button, "Unassign");
+  gtk_widget_set_tooltip_text(clear_button, _("Unassign"));
   gtk_widget_set_visible(clear_button, *self->shortcut_accels[shortcut] != '\0');
   gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(right_click), GDK_BUTTON_SECONDARY);
   gtk_widget_add_controller(button, key_controller);
@@ -1474,10 +1475,10 @@ waytator_window_rebuild_palette_rows(WaytatorWindow *self)
 
     gtk_color_dialog_button_set_rgba(GTK_COLOR_DIALOG_BUTTON(color_button), &self->palette_colors[i]);
     gtk_widget_set_valign(color_button, GTK_ALIGN_CENTER);
-    gtk_widget_set_tooltip_text(color_button, "Change color");
+    gtk_widget_set_tooltip_text(color_button, _("Change color"));
     gtk_button_set_has_frame(GTK_BUTTON(remove_button), FALSE);
     gtk_widget_set_valign(remove_button, GTK_ALIGN_CENTER);
-    gtk_widget_set_tooltip_text(remove_button, "Remove color");
+    gtk_widget_set_tooltip_text(remove_button, _("Remove color"));
     g_object_set_data(G_OBJECT(color_button), "palette-index", GUINT_TO_POINTER(i));
     g_object_set_data(G_OBJECT(remove_button), "palette-index", GUINT_TO_POINTER(i));
     adw_action_row_add_prefix(row, color_button);
@@ -1507,7 +1508,7 @@ waytator_window_setup_palette_group(WaytatorWindow      *self,
 
   gtk_button_set_has_frame(GTK_BUTTON(add_button), FALSE);
   gtk_widget_set_valign(add_button, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(add_button, "Add color");
+  gtk_widget_set_tooltip_text(add_button, _("Add color"));
   adw_preferences_group_set_header_suffix(group, add_button);
   g_signal_connect(add_button, "clicked", G_CALLBACK(waytator_window_palette_add_clicked), self);
 
@@ -1585,7 +1586,7 @@ waytator_window_update_screenshot_folder_row(WaytatorWindow *self,
   const gboolean is_set = *self->settings.screenshot_save_dir != '\0';
   g_autofree char *folder = is_set ? waytator_screenshot_display_path(self->settings.screenshot_save_dir) : NULL;
 
-  adw_action_row_set_subtitle(row, is_set ? folder : "Not set, saving asks where to put each screenshot");
+  adw_action_row_set_subtitle(row, is_set ? folder : _("Not set, saving asks where to put each screenshot"));
   gtk_widget_set_visible(clear_button, is_set);
 }
 
@@ -1617,7 +1618,7 @@ waytator_window_screenshot_folder_choose_clicked(GtkButton    *button,
 
   (void) button;
 
-  gtk_file_dialog_set_title(dialog, "Screenshot folder");
+  gtk_file_dialog_set_title(dialog, _("Screenshot folder"));
   if (*self->settings.screenshot_save_dir != '\0') {
     g_autoptr(GFile) folder = g_file_new_for_path(self->settings.screenshot_save_dir);
 
@@ -1735,7 +1736,7 @@ waytator_window_recording_folder_choose_clicked(GtkButton    *button,
 
   (void) button;
 
-  gtk_file_dialog_set_title(dialog, "Recording folder");
+  gtk_file_dialog_set_title(dialog, _("Recording folder"));
   gtk_file_dialog_set_initial_folder(dialog, folder);
   gtk_file_dialog_select_folder(dialog,
                                 GTK_WINDOW(self),
@@ -1796,7 +1797,7 @@ waytator_window_fill_microphone_row(WaytatorWindow *self,
   const char *saved = self->settings.recording_microphone;
   guint selected = 0;
 
-  gtk_string_list_append(model, "Default");
+  gtk_string_list_append(model, _("Default"));
   g_strv_builder_add(names, "");
 
   //without PipeWire there is nothing to choose from, and what was chosen stays until something else is
@@ -1811,7 +1812,7 @@ waytator_window_fill_microphone_row(WaytatorWindow *self,
 
   //one that was unplugged stays in the list, so choosing something else is a choice and not a loss
   if (microphones != NULL && *saved != '\0' && selected == 0) {
-    g_autofree char *label = g_strdup_printf("%s (not connected)", saved);
+    g_autofree char *label = g_strdup_printf(_("%s (not connected)"), saved);
 
     selected = g_list_model_get_n_items(G_LIST_MODEL(model));
     gtk_string_list_append(model, label);
@@ -1943,26 +1944,26 @@ waytator_window_new_file_name_help(void)
     const char *code;
     const char *meaning;
   } codes[] = {
-    { "%Y", "Year" },
-    { "%y", "Year, short" },
-    { "%m", "Month" },
-    { "%b", "Month name" },
-    { "%d", "Day" },
-    { "%H", "Hour" },
-    { "%M", "Minute" },
-    { "%S", "Second" },
+    { "%Y", N_("Year") },
+    { "%y", N_("Year, short") },
+    { "%m", N_("Month") },
+    { "%b", N_("Month name") },
+    { "%d", N_("Day") },
+    { "%H", N_("Hour") },
+    { "%M", N_("Minute") },
+    { "%S", N_("Second") },
   };
   g_autoptr(GDateTime) now = g_date_time_new_now_local();
   GtkWidget *button = gtk_menu_button_new();
   GtkWidget *popover = gtk_popover_new();
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-  GtkWidget *heading = gtk_label_new("File name codes");
+  GtkWidget *heading = gtk_label_new(_("File name codes"));
   GtkWidget *grid = gtk_grid_new();
-  GtkWidget *note = gtk_label_new("Any strftime code works. The extension is added for you, "
-                                  "and characters some drives refuse, like / and :, become dashes");
+  GtkWidget *note = gtk_label_new(_("Any strftime code works. The extension is added for you, "
+                                    "and characters some drives refuse, like / and :, become dashes"));
 
   gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(button), "help-about-symbolic");
-  gtk_widget_set_tooltip_text(button, "File name codes");
+  gtk_widget_set_tooltip_text(button, _("File name codes"));
   gtk_widget_set_valign(button, GTK_ALIGN_CENTER);
   gtk_widget_add_css_class(button, "flat");
   gtk_widget_add_css_class(button, "circular");
@@ -1979,7 +1980,7 @@ waytator_window_new_file_name_help(void)
   for (guint i = 0; i < G_N_ELEMENTS(codes); i++) {
     g_autofree char *value = g_date_time_format(now, codes[i].code);
     GtkWidget *code = gtk_label_new(codes[i].code);
-    GtkWidget *meaning = gtk_label_new(codes[i].meaning);
+    GtkWidget *meaning = gtk_label_new(_(codes[i].meaning));
     GtkWidget *example = gtk_label_new(value);
 
     gtk_widget_add_css_class(code, "monospace");
@@ -2025,13 +2026,13 @@ waytator_window_add_file_name_rows(WaytatorWindow      *self,
   row->preview_row = preview_row;
   g_object_set_data_full(G_OBJECT(entry_row), "file-name-row", row, g_free);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(entry_row), "File name");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(entry_row), _("File name"));
   adw_entry_row_set_show_apply_button(entry_row, TRUE);
   adw_entry_row_add_suffix(entry_row, waytator_window_new_file_name_help());
   gtk_editable_set_text(GTK_EDITABLE(entry_row), *setting);
 
   //a label over its value, like the folder and the name above it. a name is plain text, an & or < in it is not markup
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(preview_row), "Preview");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(preview_row), _("Preview"));
   adw_preferences_row_set_use_markup(ADW_PREFERENCES_ROW(preview_row), FALSE);
   gtk_widget_add_css_class(GTK_WIDGET(preview_row), "property");
   waytator_window_update_file_name_preview(entry_row);
@@ -2060,54 +2061,54 @@ waytator_window_new_recordings_page(WaytatorWindow *self)
   AdwComboRow *rate_row = ADW_COMBO_ROW(adw_combo_row_new());
   AdwSwitchRow *pointer_row = ADW_SWITCH_ROW(adw_switch_row_new());
   g_autoptr(GtkStringList) rate_model = gtk_string_list_new((const char *[]) {
-    "60 fps",
-    "30 fps",
+    _("60 fps"),
+    _("30 fps"),
     NULL,
   });
   GtkWidget *choose_button = gtk_button_new_from_icon_name("folder-open-symbolic");
 
-  adw_preferences_page_set_title(page, "Recordings");
+  adw_preferences_page_set_title(page, _("Recordings"));
   adw_preferences_page_set_icon_name(page, "camera-video-symbolic");
 
-  adw_preferences_group_set_title(file_group, "Recordings");
+  adw_preferences_group_set_title(file_group, _("Recordings"));
   adw_preferences_group_set_description(file_group,
-                                        "These settings apply to recordings made by waytator");
-  adw_preferences_group_set_title(while_group, "While recording");
-  adw_preferences_group_set_title(after_group, "After recording");
+                                        _("These settings apply to recordings made by waytator"));
+  adw_preferences_group_set_title(while_group, _("While recording"));
+  adw_preferences_group_set_title(after_group, _("After recording"));
 
   //a label over its value, like the file name under it
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(folder_row), "Save folder");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(folder_row), _("Save folder"));
   gtk_widget_add_css_class(GTK_WIDGET(folder_row), "property");
   gtk_widget_set_valign(choose_button, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(choose_button, "Choose a folder");
+  gtk_widget_set_tooltip_text(choose_button, _("Choose a folder"));
   adw_action_row_add_suffix(folder_row, choose_button);
   g_object_set_data(G_OBJECT(folder_row), "window", self);
   waytator_window_update_recording_folder_row(self, folder_row);
   g_signal_connect(choose_button, "clicked", G_CALLBACK(waytator_window_recording_folder_choose_clicked), folder_row);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(copy_row), "Copy to clipboard");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(copy_row), _("Copy to clipboard"));
   adw_switch_row_set_active(copy_row, self->settings.recording_copy);
   g_signal_connect(copy_row, "notify::active", G_CALLBACK(waytator_window_recording_copy_changed), self);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(editor_row), "Open in the editor");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(editor_row), _("Open in the editor"));
   adw_switch_row_set_active(editor_row, self->settings.recording_open_editor);
   g_signal_connect(editor_row, "notify::active", G_CALLBACK(waytator_window_recording_open_editor_changed), self);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(microphone_row), "Microphone");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(microphone_row), _("Microphone"));
   waytator_window_fill_microphone_row(self, microphone_row);
   g_signal_connect(microphone_row, "notify::selected", G_CALLBACK(waytator_window_recording_microphone_changed), self);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(bar_row), "Show the recording bar");
-  adw_action_row_set_subtitle(ADW_ACTION_ROW(bar_row), "Tip: use <tt>waytator --record</tt> to stop a recording");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(bar_row), _("Show the recording bar"));
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(bar_row), _("Tip: use <tt>waytator --record</tt> to stop a recording"));
   adw_switch_row_set_active(bar_row, self->settings.recording_show_bar);
   g_signal_connect(bar_row, "notify::active", G_CALLBACK(waytator_window_recording_show_bar_changed), self);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(rate_row), "Frame rate");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(rate_row), _("Frame rate"));
   adw_combo_row_set_model(rate_row, G_LIST_MODEL(rate_model));
   adw_combo_row_set_selected(rate_row, self->settings.recording_rate == 30 ? 1 : 0);
   g_signal_connect(rate_row, "notify::selected", G_CALLBACK(waytator_window_recording_rate_changed), self);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(pointer_row), "Show the pointer");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(pointer_row), _("Show the pointer"));
   adw_switch_row_set_active(pointer_row, self->settings.recording_show_pointer);
   g_signal_connect(pointer_row, "notify::active", G_CALLBACK(waytator_window_recording_show_pointer_changed), self);
 
@@ -2115,7 +2116,7 @@ waytator_window_new_recordings_page(WaytatorWindow *self)
   waytator_window_add_file_name_rows(self,
                                      file_group,
                                      &self->settings.recording_file_name,
-                                     WAYTATOR_RECORDING_NAME_DEFAULT,
+                                     _(WAYTATOR_RECORDING_NAME_DEFAULT),
                                      "mp4",
                                      TRUE);
   adw_preferences_group_add(while_group, GTK_WIDGET(microphone_row));
@@ -2142,37 +2143,37 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
   AdwSwitchRow *editor_row = ADW_SWITCH_ROW(adw_switch_row_new());
   AdwSwitchRow *hide_row = ADW_SWITCH_ROW(adw_switch_row_new());
   AdwComboRow *brake_row = ADW_COMBO_ROW(adw_combo_row_new());
-  g_autoptr(GtkStringList) brake_model = gtk_string_list_new((const char *[]) { "25%", "50%", "75%", NULL });
+  g_autoptr(GtkStringList) brake_model = gtk_string_list_new((const char *[]) { _("25%"), _("50%"), _("75%"), NULL });
   guint brake_selected = 0;
   GtkWidget *choose_button = gtk_button_new_from_icon_name("folder-open-symbolic");
   GtkWidget *clear_button = gtk_button_new_from_icon_name("window-close-symbolic");
 
-  adw_preferences_page_set_title(page, "Screenshots");
+  adw_preferences_page_set_title(page, _("Screenshots"));
   adw_preferences_page_set_icon_name(page, "camera-photo-symbolic");
-  adw_preferences_group_set_title(group, "Screenshots");
+  adw_preferences_group_set_title(group, _("Screenshots"));
   //GNOME's screenshot UI saves and copies on its own, so the folder and the copy are not waytator's to decide there
   if (waytator_capture_uses_gnome_ui()) {
     adw_preferences_group_set_description(group,
-                                          "On GNOME, screenshots are taken with GNOME's screenshot tool, "
-                                          "which saves and copies them itself");
+                                          _("On GNOME, screenshots are taken with GNOME's screenshot tool, "
+                                          "which saves and copies them itself"));
     gtk_widget_set_sensitive(GTK_WIDGET(folder_row), FALSE);
     gtk_widget_set_sensitive(GTK_WIDGET(copy_row), FALSE);
     gtk_widget_set_sensitive(GTK_WIDGET(brake_row), FALSE);
   } else {
     adw_preferences_group_set_description(group,
-                                          "These settings apply to screenshots taken by waytator");
+                                          _("These settings apply to screenshots taken by waytator"));
   }
-  adw_preferences_group_set_title(while_group, "While capturing");
-  adw_preferences_group_set_title(after_group, "After capturing");
+  adw_preferences_group_set_title(while_group, _("While capturing"));
+  adw_preferences_group_set_title(after_group, _("After capturing"));
 
   //a label over its value, like the file name under it
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(folder_row), "Save folder");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(folder_row), _("Save folder"));
   gtk_widget_add_css_class(GTK_WIDGET(folder_row), "property");
   gtk_widget_set_valign(choose_button, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(choose_button, "Choose a folder");
+  gtk_widget_set_tooltip_text(choose_button, _("Choose a folder"));
   gtk_button_set_has_frame(GTK_BUTTON(clear_button), FALSE);
   gtk_widget_set_valign(clear_button, GTK_ALIGN_CENTER);
-  gtk_widget_set_tooltip_text(clear_button, "Stop saving screenshots");
+  gtk_widget_set_tooltip_text(clear_button, _("Stop saving screenshots"));
   adw_action_row_add_suffix(folder_row, choose_button);
   adw_action_row_add_suffix(folder_row, clear_button);
   g_object_set_data(G_OBJECT(folder_row), "window", self);
@@ -2181,15 +2182,15 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
   g_signal_connect(choose_button, "clicked", G_CALLBACK(waytator_window_screenshot_folder_choose_clicked), folder_row);
   g_signal_connect(clear_button, "clicked", G_CALLBACK(waytator_window_screenshot_folder_clear_clicked), folder_row);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(copy_row), "Copy to clipboard");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(copy_row), _("Copy to clipboard"));
   adw_switch_row_set_active(copy_row, self->settings.screenshot_copy);
   g_signal_connect(copy_row, "notify::active", G_CALLBACK(waytator_window_screenshot_copy_changed), self);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(editor_row), "Open in the editor");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(editor_row), _("Open in the editor"));
   adw_switch_row_set_active(editor_row, self->settings.screenshot_open_editor);
   g_signal_connect(editor_row, "notify::active", G_CALLBACK(waytator_window_screenshot_open_editor_changed), self);
 
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(hide_row), "Hide waytator");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(hide_row), _("Hide waytator"));
   adw_switch_row_set_active(hide_row, self->settings.capture_hide_waytator);
   g_signal_connect(hide_row, "notify::active", G_CALLBACK(waytator_window_capture_hide_changed), self);
 
@@ -2198,8 +2199,8 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
     if (fabs(waytator_window_brake_speeds[i] - self->settings.capture_brake_speed)
         < fabs(waytator_window_brake_speeds[brake_selected] - self->settings.capture_brake_speed))
       brake_selected = i;
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(brake_row), "Pointer speed with Shift");
-  adw_action_row_set_subtitle(ADW_ACTION_ROW(brake_row), "Slows the pointer while selecting an area");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(brake_row), _("Pointer speed with Shift"));
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(brake_row), _("Slows the pointer while selecting an area"));
   adw_combo_row_set_model(brake_row, G_LIST_MODEL(brake_model));
   adw_combo_row_set_selected(brake_row, brake_selected);
   g_signal_connect(brake_row, "notify::selected", G_CALLBACK(waytator_window_capture_brake_speed_changed), self);
@@ -2209,7 +2210,7 @@ waytator_window_new_screenshots_page(WaytatorWindow *self)
   waytator_window_add_file_name_rows(self,
                                      group,
                                      &self->settings.screenshot_file_name,
-                                     WAYTATOR_SCREENSHOT_NAME_DEFAULT,
+                                     _(WAYTATOR_SCREENSHOT_NAME_DEFAULT),
                                      "png",
                                      !waytator_capture_uses_gnome_ui());
   adw_preferences_group_add(while_group, GTK_WIDGET(hide_row));
@@ -2329,22 +2330,22 @@ waytator_window_show_preferences(WaytatorWindow *self)
     NULL,
   });
 
-  adw_preferences_page_set_title(page, "General");
+  adw_preferences_page_set_title(page, _("General"));
   adw_preferences_page_set_icon_name(page, "preferences-system-symbolic");
-  adw_preferences_page_set_title(shortcuts_page, "Shortcuts");
+  adw_preferences_page_set_title(shortcuts_page, _("Shortcuts"));
   adw_preferences_page_set_icon_name(shortcuts_page, "preferences-desktop-keyboard-shortcuts-symbolic");
-  adw_preferences_group_set_title(group, "General");
-  adw_preferences_group_set_title(appearance_group, "Appearance");
-  adw_preferences_group_set_title(shortcuts_group, "Actions");
-  adw_preferences_group_set_title(tool_shortcuts_group, "Tools");
-  adw_preferences_group_set_title(color_shortcuts_group, "Stroke color");
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), "Eraser Styling");
+  adw_preferences_group_set_title(group, _("General"));
+  adw_preferences_group_set_title(appearance_group, _("Appearance"));
+  adw_preferences_group_set_title(shortcuts_group, _("Actions"));
+  adw_preferences_group_set_title(tool_shortcuts_group, _("Tools"));
+  adw_preferences_group_set_title(color_shortcuts_group, _("Stroke color"));
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), _("Eraser Styling"));
   adw_combo_row_set_model(row, G_LIST_MODEL(model));
   adw_combo_row_set_selected(row, self->eraser_style);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(background_mode_row), "Window background");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(background_mode_row), _("Window background"));
   adw_combo_row_set_model(background_mode_row, G_LIST_MODEL(background_model));
   adw_combo_row_set_selected(background_mode_row, self->window_background_mode);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(opacity_row), "Window background opacity");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(opacity_row), _("Window background opacity"));
   gtk_spin_button_set_numeric(opacity_spin_button, TRUE);
   gtk_widget_set_valign(GTK_WIDGET(opacity_spin_button), GTK_ALIGN_CENTER);
   gtk_widget_set_size_request(GTK_WIDGET(opacity_spin_button), 88, -1);
@@ -2353,9 +2354,9 @@ waytator_window_show_preferences(WaytatorWindow *self)
   gtk_widget_set_sensitive(GTK_WIDGET(opacity_row),
                            self->window_background_mode == WAYTATOR_WINDOW_BACKGROUND_TRANSPARENT);
   g_object_set_data(G_OBJECT(background_mode_row), "opacity-row", opacity_row);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_blur_row), "Blur the background of controls");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_blur_row), _("Blur the background of controls"));
   adw_switch_row_set_active(floating_controls_blur_row, self->settings.floating_controls_blur);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_opacity_row), "Controls background opacity");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(floating_controls_opacity_row), _("Controls background opacity"));
   gtk_spin_button_set_numeric(floating_controls_opacity_spin_button, TRUE);
   gtk_widget_set_valign(GTK_WIDGET(floating_controls_opacity_spin_button), GTK_ALIGN_CENTER);
   gtk_widget_set_size_request(GTK_WIDGET(floating_controls_opacity_spin_button), 88, -1);
@@ -2364,7 +2365,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
                                         GTK_WIDGET(floating_controls_opacity_spin_button));
   gtk_widget_set_visible(GTK_WIDGET(copy_keep_open_shortcut_row),
                          self->close_on_copy || waytator_window_closes_on_copy(self));
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(angle_snap_modifier_row), "Snap modifier");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(angle_snap_modifier_row), _("Snap modifier"));
   adw_combo_row_set_model(angle_snap_modifier_row, G_LIST_MODEL(angle_snap_model));
   switch (self->angle_snap_modifiers) {
   case 0:
@@ -2384,26 +2385,26 @@ waytator_window_show_preferences(WaytatorWindow *self)
     adw_combo_row_set_selected(angle_snap_modifier_row, 1);
     break;
   }
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(auto_copy_latest_change_row), "Auto-copy latest change");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(auto_copy_latest_change_row), _("Auto-copy latest change"));
   adw_action_row_set_subtitle(ADW_ACTION_ROW(auto_copy_latest_change_row),
-                              "Auto-copies never close the app; only explicit copies do");
+                              _("Auto-copies never close the app; only explicit copies do"));
   adw_switch_row_set_active(auto_copy_latest_change_row, self->auto_copy_latest_change);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(close_on_copy_row), "Close on copy");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(close_on_copy_row), _("Close on copy"));
   adw_action_row_set_subtitle(ADW_ACTION_ROW(close_on_copy_row),
-                              "Copying closes the app and adds a “Copy without closing” button");
+                              _("Copying closes the app and adds a “Copy without closing” button"));
   adw_switch_row_set_active(close_on_copy_row, self->close_on_copy);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(remember_last_tool_row), "Remember last tool");
-  adw_action_row_set_subtitle(ADW_ACTION_ROW(remember_last_tool_row), "Also preserves tool settings");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(remember_last_tool_row), _("Remember last tool"));
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(remember_last_tool_row), _("Also preserves tool settings"));
   adw_switch_row_set_active(remember_last_tool_row, self->remember_last_tool);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(highlighter_overlap_row), "Allow highlighter strokes to overlap");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(highlighter_overlap_row), _("Allow highlighter strokes to overlap"));
   adw_switch_row_set_active(highlighter_overlap_row, self->allow_highlighter_overlap);
   gtk_color_dialog_set_with_alpha(default_fill_color_dialog, TRUE);
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(default_primary_color_row), "Primary");
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(default_highlighter_color_row), "Highlighter");
-  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(default_fill_color_row), "Fill");
-  adw_action_row_set_subtitle(default_primary_color_row, "Used by most drawing tools");
-  adw_action_row_set_subtitle(default_highlighter_color_row, "Used by the highlighter tool");
-  adw_action_row_set_subtitle(default_fill_color_row, "Used by tools with a fill option");
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(default_primary_color_row), _("Primary"));
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(default_highlighter_color_row), _("Highlighter"));
+  adw_preferences_row_set_title(ADW_PREFERENCES_ROW(default_fill_color_row), _("Fill"));
+  adw_action_row_set_subtitle(default_primary_color_row, _("Used by most drawing tools"));
+  adw_action_row_set_subtitle(default_highlighter_color_row, _("Used by the highlighter tool"));
+  adw_action_row_set_subtitle(default_fill_color_row, _("Used by tools with a fill option"));
   gtk_widget_set_valign(default_primary_color_button, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(default_highlighter_color_button, GTK_ALIGN_CENTER);
   gtk_widget_set_valign(default_fill_color_button, GTK_ALIGN_CENTER);
@@ -2453,7 +2454,7 @@ waytator_window_show_preferences(WaytatorWindow *self)
   adw_preferences_dialog_add(dialog, waytator_window_new_recordings_page(self));
   adw_preferences_dialog_add(dialog, waytator_window_new_videos_page(self));
   adw_preferences_dialog_add(dialog, shortcuts_page);
-  adw_dialog_set_title(ADW_DIALOG(dialog), "Preferences");
+  adw_dialog_set_title(ADW_DIALOG(dialog), _("Preferences"));
   adw_preferences_dialog_set_search_enabled(dialog, FALSE);
   adw_dialog_set_content_width(ADW_DIALOG(dialog), 420);
 
@@ -2521,7 +2522,7 @@ waytator_window_show_about(WaytatorWindow *self)
                         "application-name", "Waytator",
                         "application-icon", "waytator",
                         "version", WAYTATOR_VERSION,
-                        "comments", "Fast screen capture and editing",
+                        "comments", _("Fast screen capture and editing"),
                         "developer-name", "faetalize",
                         "developers", (const char *[]) { "faetalize", NULL },
                         "issue-url", "https://github.com/faetalize/waytator/issues",
@@ -2775,15 +2776,15 @@ waytator_window_update_ocr_panel(WaytatorWindow *self)
   }
 
   if (self->ocr_running && gtk_toggle_button_get_active(self->ocr_panel_toggle_button)) {
-    selected_text = "Recognizing text...";
-    all_text = "Recognizing text...";
+    selected_text = _("Recognizing text...");
+    all_text = _("Recognizing text...");
   } else {
     selected_text = self->selected_ocr_line != NULL
                   ? self->selected_ocr_line->text
-                  : "Click a highlighted region to inspect its recognized text.";
+                  : _("Click a highlighted region to inspect its recognized text.");
     all_text = has_results && self->ocr_all_text != NULL && self->ocr_all_text[0] != '\0'
              ? self->ocr_all_text
-             : "No OCR text available.";
+             : _("No OCR text available.");
   }
 
   waytator_window_set_text_view_text(self->ocr_selected_text_view, selected_text);
@@ -2973,7 +2974,7 @@ waytator_window_update_copy_controls(WaytatorWindow *self)
     return;
 
   gtk_widget_set_visible(GTK_WIDGET(self->copy_keep_open_button), closes_on_copy && self->folds.keep_open);
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->copy_button), closes_on_copy ? "Copy and close" : "Copy");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->copy_button), closes_on_copy ? _("Copy and close") : _("Copy"));
   gtk_image_set_from_icon_name(self->copy_default_icon,
                                closes_on_copy ? "waytator-copy-close-symbolic" : "waytator-copy-symbolic");
   //a second copy button makes the top bar wider
@@ -3062,8 +3063,8 @@ waytator_window_update_save_menu(WaytatorWindow *self)
     return;
   }
 
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_button), "Save");
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_as_button), "Save");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_button), _("Save"));
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->save_as_button), _("Save"));
   gtk_widget_set_visible(GTK_WIDGET(self->save_button), has_menu && self->folds.save);
   gtk_widget_set_visible(GTK_WIDGET(self->save_as_button), !has_menu && self->folds.save);
 
@@ -3080,10 +3081,10 @@ waytator_window_update_save_menu(WaytatorWindow *self)
     g_autofree char *label = waytator_save_menu_label(destination);
 
     g_menu_append(self->save_menu, label, "win.save-image");
-    g_menu_append(self->save_menu, "Save as…", "win.save-as");
+    g_menu_append(self->save_menu, _("Save as…"), "win.save-as");
   } else {
-    g_menu_append(self->save_menu, "Save", "win.save");
-    g_menu_append(self->save_menu, "Save a copy…", "win.save-copy");
+    g_menu_append(self->save_menu, _("Save"), "win.save");
+    g_menu_append(self->save_menu, _("Save a copy…"), "win.save-copy");
   }
 }
 
@@ -3455,7 +3456,7 @@ waytator_window_clipboard_handed_off(GObject      *source_object,
   self->copy_in_progress = FALSE;
   if (!g_subprocess_communicate_finish(process, result, NULL, NULL, &error)
       || !g_subprocess_get_successful(process)) {
-    g_autofree char *message = g_strdup_printf("wl-copy failed, so the window was left open%s%s",
+    g_autofree char *message = g_strdup_printf(_("wl-copy failed, so the window was left open%s%s"),
                                                error != NULL ? ": " : "",
                                                error != NULL ? error->message : "");
 
@@ -3466,9 +3467,9 @@ waytator_window_clipboard_handed_off(GObject      *source_object,
   }
 
   if (self->saved_path != NULL)
-    waytator_window_notify_and_close(self, "Image saved and copied", self->saved_path);
+    waytator_window_notify_and_close(self, _("Image saved and copied"), self->saved_path);
   else
-    waytator_window_notify_and_close(self, "Image copied to clipboard", NULL);
+    waytator_window_notify_and_close(self, _("Image copied to clipboard"), NULL);
   g_object_unref(self);
 }
 
@@ -3489,7 +3490,7 @@ waytator_window_hand_off_clipboard_and_close(WaytatorWindow     *self,
                              copy_result->mime_type,
                              NULL);
   if (process == NULL) {
-    g_autofree char *message = g_strdup_printf("Could not run wl-copy, so the window was left open: %s",
+    g_autofree char *message = g_strdup_printf(_("Could not run wl-copy, so the window was left open: %s"),
                                                error->message);
 
     g_clear_pointer(&self->saved_path, g_free);
@@ -3558,7 +3559,7 @@ waytator_window_copy_export_ready(GObject      *source_object,
     self->close_copy_pending = FALSE;
     g_clear_pointer(&self->saved_path, g_free);
     waytator_copy_result_free(copy_result);
-    waytator_window_show_error(self, "Could not copy image to clipboard");
+    waytator_window_show_error(self, _("Could not copy image to clipboard"));
     g_object_unref(self);
     return;
   }
@@ -3601,7 +3602,7 @@ waytator_window_finish_after_save(WaytatorWindow *self)
 
   self->after_save = WAYTATOR_AFTER_SAVE_NONE;
   if (after_save == WAYTATOR_AFTER_SAVE_CLOSE)
-    waytator_window_notify_and_close(self, "Image saved", self->saved_path);
+    waytator_window_notify_and_close(self, _("Image saved"), self->saved_path);
   else if (after_save == WAYTATOR_AFTER_SAVE_COPY_CLOSE)
     waytator_window_start_copy(self, TRUE);
 }
@@ -3792,7 +3793,7 @@ waytator_window_save_capture_to_folder(WaytatorWindow *self)
   file = waytator_screenshot_reserve_file(self->settings.screenshot_save_dir, self->source_name, &error);
   if (file == NULL) {
     g_autofree char *reason = waytator_screenshot_describe_save_error(self->settings.screenshot_save_dir, error);
-    g_autofree char *message = g_strdup_printf("%s Save again to choose another place.", reason);
+    g_autofree char *message = g_strdup_printf(_("%s Save again to choose another place."), reason);
 
     //the next attempt goes through the dialog, the folder is not going to work this time
     self->from_capture = FALSE;
@@ -3826,7 +3827,7 @@ waytator_window_show_save_dialog(WaytatorWindow *self)
     copy_name = g_strdup(self->source_name);
   }
 
-  gtk_file_dialog_set_title(dialog, self->current_file != NULL ? "Save a copy" : "Save image");
+  gtk_file_dialog_set_title(dialog, self->current_file != NULL ? _("Save a copy") : _("Save image"));
   gtk_file_dialog_set_initial_name(dialog, copy_name);
 
   gtk_file_dialog_save(dialog,
@@ -4351,7 +4352,7 @@ waytator_window_open_ready(GObject      *source_object,
 
   if (file == NULL) {
     if (!waytator_window_error_is_user_dismissed(error))
-      g_printerr("Error opening file: %s\n", error->message);
+      g_printerr(_("Error opening file: %s\n"), error->message);
 
     g_object_unref(self);
     return;
@@ -4388,16 +4389,16 @@ waytator_window_open(WaytatorWindow *self)
   videos = gtk_file_filter_new();
   filters = g_list_store_new(GTK_TYPE_FILE_FILTER);
 
-  gtk_file_filter_set_name(everything, "Images and videos");
+  gtk_file_filter_set_name(everything, _("Images and videos"));
   for (guint i = 0; i < G_N_ELEMENTS(image_types); i++)
     gtk_file_filter_add_mime_type(everything, image_types[i]);
   gtk_file_filter_add_mime_type(everything, "video/*");
   g_list_store_append(filters, everything);
 
-  gtk_file_filter_set_name(videos, "Videos");
+  gtk_file_filter_set_name(videos, _("Videos"));
   gtk_file_filter_add_mime_type(videos, "video/*");
 
-  gtk_file_filter_set_name(images, "Images");
+  gtk_file_filter_set_name(images, _("Images"));
   gtk_file_filter_add_mime_type(images, "image/png");
   gtk_file_filter_add_mime_type(images, "image/jpeg");
   gtk_file_filter_add_mime_type(images, "image/webp");
@@ -4407,7 +4408,7 @@ waytator_window_open(WaytatorWindow *self)
   g_list_store_append(filters, images);
   g_list_store_append(filters, videos);
 
-  gtk_file_dialog_set_title(dialog, "Open");
+  gtk_file_dialog_set_title(dialog, _("Open"));
   gtk_file_dialog_set_filters(dialog, G_LIST_MODEL(filters));
   gtk_file_dialog_set_default_filter(dialog, everything);
 
@@ -4452,8 +4453,8 @@ waytator_window_update_capture_controls(WaytatorWindow *self)
   //capturing always starts with an area, the overlay is where a screen can be picked instead
   gtk_label_set_text(self->capture_area_hint, label != NULL ? label : "");
   tooltip = label != NULL
-          ? g_strdup_printf("%s (%s)", waytator_shortcuts[shortcut].title, label)
-          : g_strdup(waytator_shortcuts[shortcut].title);
+          ? g_strdup_printf("%s (%s)", waytator_window_shortcut_title(shortcut), label)
+          : g_strdup(waytator_window_shortcut_title(shortcut));
   gtk_widget_set_tooltip_text(GTK_WIDGET(self->capture_button), tooltip);
 }
 
@@ -4564,7 +4565,7 @@ waytator_window_capture_stored(GFile      *file,
       gtk_label_set_text(self->file_label, self->source_name);
       self->never_saved = FALSE;
     } else if (save_error != NULL) {
-      g_autofree char *message = g_strdup_printf("%s Save to choose another place.", save_error);
+      g_autofree char *message = g_strdup_printf(_("%s Save to choose another place."), save_error);
 
       //the folder is not going to work this time, so saving asks instead
       self->from_capture = FALSE;
@@ -4637,7 +4638,7 @@ waytator_window_capture_allowed(GObject      *source_object,
   }
 
   if (!waytator_capture_allow_finish(result, &error)) {
-    g_autofree char *message = g_strdup_printf("Could not allow screenshots: %s", error->message);
+    g_autofree char *message = g_strdup_printf(_("Could not allow screenshots: %s"), error->message);
 
     waytator_window_show_error(self, message);
     waytator_capture_permission_free(permission);
@@ -4674,7 +4675,7 @@ waytator_window_ask_capture_permission(WaytatorWindow     *self,
                                        const char         *output_name,
                                        gboolean            temporary)
 {
-  AdwDialog *dialog = adw_alert_dialog_new("Allow Screenshots?", NULL);
+  AdwDialog *dialog = adw_alert_dialog_new(_("Allow Screenshots?"), NULL);
   WaytatorCapturePermission *permission = g_new0(WaytatorCapturePermission, 1);
 
   permission->window = g_object_ref(self);
@@ -4683,9 +4684,9 @@ waytator_window_ask_capture_permission(WaytatorWindow     *self,
   permission->temporary = temporary;
 
   adw_alert_dialog_set_body(ADW_ALERT_DIALOG(dialog),
-                            "Waytator needs a one-time permission to take screenshots. "
-                            "Once it is allowed, the screenshot is taken again.");
-  adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog), "cancel", "Not Now", "allow", "Allow", NULL);
+                            _("Waytator needs a one-time permission to take screenshots. "
+                            "Once it is allowed, the screenshot is taken again."));
+  adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog), "cancel", _("Not Now"), "allow", _("Allow"), NULL);
   adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "allow", ADW_RESPONSE_SUGGESTED);
   adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "allow");
   adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
@@ -4749,7 +4750,7 @@ waytator_window_show_quiet_capture(WaytatorQuietCapture *capture,
 {
   AdwToast *toast = adw_toast_new(title);
 
-  adw_toast_set_button_label(toast, "Edit");
+  adw_toast_set_button_label(toast, _("Edit"));
   //goes when the toast does
   g_object_set_data_full(G_OBJECT(toast), "capture", capture, waytator_quiet_capture_free);
   g_signal_connect(toast, "button-clicked", G_CALLBACK(waytator_window_quiet_capture_edit), capture);
@@ -4777,7 +4778,7 @@ waytator_window_quiet_capture_stored(GFile      *file,
     waytator_window_open_capture(target, capture->texture, capture->name, save_error == NULL);
     gtk_window_present(GTK_WINDOW(target));
     if (save_error != NULL) {
-      g_autofree char *message = g_strdup_printf("%s Save to choose another place.", save_error);
+      g_autofree char *message = g_strdup_printf(_("%s Save to choose another place."), save_error);
 
       waytator_window_show_error(target, message);
     }
@@ -4790,7 +4791,7 @@ waytator_window_quiet_capture_stored(GFile      *file,
     waytator_window_show_error(self, save_error);
 
   capture->file = file != NULL ? g_object_ref(file) : NULL;
-  waytator_window_show_quiet_capture(capture, file != NULL ? "Screenshot saved" : "Screenshot copied");
+  waytator_window_show_quiet_capture(capture, file != NULL ? _("Screenshot saved") : _("Screenshot copied"));
 }
 
 //saved and copied as the preferences say, with the window left on what it shows. file is set when
@@ -4813,7 +4814,7 @@ waytator_window_capture_quietly(WaytatorWindow *self,
 
   if (file != NULL) {
     capture->file = g_object_ref(file);
-    waytator_window_show_quiet_capture(capture, "Screenshot saved");
+    waytator_window_show_quiet_capture(capture, _("Screenshot saved"));
   } else {
     waytator_screenshot_store(texture, name, &self->settings, waytator_window_quiet_capture_stored, capture);
   }
@@ -4955,7 +4956,7 @@ waytator_window_capture_ready(GObject      *source_object,
   g_set_error_literal(&error,
                       G_IO_ERROR,
                       G_IO_ERROR_FAILED,
-                      "Could not match the capture to a screen");
+                      _("Could not match the capture to a screen"));
   waytator_window_finish_capture(self, NULL, NULL, error);
 }
 
@@ -5128,7 +5129,7 @@ waytator_window_recording_edit(GFile   *file,
   g_autoptr(GError) error = NULL;
 
   if (!waytator_window_open_file(window, file, &error)) {
-    g_printerr("Error opening recording: %s\n", error->message);
+    g_printerr(_("Error opening recording: %s\n"), error->message);
     //a window made just for this file has no reason to stay
     if (!gtk_widget_get_visible(GTK_WIDGET(window)))
       gtk_window_destroy(GTK_WINDOW(window));
@@ -5181,8 +5182,8 @@ waytator_window_recording_done(GFile   *file,
   if (self == NULL || self->disposed)
     return;
 
-  toast = adw_toast_new("Recording saved");
-  adw_toast_set_button_label(toast, "Edit");
+  toast = adw_toast_new(_("Recording saved"));
+  adw_toast_set_button_label(toast, _("Edit"));
   g_object_set_data_full(G_OBJECT(toast), "file", g_object_ref(file), g_object_unref);
   g_signal_connect(toast, "button-clicked", G_CALLBACK(waytator_window_recording_toast_edit), self);
   adw_toast_overlay_add_toast(self->toast_overlay, toast);
@@ -5646,9 +5647,9 @@ waytator_window_setup_ocr_panel(WaytatorWindow *self)
   gtk_text_view_set_monospace(self->ocr_selected_text_view, FALSE);
   gtk_text_view_set_monospace(self->ocr_all_text_view, FALSE);
   gtk_stack_page_set_name(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_selected_page)), "selected");
-  gtk_stack_page_set_title(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_selected_page)), "Selected region");
+  gtk_stack_page_set_title(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_selected_page)), _("Selected region"));
   gtk_stack_page_set_name(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_all_page)), "all");
-  gtk_stack_page_set_title(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_all_page)), "All detected text");
+  gtk_stack_page_set_title(gtk_stack_get_page(self->ocr_panel_stack, GTK_WIDGET(self->ocr_all_page)), _("All detected text"));
   gtk_stack_set_visible_child_name(self->ocr_panel_stack, "all");
 }
 
@@ -5714,9 +5715,9 @@ static void
 waytator_window_update_capture_menu(WaytatorWindow *self)
 {
   g_menu_remove_all(self->capture_menu);
-  g_menu_append(self->capture_menu, "Screenshot", "win.capture-area");
+  g_menu_append(self->capture_menu, _("Screenshot"), "win.capture-area");
   g_menu_append(self->capture_menu,
-                waytator_recording_is_active() ? "Stop recording" : "Record",
+                waytator_recording_is_active() ? _("Stop recording") : _("Record"),
                 "win.record-area");
 }
 
@@ -5757,7 +5758,7 @@ waytator_window_update_recording(WaytatorWindow *self)
   const gboolean saving = active && !recording && !waytator_recording_is_starting();
 
   gtk_image_set_from_icon_name(self->record_icon, active ? "media-playback-stop-symbolic" : "camera-video-symbolic");
-  gtk_widget_set_tooltip_text(GTK_WIDGET(self->record_button), active ? "Stop recording" : "Record");
+  gtk_widget_set_tooltip_text(GTK_WIDGET(self->record_button), active ? _("Stop recording") : _("Record"));
   gtk_widget_set_sensitive(GTK_WIDGET(self->record_button), !saving);
   if (active)
     gtk_widget_add_css_class(GTK_WIDGET(self->record_button), "recording");
@@ -5812,7 +5813,7 @@ waytator_window_restart(WaytatorWindow *self)
   g_autoptr(GError) error = NULL;
 
   if (!waytator_instance_restart(waytator_window_get_shown_file(self), &error)) {
-    g_autofree char *message = g_strdup_printf("Could not start the new version: %s", error->message);
+    g_autofree char *message = g_strdup_printf(_("Could not start the new version: %s"), error->message);
 
     waytator_window_show_error(self, message);
   }
@@ -5851,10 +5852,10 @@ waytator_window_restart_clicked(AdwBanner *banner,
     return;
   }
 
-  dialog = adw_alert_dialog_new("This won't save your progress", NULL);
+  dialog = adw_alert_dialog_new(_("This won't save your progress"), NULL);
   adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog),
-                                 "cancel", "_Cancel",
-                                 "restart", "_Restart",
+                                 "cancel", _("_Cancel"),
+                                 "restart", _("_Restart"),
                                  NULL);
   adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "restart", ADW_RESPONSE_DESTRUCTIVE);
   adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "cancel");
@@ -5867,7 +5868,7 @@ static void
 waytator_window_update_out_of_date(WaytatorWindow *self)
 {
   //a recording or capture under way would be cut off, so the restart waits for it
-  adw_banner_set_button_label(self->out_of_date_banner, waytator_instance_can_restart() ? "Restart" : NULL);
+  adw_banner_set_button_label(self->out_of_date_banner, waytator_instance_can_restart() ? _("Restart") : NULL);
   adw_banner_set_revealed(self->out_of_date_banner, waytator_instance_is_out_of_date());
 }
 
@@ -5890,7 +5891,7 @@ waytator_window_setup_open_menu(WaytatorWindow *self)
 
   self->capture_menu = g_menu_new();
   waytator_window_update_capture_menu(self);
-  g_menu_append(open_section, "Open…", "win.open");
+  g_menu_append(open_section, _("Open…"), "win.open");
   g_menu_append_section(open_menu, NULL, G_MENU_MODEL(open_section));
   g_menu_append_section(open_menu, NULL, G_MENU_MODEL(self->capture_menu));
   gtk_menu_button_set_menu_model(self->open_menu_button, G_MENU_MODEL(open_menu));
@@ -5973,7 +5974,7 @@ waytator_window_setup_out_of_date_banner(WaytatorWindow *self)
   GtkWidget *content = g_object_ref(adw_toast_overlay_get_child(self->toast_overlay));
   GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
 
-  self->out_of_date_banner = ADW_BANNER(adw_banner_new("This version of Waytator is out of date"));
+  self->out_of_date_banner = ADW_BANNER(adw_banner_new(_("This version of Waytator is out of date")));
   g_signal_connect(self->out_of_date_banner, "button-clicked", G_CALLBACK(waytator_window_restart_clicked), self);
   adw_toast_overlay_set_child(self->toast_overlay, NULL);
   gtk_box_append(GTK_BOX(box), GTK_WIDGET(self->out_of_date_banner));

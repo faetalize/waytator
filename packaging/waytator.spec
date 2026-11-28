@@ -12,6 +12,7 @@ Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  gcc
 BuildRequires:  meson
+BuildRequires:  gettext
 BuildRequires:  desktop-file-utils
 BuildRequires:  pkgconfig(gobject-2.0)
 BuildRequires:  pkgconfig(gio-unix-2.0)
@@ -56,12 +57,13 @@ GTK app for Wayland desktops.
 
 %install
 %meson_install
+%find_lang %{name}
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/dev.faetalize.waytator.desktop
 %meson_test
 
-%files
+%files -f %{name}.lang
 %license LICENSE
 %doc README.md
 %{_bindir}/waytator

@@ -1,5 +1,7 @@
 #include "waytator-video-audio.h"
 
+#include <glib/gi18n.h>
+
 #include <gio/gio.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -93,7 +95,7 @@ waytator_video_audio_set_av_error(GError    **error,
                                   const char *message,
                                   int         code)
 {
-  g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "%s: %s", message, av_err2str(code));
+  g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("%s: %s"), message, av_err2str(code));
   return FALSE;
 }
 
@@ -108,15 +110,15 @@ waytator_video_audio_decoder_open(WaytatorVideoAudioDecoder *decoder,
 
   ret = avformat_open_input(&decoder->format, path, NULL, NULL);
   if (ret < 0)
-    return waytator_video_audio_set_av_error(error, "Couldn't open the video", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't open the video"), ret);
 
   ret = avformat_find_stream_info(decoder->format, NULL);
   if (ret < 0)
-    return waytator_video_audio_set_av_error(error, "Couldn't read the video", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't read the video"), ret);
 
   ret = av_find_best_stream(decoder->format, AVMEDIA_TYPE_AUDIO, -1, -1, &codec, 0);
   if (ret < 0)
-    return waytator_video_audio_set_av_error(error, "Couldn't find the sound", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't find the sound"), ret);
 
   decoder->stream = decoder->format->streams[ret];
   //the demuxer can skip the picture
@@ -132,7 +134,7 @@ waytator_video_audio_decoder_open(WaytatorVideoAudioDecoder *decoder,
     ret = avcodec_open2(decoder->codec, codec, NULL);
   }
   if (ret < 0)
-    return waytator_video_audio_set_av_error(error, "Couldn't decode the sound", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't decode the sound"), ret);
 
   decoder->packet = av_packet_alloc();
   decoder->frame = av_frame_alloc();
@@ -218,7 +220,7 @@ waytator_video_audio_decoder_prepare(WaytatorVideoAudioDecoder *decoder,
   av_channel_layout_uninit(&decoder->resampler_layout);
   ret = av_channel_layout_copy(&decoder->resampler_layout, &frame->ch_layout);
   if (ret < 0)
-    return waytator_video_audio_set_av_error(error, "Couldn't convert the sound", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't convert the sound"), ret);
 
   decoder->resampler_rate = frame->sample_rate;
   decoder->resampler_format = frame->format;
@@ -244,7 +246,7 @@ waytator_video_audio_decoder_prepare(WaytatorVideoAudioDecoder *decoder,
   av_channel_layout_uninit(&layout);
   if (ret < 0) {
     swr_free(&decoder->resampler);
-    return waytator_video_audio_set_av_error(error, "Couldn't convert the sound", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't convert the sound"), ret);
   }
 
   return TRUE;
@@ -274,7 +276,7 @@ waytator_video_audio_decoder_convert(WaytatorVideoAudioDecoder *decoder,
                     frame != NULL ? (const uint8_t **) frame->extended_data : NULL,
                     n_in);
   if (ret < 0)
-    return waytator_video_audio_set_av_error(error, "Couldn't convert the sound", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't convert the sound"), ret);
 
   decoder->length += ret;
   return TRUE;
@@ -340,7 +342,7 @@ waytator_video_audio_decoder_pull(WaytatorVideoAudioDecoder *decoder,
     }
     //a damaged packet is skipped
     if (ret != AVERROR(EAGAIN) && ret != AVERROR_INVALIDDATA)
-      return waytator_video_audio_set_av_error(error, "Couldn't decode the sound", ret);
+      return waytator_video_audio_set_av_error(error, _("Couldn't decode the sound"), ret);
 
     ret = av_read_frame(decoder->format, decoder->packet);
     if (ret == AVERROR_EOF) {
@@ -349,13 +351,13 @@ waytator_video_audio_decoder_pull(WaytatorVideoAudioDecoder *decoder,
       continue;
     }
     if (ret < 0)
-      return waytator_video_audio_set_av_error(error, "Couldn't read the sound", ret);
+      return waytator_video_audio_set_av_error(error, _("Couldn't read the sound"), ret);
 
     if (decoder->packet->stream_index == decoder->stream->index)
       ret = avcodec_send_packet(decoder->codec, decoder->packet);
     av_packet_unref(decoder->packet);
     if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_INVALIDDATA)
-      return waytator_video_audio_set_av_error(error, "Couldn't decode the sound", ret);
+      return waytator_video_audio_set_av_error(error, _("Couldn't decode the sound"), ret);
   }
 }
 
@@ -374,7 +376,7 @@ waytator_video_audio_decoder_seek(WaytatorVideoAudioDecoder *decoder,
   if (ret < 0)
     ret = av_seek_frame(decoder->format, decoder->stream->index, timestamp, 0);
   if (ret < 0)
-    return waytator_video_audio_set_av_error(error, "Couldn't seek in the sound", ret);
+    return waytator_video_audio_set_av_error(error, _("Couldn't seek in the sound"), ret);
 
   avcodec_flush_buffers(decoder->codec);
   swr_free(&decoder->resampler);

@@ -2,6 +2,8 @@
 #include "waytator-capture-overlay.h"
 #include "waytator-window.h"
 
+#include <glib/gi18n.h>
+
 #include <gtk4-layer-shell.h>
 
 struct _WaytatorCountdown {
@@ -193,7 +195,7 @@ waytator_countdown_show(GdkMonitor           *monitor,
   gtk_window_set_child(countdown->window, countdown->label);
   gtk_window_set_decorated(countdown->window, FALSE);
   gtk_window_set_resizable(countdown->window, FALSE);
-  gtk_window_set_title(countdown->window, "Countdown");
+  gtk_window_set_title(countdown->window, _("Countdown"));
   gtk_widget_add_css_class(GTK_WIDGET(countdown->window), "recording-surface");
 
   keys = gtk_event_controller_key_new();
@@ -203,7 +205,7 @@ waytator_countdown_show(GdkMonitor           *monitor,
   click = gtk_gesture_click_new();
   g_signal_connect(click, "released", G_CALLBACK(waytator_countdown_clicked), countdown);
   gtk_widget_add_controller(countdown->label, GTK_EVENT_CONTROLLER(click));
-  gtk_widget_set_tooltip_text(countdown->label, "Click to cancel");
+  gtk_widget_set_tooltip_text(countdown->label, _("Click to cancel"));
 
   //gnome has no layer shell, there the desktop places the window
   if (gtk_layer_is_supported()) {

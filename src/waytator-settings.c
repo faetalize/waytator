@@ -3,27 +3,32 @@
 #include "waytator-file-name.h"
 #include "waytator-types.h"
 
+#include <glib/gi18n.h>
+
 static char *
 waytator_settings_default_save_dir(void)
 {
   const char *pictures = g_get_user_special_dir(G_USER_DIRECTORY_PICTURES);
+  // Translators: A single folder name; do not use slashes.
+  const char *folder = C_("default save folder", "Screenshots");
 
   if (pictures != NULL)
-    return g_build_filename(pictures, "Screenshots", NULL);
+    return g_build_filename(pictures, folder, NULL);
 
-  return g_build_filename(g_get_home_dir(), "Pictures", "Screenshots", NULL);
+  return g_build_filename(g_get_home_dir(), "Pictures", folder, NULL);
 }
 
-//where GNOME keeps the screencasts it records, so both end up in one place
 static char *
 waytator_settings_default_recording_dir(void)
 {
   const char *videos = g_get_user_special_dir(G_USER_DIRECTORY_VIDEOS);
+  // Translators: A single folder name; do not use slashes.
+  const char *folder = C_("default save folder", "Screencasts");
 
   if (videos != NULL)
-    return g_build_filename(videos, "Screencasts", NULL);
+    return g_build_filename(videos, folder, NULL);
 
-  return g_build_filename(g_get_home_dir(), "Videos", "Screencasts", NULL);
+  return g_build_filename(g_get_home_dir(), "Videos", folder, NULL);
 }
 
 char *
@@ -37,7 +42,7 @@ waytator_settings_init(WaytatorSettings *settings)
 {
   settings->screenshot_save_dir = waytator_settings_default_save_dir();
   settings->screenshot_copy = TRUE;
-  settings->screenshot_file_name = g_strdup(WAYTATOR_SCREENSHOT_NAME_DEFAULT);
+  settings->screenshot_file_name = g_strdup(_(WAYTATOR_SCREENSHOT_NAME_DEFAULT));
   settings->screenshot_open_editor = TRUE;
   settings->capture_hide_waytator = TRUE;
   settings->capture_magnifier = FALSE;
@@ -45,7 +50,7 @@ waytator_settings_init(WaytatorSettings *settings)
   settings->record_microphone = FALSE;
   settings->recording_save_dir = waytator_settings_default_recording_dir();
   settings->recording_copy = TRUE;
-  settings->recording_file_name = g_strdup(WAYTATOR_RECORDING_NAME_DEFAULT);
+  settings->recording_file_name = g_strdup(_(WAYTATOR_RECORDING_NAME_DEFAULT));
   settings->recording_open_editor = TRUE;
   settings->recording_microphone = g_strdup("");
   settings->recording_show_bar = TRUE;
@@ -265,7 +270,7 @@ waytator_settings_write(const WaytatorSettings *settings,
   waytator_settings_write_file_name(key_file,
                                     "screenshot_file_name",
                                     settings->screenshot_file_name,
-                                    WAYTATOR_SCREENSHOT_NAME_DEFAULT);
+                                    _(WAYTATOR_SCREENSHOT_NAME_DEFAULT));
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "screenshot_open_editor",
@@ -297,7 +302,7 @@ waytator_settings_write(const WaytatorSettings *settings,
   waytator_settings_write_file_name(key_file,
                                     "recording_file_name",
                                     settings->recording_file_name,
-                                    WAYTATOR_RECORDING_NAME_DEFAULT);
+                                    _(WAYTATOR_RECORDING_NAME_DEFAULT));
   g_key_file_set_boolean(key_file,
                          WAYTATOR_SETTINGS_GROUP,
                          "recording_open_editor",

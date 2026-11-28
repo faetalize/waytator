@@ -1,5 +1,7 @@
 #include "waytator-export.h"
 
+#include <glib/gi18n.h>
+
 #include "waytator-render.h"
 
 //the extension of the file name, not of a folder above it, or NULL when it has none
@@ -84,7 +86,8 @@ waytator_export_save_path_problem(const char *path)
   }
   g_ptr_array_add(usable, NULL);
   list = g_strjoinv(", ", (char **) usable->pdata);
-  return g_strdup_printf("--save-path can't save .%s files here. Use %s, or no extension for PNG",
+  // Translators: Keep the command-line option --save-path unchanged.
+  return g_strdup_printf(_("--save-path can't save .%s files here. Use %s, or no extension for PNG"),
                          extension,
                          list);
 }
@@ -172,7 +175,7 @@ waytator_export_request_new(GdkTexture              *texture,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_FAILED,
-                "Could not render the current image");
+                _("Could not render the current image"));
     return NULL;
   }
 
@@ -272,7 +275,7 @@ waytator_export_run_task(GTask        *task,
       g_task_return_new_error(task,
                               G_IO_ERROR,
                               G_IO_ERROR_FAILED,
-                              "Could not encode the current image");
+                              _("Could not encode the current image"));
       return;
     }
 
@@ -290,7 +293,7 @@ waytator_export_run_task(GTask        *task,
       g_task_return_new_error(task,
                               G_IO_ERROR,
                               G_IO_ERROR_FAILED,
-                              "Could not prepare the current image for export");
+                              _("Could not prepare the current image for export"));
       return;
     }
 
@@ -327,7 +330,7 @@ waytator_export_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_NOT_SUPPORTED,
-                            "Saving to non-local files is not supported yet");
+                            _("Saving to non-local files is not supported yet"));
     return;
   }
 
@@ -338,7 +341,7 @@ waytator_export_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_FAILED,
-                            "Could not encode the current image");
+                            _("Could not encode the current image"));
     return;
   }
 
@@ -350,7 +353,7 @@ waytator_export_run_task(GTask        *task,
     g_task_return_new_error(task,
                             G_IO_ERROR,
                             G_IO_ERROR_FAILED,
-                            "Could not prepare the current image for export");
+                            _("Could not prepare the current image for export"));
     return;
   }
 

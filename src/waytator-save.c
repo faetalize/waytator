@@ -1,5 +1,7 @@
 #include "waytator-save.h"
 
+#include <glib/gi18n.h>
+
 //only a save into the open file holds the edits. a first save makes its file the open one, a copy leaves it as it was
 gboolean
 waytator_save_target_is_document(GFile *current_file,
@@ -28,5 +30,5 @@ waytator_save_menu_label(const char *destination)
   g_auto(GStrv) parts = g_strsplit(destination, "_", -1);
   g_autofree char *escaped = g_strjoinv("__", parts);
 
-  return g_strdup_printf("Save to %s", escaped);
+  return g_strdup_printf(_("Save to %s"), escaped);
 }

@@ -1,6 +1,8 @@
 //the pipewire headers use locale_t, which strict c11 leaves out
 #define _GNU_SOURCE
 
+#include <glib/gi18n.h>
+
 #include "waytator-record-stream.h"
 
 #include <EGL/egl.h>
@@ -337,7 +339,7 @@ waytator_record_stream_end(WaytatorRecordStream *stream,
   end->stream = stream;
   end->ended = stream->ended;
   end->user_data = stream->user_data;
-  end->error = g_error_new(G_IO_ERROR, code, "The screen recording stopped: %s", reason);
+  end->error = g_error_new(G_IO_ERROR, code, _("The screen recording stopped: %s"), reason);
   stream->end = end;
   //the stream says this once, whatever else goes wrong after it
   stream->closing = TRUE;
@@ -360,7 +362,7 @@ waytator_record_stream_core_error(void       *data,
 
   waytator_record_stream_end(stream,
                              res == -EPIPE ? G_IO_ERROR_CONNECTION_CLOSED : G_IO_ERROR_FAILED,
-                             res == -EPIPE ? "the connection to PipeWire was lost" : message);
+                             res == -EPIPE ? _("the connection to PipeWire was lost") : message);
 }
 
 static const struct pw_core_events waytator_record_stream_core_events = {
@@ -380,9 +382,9 @@ waytator_record_stream_state_changed(void                 *data,
   if (state == PW_STREAM_STATE_STREAMING)
     stream->streaming = TRUE;
   else if (state == PW_STREAM_STATE_ERROR)
-    waytator_record_stream_end(stream, G_IO_ERROR_FAILED, error != NULL ? error : "PipeWire gave an error");
+    waytator_record_stream_end(stream, G_IO_ERROR_FAILED, error != NULL ? error : _("PipeWire gave an error"));
   else if (state == PW_STREAM_STATE_UNCONNECTED && stream->streaming)
-    waytator_record_stream_end(stream, G_IO_ERROR_CONNECTION_CLOSED, "the picture source went away");
+    waytator_record_stream_end(stream, G_IO_ERROR_CONNECTION_CLOSED, _("the picture source went away"));
 }
 
 //the frames context that tells ffmpeg what the frames on the gpu hold, with the loop locked
@@ -450,7 +452,7 @@ waytator_record_stream_param_changed(void                 *data,
   while (index < WAYTATOR_RECORD_STREAM_N_FORMATS && waytator_record_stream_formats[index].spa_format != info.format)
     index++;
   if (index == WAYTATOR_RECORD_STREAM_N_FORMATS || info.size.width == 0 || info.size.height == 0) {
-    pw_stream_set_error(stream->stream, -EINVAL, "the compositor sent a picture format that can't be recorded");
+    pw_stream_set_error(stream->stream, -EINVAL, _("the compositor sent a picture format that can't be recorded"));
     return;
   }
 
@@ -859,7 +861,7 @@ waytator_record_stream_new(int                             fd,
   stream->shared->ref_count = 1;
   stream->shared->loop = pw_thread_loop_new("waytator-record", NULL);
   if (stream->shared->loop == NULL) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't start PipeWire: %s", g_strerror(errno));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't start PipeWire: %s"), g_strerror(errno));
     close(fd);
     return NULL;
   }
@@ -882,7 +884,7 @@ waytator_record_stream_new(int                             fd,
     const int code = errno;
 
     pw_thread_loop_unlock(stream->shared->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, "Couldn't reach PipeWire: %s", g_strerror(code));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED, _("Couldn't reach PipeWire: %s"), g_strerror(code));
     return NULL;
   }
   pw_core_add_listener(stream->core, &stream->core_listener, &waytator_record_stream_core_events, stream);
@@ -902,7 +904,7 @@ waytator_record_stream_new(int                             fd,
     const int code = errno;
 
     pw_thread_loop_unlock(stream->shared->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't make a PipeWire stream: %s", g_strerror(code));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't make a PipeWire stream: %s"), g_strerror(code));
     return NULL;
   }
   stream->shared->stream = stream->stream;
@@ -920,14 +922,14 @@ waytator_record_stream_new(int                             fd,
                           n_params);
   if (ret < 0) {
     pw_thread_loop_unlock(stream->shared->loop);
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't connect to the screen cast: %s", g_strerror(-ret));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't connect to the screen cast: %s"), g_strerror(-ret));
     return NULL;
   }
 
   ret = pw_thread_loop_start(stream->shared->loop);
   pw_thread_loop_unlock(stream->shared->loop);
   if (ret < 0) {
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, "Couldn't start PipeWire: %s", g_strerror(-ret));
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_FAILED, _("Couldn't start PipeWire: %s"), g_strerror(-ret));
     return NULL;
   }
 

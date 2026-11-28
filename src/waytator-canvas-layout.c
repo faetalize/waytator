@@ -1,5 +1,6 @@
 #include "waytator-window-private.h"
 
+#include <glib/gi18n.h>
 #include <math.h>
 
 #define WAYTATOR_MIN_ZOOM 0.10
@@ -36,7 +37,7 @@ waytator_window_update_zoom_label(WaytatorWindow *self)
 {
   const gboolean fitted = self->texture != NULL && self->fit_mode;
   g_autofree char *label = self->texture != NULL
-                         ? g_strdup_printf("%.0f%%", waytator_window_get_effective_zoom(self) * 100.0)
+                         ? g_strdup_printf(_("%.0f%%"), waytator_window_get_effective_zoom(self) * 100.0)
                          : g_strdup("--");
 
   //every Fit button shows whether fit is on: the pill's, its drawer's and the main menu's
@@ -324,7 +325,7 @@ waytator_window_sync_state(WaytatorWindow *self)
     self->zoom = 1.0;
     self->fit_mode = TRUE;
     self->drawing = FALSE;
-    gtk_label_set_text(self->file_label, "no image loaded");
+    gtk_label_set_text(self->file_label, _("no image loaded"));
     waytator_window_update_zoom_label(self);
     waytator_window_update_tool_ui(self);
     waytator_window_update_chrome_layout(self);

@@ -2,12 +2,15 @@
 #define _DEFAULT_SOURCE
 
 #include <adwaita.h>
+#include <glib/gi18n.h>
+#include <locale.h>
 #include <gio/gunixinputstream.h>
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "waytator-capture.h"
+#include "waytator-config.h"
 #include "waytator-command-line.h"
 #include "waytator-export.h"
 #include "waytator-instance.h"
@@ -86,7 +89,7 @@ app_read_stream_bytes(GInputStream *stream,
     g_set_error(error,
                 G_IO_ERROR,
                 G_IO_ERROR_INVALID_ARGUMENT,
-                "No image data was provided on stdin");
+                _("No image data was provided on stdin"));
     return NULL;
   }
 
@@ -196,7 +199,7 @@ app_command_line_notify(GApplication            *app,
   if (notification == NULL)
     return;
 
-  waytator_notification_post(notification, "Waytator command failed", message);
+  waytator_notification_post(notification, _("Waytator command failed"), message);
   waytator_notification_free(notification);
   //with nothing left open this waytator quits right after, the notification has to be out first
   g_dbus_connection_flush_sync(g_application_get_dbus_connection(app), NULL, NULL);
@@ -288,54 +291,58 @@ app_open(GApplication  *app,
   window = waytator_window_for_new_image(GTK_APPLICATION(app));
 
   if (n_files > 0 && files[0] != NULL && !waytator_window_open_file(window, files[0], &error)) {
-    g_printerr("Error loading image: %s\n", error->message);
+    g_printerr(_("Error loading image: %s\n"), error->message);
     return;
   }
 
   gtk_window_present(GTK_WINDOW(window));
 }
 
-#define APP_USAGE \
-  "Usage: %s [OPTIONS] [IMAGE|VIDEO|-|--stdin]\n" \
-  "\n" \
-  "  --name NAME                             Name for an image or video read from stdin\n" \
-  "  --save-path PATH                        Where Save puts an image read from stdin,\n" \
-  "                                          without asking. PATH includes the file\n" \
-  "                                          name, its extension picks the format,\n" \
-  "                                          and a file already there is overwritten\n" \
-  "  --screenshot [area|screen]              Take a screenshot, of an area unless told\n" \
-  "                                          otherwise. Opens the editor unless that's\n" \
-  "                                          turned off in Preferences\n" \
-  "  --record [area|screen|window]           Record the screen, an area unless told\n" \
-  "                                          otherwise. Run it again while recording\n" \
-  "                                          to stop. Opens the editor unless that's\n" \
-  "                                          turned off in Preferences\n" \
-  "  --screen NAME                           With --screenshot or --record: use this\n" \
-  "                                          screen, e.g. DP-1. Doesn't support GNOME\n" \
-  "  --notify                                Use with --screenshot or --record. Shows\n" \
-  "                                          a notification after the capture that\n" \
-  "                                          lets you edit it, instead of opening the\n" \
-  "                                          editor. Saves and copies as set in\n" \
-  "                                          Preferences\n" \
-  "  --gapplication-service                  Run as a background application service\n" \
-  "  --delay SECONDS                         With --screenshot: wait this many whole\n" \
-  "                                          seconds first, at most 300. With --record:\n" \
-  "                                          count down this long before recording\n" \
-  "  --close-on-copy, --no-close-on-copy     Override the \"Close on copy\" preference\n" \
-  "  --close-window-shortcut SHORTCUT        Override a shortcut for this launch\n" \
-  "  --copy-shortcut SHORTCUT\n" \
-  "  --copy-without-closing-shortcut SHORTCUT\n" \
-  "  --save-shortcut SHORTCUT\n" \
-  "  --save-and-close-shortcut SHORTCUT\n" \
-  "  --save-copy-and-close-shortcut SHORTCUT\n" \
-  "  --screenshot-area-shortcut SHORTCUT\n" \
-  "  --screenshot-screen-shortcut SHORTCUT\n" \
-  "\n" \
-  "SHORTCUT is a key, or modifiers and a key joined with \"+\", for example\n" \
-  "\"s\", \"F5\", \"escape\", \"ctrl+s\" or \"ctrl+shift+s\". It can also be\n" \
-  "\"right-click\", a tablet button such as \"tablet-button-1\", or \"none\" to\n" \
-  "unassign. Modifiers are ctrl, shift, alt and super. Overrides last for this\n" \
-  "launch only.\n"
+static const char *
+app_usage(void)
+{
+  /* Translators: Keep CLI flags, argument values, and shortcut examples unchanged. */
+  return _("Usage: %s [OPTIONS] [IMAGE|VIDEO|-|--stdin]\n"
+           "\n"
+           "  --name NAME                             Name for an image or video read from stdin\n"
+           "  --save-path PATH                        Where Save puts an image read from stdin,\n"
+           "                                          without asking. PATH includes the file\n"
+           "                                          name, its extension picks the format,\n"
+           "                                          and a file already there is overwritten\n"
+           "  --screenshot [area|screen]              Take a screenshot, of an area unless told\n"
+           "                                          otherwise. Opens the editor unless that's\n"
+           "                                          turned off in Preferences\n"
+           "  --record [area|screen|window]           Record the screen, an area unless told\n"
+           "                                          otherwise. Run it again while recording\n"
+           "                                          to stop. Opens the editor unless that's\n"
+           "                                          turned off in Preferences\n"
+           "  --screen NAME                           With --screenshot or --record: use this\n"
+           "                                          screen, e.g. DP-1. Doesn't support GNOME\n"
+           "  --notify                                Use with --screenshot or --record. Shows\n"
+           "                                          a notification after the capture that\n"
+           "                                          lets you edit it, instead of opening the\n"
+           "                                          editor. Saves and copies as set in\n"
+           "                                          Preferences\n"
+           "  --gapplication-service                  Run as a background application service\n"
+           "  --delay SECONDS                         With --screenshot: wait this many whole\n"
+           "                                          seconds first, at most 300. With --record:\n"
+           "                                          count down this long before recording\n"
+           "  --close-on-copy, --no-close-on-copy     Override the \"Close on copy\" preference\n"
+           "  --close-window-shortcut SHORTCUT        Override a shortcut for this launch\n"
+           "  --copy-shortcut SHORTCUT\n"
+           "  --copy-without-closing-shortcut SHORTCUT\n"
+           "  --save-shortcut SHORTCUT\n"
+           "  --save-and-close-shortcut SHORTCUT\n"
+           "  --save-copy-and-close-shortcut SHORTCUT\n"
+           "  --screenshot-area-shortcut SHORTCUT\n"
+           "  --screenshot-screen-shortcut SHORTCUT\n"
+           "\n"
+           "SHORTCUT is a key, or modifiers and a key joined with \"+\", for example\n"
+           "\"s\", \"F5\", \"escape\", \"ctrl+s\" or \"ctrl+shift+s\". It can also be\n"
+           "\"right-click\", a tablet button such as \"tablet-button-1\", or \"none\" to\n"
+           "unassign. Modifiers are ctrl, shift, alt and super. Overrides last for this\n"
+           "launch only.\n");
+}
 
 static const struct {
   const char *option;
@@ -447,7 +454,7 @@ app_edit_recording(GFile   *file,
   app_apply_overrides(window, overrides->close_on_copy, (const char *const *) overrides->shortcuts);
 
   if (!waytator_window_open_file(window, file, &error)) {
-    g_printerr("Error loading the recording: %s\n", error->message);
+    g_printerr(_("Error loading the recording: %s\n"), error->message);
     return;
   }
 
@@ -573,7 +580,7 @@ app_command_line(GApplication            *app,
     if (shortcut_option >= 0) {
       if (i + 1 >= argc) {
         app_command_line_fail(app, command_line,
-                              "Missing value for %s",
+                              _("Missing value for %s"),
                               arguments[i]);
         status = 1;
         goto done;
@@ -581,7 +588,7 @@ app_command_line(GApplication            *app,
 
       if (!waytator_window_shortcut_is_valid(arguments[i + 1])) {
         app_command_line_fail(app, command_line,
-                              "Invalid shortcut for %s: %s",
+                              _("Invalid shortcut for %s: %s"),
                               arguments[i],
                               arguments[i + 1]);
         status = 1;
@@ -616,7 +623,7 @@ app_command_line(GApplication            *app,
       } else if (i + 1 < argc && arguments[i + 1][0] != '-') {
         //an image cannot go with a capture anyway, so this is most likely a mistyped mode
         app_command_line_fail(app, command_line,
-                              "Unknown screenshot mode \"%s\", use area or screen",
+                              _("Unknown screenshot mode \"%s\", use area or screen"),
                               arguments[i + 1]);
         status = 1;
         goto done;
@@ -642,7 +649,7 @@ app_command_line(GApplication            *app,
         i++;
       } else if (i + 1 < argc && arguments[i + 1][0] != '-') {
         app_command_line_fail(app, command_line,
-                              "Unknown recording mode \"%s\", use area, screen or window",
+                              _("Unknown recording mode \"%s\", use area, screen or window"),
                               arguments[i + 1]);
         status = 1;
         goto done;
@@ -659,7 +666,7 @@ app_command_line(GApplication            *app,
     if (g_strcmp0(arguments[i], "--delay") == 0) {
       if (i + 1 >= argc) {
         app_command_line_fail(app, command_line,
-                              "Missing value for --delay");
+                              _("Missing value for --delay"));
         status = 1;
         goto done;
       }
@@ -667,7 +674,7 @@ app_command_line(GApplication            *app,
       delay_text = arguments[++i];
       if (!app_parse_delay(delay_text, &delay_seconds)) {
         app_command_line_fail(app, command_line,
-                              "--delay takes a whole number of seconds from 0 to %d, not \"%s\"",
+                              _("--delay takes a whole number of seconds from 0 to %d, not \"%s\""),
                               WAYTATOR_MAX_CAPTURE_DELAY,
                               delay_text);
         status = 1;
@@ -680,7 +687,7 @@ app_command_line(GApplication            *app,
     if (g_strcmp0(arguments[i], "--screen") == 0) {
       if (i + 1 >= argc) {
         app_command_line_fail(app, command_line,
-                              "Missing value for --screen");
+                              _("Missing value for --screen"));
         status = 1;
         goto done;
       }
@@ -690,14 +697,14 @@ app_command_line(GApplication            *app,
     }
 
     if (g_strcmp0(arguments[i], "--help") == 0 || g_strcmp0(arguments[i], "-h") == 0) {
-      g_application_command_line_print(command_line, APP_USAGE, arguments[0]);
+      g_application_command_line_print(command_line, app_usage(), arguments[0]);
       goto done;
     }
 
     if (g_strcmp0(arguments[i], "--name") == 0) {
       if (i + 1 >= argc) {
         app_command_line_fail(app, command_line,
-                              "Missing value for --name");
+                              _("Missing value for --name"));
         status = 1;
         goto done;
       }
@@ -705,7 +712,7 @@ app_command_line(GApplication            *app,
       stdin_name = arguments[++i];
     } else if (g_strcmp0(arguments[i], "--save-path") == 0) {
       if (i + 1 >= argc) {
-        app_command_line_fail(app, command_line, "Missing value for --save-path");
+        app_command_line_fail(app, command_line, _("Missing value for --save-path"));
         status = 1;
         goto done;
       }
@@ -730,7 +737,7 @@ app_command_line(GApplication            *app,
       use_stdin = TRUE;
     } else if (arguments[i][0] == '-') {
       app_command_line_fail(app, command_line,
-                            "Unknown option: %s",
+                            _("Unknown option: %s"),
                             arguments[i]);
       status = 1;
       goto done;
@@ -738,8 +745,8 @@ app_command_line(GApplication            *app,
       file_arg = arguments[i];
       file = g_application_command_line_create_file_for_arg(command_line, arguments[i]);
     } else {
-      g_application_command_line_printerr(command_line, APP_USAGE, arguments[0]);
-      app_command_line_notify(app, command_line, "Only one image can be opened at a time");
+      g_application_command_line_printerr(command_line, app_usage(), arguments[0]);
+      app_command_line_notify(app, command_line, _("Only one image can be opened at a time"));
       status = 1;
       goto done;
     }
@@ -747,14 +754,14 @@ app_command_line(GApplication            *app,
 
   if (screenshot && record) {
     app_command_line_fail(app, command_line,
-                          "--screenshot and --record cannot be used together");
+                          _("--screenshot and --record cannot be used together"));
     status = 1;
     goto done;
   }
 
   if ((screenshot || record) && (use_stdin || file != NULL)) {
     app_command_line_fail(app, command_line,
-                          "%s cannot be combined with an image to open",
+                          _("%s cannot be combined with an image to open"),
                           screenshot ? "--screenshot" : "--record");
     status = 1;
     goto done;
@@ -789,21 +796,21 @@ app_command_line(GApplication            *app,
   if (capture_screen != NULL) {
     if (!screenshot && !record) {
       app_command_line_fail(app, command_line,
-                            "--screen only works with --screenshot or --record");
+                            _("--screen only works with --screenshot or --record"));
       status = 1;
       goto done;
     }
 
     //GNOME's screenshot UI is where the screen is picked there, and nothing can pick it beforehand
     if (waytator_capture_uses_gnome_ui()) {
-      app_command_line_fail(app, command_line, "--screen doesn't support GNOME");
+      app_command_line_fail(app, command_line, _("--screen doesn't support GNOME"));
       status = 1;
       goto done;
     }
 
     if (capture_mode_given != NULL) {
       app_command_line_fail(app, command_line,
-                            "--screen captures a whole screen, remove \"%s\" from your command",
+                            _("--screen captures a whole screen, remove \"%s\" from your command"),
                             capture_mode_given);
       status = 1;
       goto done;
@@ -814,14 +821,14 @@ app_command_line(GApplication            *app,
 
   if (delay_text != NULL && !screenshot && !record) {
     app_command_line_fail(app, command_line,
-                          "--delay only works with --screenshot or --record");
+                          _("--delay only works with --screenshot or --record"));
     status = 1;
     goto done;
   }
 
   if (notify && !screenshot && !record) {
     app_command_line_fail(app, command_line,
-                          "--notify only works with --screenshot or --record");
+                          _("--notify only works with --screenshot or --record"));
     status = 1;
     goto done;
   }
@@ -897,17 +904,17 @@ app_command_line(GApplication            *app,
     g_autofree char *save_name = NULL;
 
     if (stream == NULL)
-      g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT, "No image data was provided on stdin");
+      g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT, _("No image data was provided on stdin"));
     head = stream != NULL ? app_read_stream_head(stream, &error) : NULL;
     //a video is read as it arrives, it can be far too big to hold, and it opens once the pipe closes
     if (head != NULL && waytator_video_editor_handles_data(head)) {
       if (save_path != NULL) {
-        app_command_line_fail(app, command_line, "--save-path only works with images, not videos");
+        app_command_line_fail(app, command_line, _("--save-path only works with images, not videos"));
         status = 1;
         goto failed_to_open;
       }
 
-      waytator_window_open_video_stream(window, stream, head, stdin_name != NULL ? stdin_name : "Video");
+      waytator_window_open_video_stream(window, stream, head, stdin_name != NULL ? stdin_name : _("Video"));
       gtk_window_present(GTK_WINDOW(window));
       goto done;
     }
@@ -922,7 +929,7 @@ app_command_line(GApplication            *app,
                                        save_path,
                                        &error)) {
       app_command_line_fail(app, command_line,
-                            "Error loading image from stdin: %s",
+                            _("Error loading image from stdin: %s"),
                             error->message);
       status = 1;
       goto failed_to_open;
@@ -930,7 +937,7 @@ app_command_line(GApplication            *app,
   } else if (file != NULL) {
     if (!waytator_window_open_file(window, file, &error)) {
       app_command_line_fail(app, command_line,
-                            "Error loading image '%s': %s",
+                            _("Error loading image '%s': %s"),
                             file_arg,
                             error->message);
       status = 1;
@@ -1077,6 +1084,11 @@ main(int   argc,
   char **stdin_argv = NULL;
   int run_argc = argc;
   int status;
+
+  setlocale(LC_ALL, "");
+  bindtextdomain("waytator", WAYTATOR_LOCALEDIR);
+  bind_textdomain_codeset("waytator", "UTF-8");
+  textdomain("waytator");
 
   if (argc == 1 && app_should_read_stdin()) {
     stdin_argv = g_new0(char *, 3);

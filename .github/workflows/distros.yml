@@ -22,13 +22,13 @@ jobs:
             image: archlinux:latest
             install: >-
               pacman -Syu --noconfirm --needed
-              git gcc meson ninja pkgconf glib2 gtk4 libadwaita gtk4-layer-shell wayland wayland-protocols
+              git gcc meson ninja pkgconf gettext glib2 gtk4 libadwaita gtk4-layer-shell wayland wayland-protocols
               ffmpeg libva libdrm mesa libglvnd pipewire rubberband dbus
           - name: Debian 13
             image: debian:13
             install: >-
               apt-get update && apt-get install -y --no-install-recommends
-              ca-certificates git gcc libc6-dev meson ninja-build pkg-config libglib2.0-dev libglib2.0-dev-bin
+              ca-certificates git gcc libc6-dev meson ninja-build pkg-config gettext libglib2.0-dev libglib2.0-dev-bin
               libgtk-4-dev libadwaita-1-dev libgtk4-layer-shell-dev libwayland-dev libwayland-bin wayland-protocols
               libavformat-dev libavcodec-dev libavfilter-dev libavutil-dev libswscale-dev libswresample-dev
               libva-dev libdrm-dev libgbm-dev libegl-dev libpipewire-0.3-dev librubberband-dev dbus
