@@ -5,6 +5,8 @@
 
 static const char *const *fake_missing;
 static const char *const *fake_gpu_works;
+//encoders on the cpu that ffmpeg has but that don't open
+static const char *const *fake_cpu_broken;
 static gboolean fake_gifski;
 static int fake_gpu_checks;
 
@@ -28,6 +30,16 @@ fake_has_gifski(void)
 }
 
 static void
+fake_cpu_encodes(const char *const *names,
+                 gboolean          *works)
+{
+  for (guint i = 0; names[i] != NULL; i++) {
+    g_assert_true(fake_has_encoder(names[i]));
+    works[i] = !fake_listed(fake_cpu_broken, names[i]);
+  }
+}
+
+static void
 fake_gpu_encodes(const char *const *names,
                  gboolean          *works)
 {
@@ -41,6 +53,7 @@ fake_gpu_encodes(const char *const *names,
 static const WaytatorVideoSupportLookup fake_lookup = {
   .has_encoder = fake_has_encoder,
   .has_gifski = fake_has_gifski,
+  .cpu_encodes = fake_cpu_encodes,
   .gpu_encodes = fake_gpu_encodes,
 };
 
@@ -51,6 +64,7 @@ fake_use(const char *const *missing,
   fake_missing = missing;
   fake_gpu_works = gpu_works;
   fake_gifski = FALSE;
+  fake_cpu_broken = NULL;
   fake_gpu_checks = 0;
   waytator_video_support_set_lookup(&fake_lookup);
 }
@@ -64,16 +78,16 @@ check_done(GObject      *source_object,
 
   (void) source_object;
 
-  g_assert_true(waytator_video_support_check_gpu_finish(result, NULL));
+  g_assert_true(waytator_video_support_check_finish(result, NULL));
   *done = TRUE;
 }
 
 static void
-check_gpu(void)
+check_encoders(void)
 {
   gboolean done = FALSE;
 
-  waytator_video_support_check_gpu_async(NULL, check_done, &done);
+  waytator_video_support_check_async(NULL, check_done, &done);
   while (!done)
     g_main_context_iteration(NULL, TRUE);
 }
@@ -107,7 +121,7 @@ test_no_patented_encoders(void)
   g_assert_null(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE));
   assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
 
-  check_gpu();
+  check_encoders();
   g_assert_cmpint(fake_gpu_checks, ==, 1);
 
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_AUTO),
@@ -145,8 +159,8 @@ test_gpu_checked_once(void)
   static const char *const gpu_works[] = { "hevc_vaapi", NULL };
 
   fake_use(missing, gpu_works);
-  check_gpu();
-  check_gpu();
+  check_encoders();
+  check_encoders();
   g_assert_cmpint(fake_gpu_checks, ==, 1);
 
   //HEVC on the gpu only: fine unless the profile insists on the processor
@@ -183,7 +197,7 @@ test_no_advice_before_check(void)
   fake_use(missing, NULL);
   assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
 
-  check_gpu();
+  check_encoders();
   assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
                 "Not available on this system");
@@ -201,8 +215,42 @@ test_gifski_makes_gifs(void)
 
   fake_gifski = TRUE;
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_GIF, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
-  check_gpu();
+  check_encoders();
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_GIF, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
+}
+
+//ffmpeg lists openh264, which turns out to be a stand-in that can't open, and the gpu turns H.264 down too
+static void
+test_cpu_encoder_that_does_not_open(void)
+{
+  static const char *const missing[] = { "libx264", NULL };
+  static const char *const broken[] = { "libopenh264", "libsvtav1", NULL };
+  static const char *const gpu_works[] = { "h264_vaapi", NULL };
+
+  fake_use(missing, NULL);
+  fake_cpu_broken = broken;
+  //listed is all there is to go on until it has been tried
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
+
+  check_encoders();
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO),
+                "Not available on this system");
+  g_assert_cmpstr(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
+                  ==, "Not available for this format");
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
+  //an export takes the first encoder ffmpeg has, so one further down that would open doesn't help
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_AV1, WAYTATOR_VIDEO_ENCODER_AUTO),
+                "Not available on this system");
+
+  //with a gpu that can, only the processor is out
+  fake_use(missing, gpu_works);
+  fake_cpu_broken = broken;
+  check_encoders();
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
+                "The processor can't encode H.264 on this system");
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
+              "Not available, pick Automatic");
 }
 
 static void
@@ -215,7 +263,7 @@ cancelled_done(GObject      *source_object,
 
   (void) source_object;
 
-  g_assert_false(waytator_video_support_check_gpu_finish(result, &error));
+  g_assert_false(waytator_video_support_check_finish(result, &error));
   g_assert_error(error, G_IO_ERROR, G_IO_ERROR_CANCELLED);
   *done = TRUE;
 }
@@ -228,12 +276,12 @@ test_cancelled(void)
   gboolean done = FALSE;
 
   fake_use(NULL, NULL);
-  waytator_video_support_check_gpu_async(cancellable, cancelled_done, &done);
+  waytator_video_support_check_async(cancellable, cancelled_done, &done);
   g_cancellable_cancel(cancellable);
   while (!done)
     g_main_context_iteration(NULL, TRUE);
 
-  check_gpu();
+  check_encoders();
   g_assert_cmpint(fake_gpu_checks, ==, 1);
   assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE),
                 "Not available, using the processor");
@@ -249,6 +297,7 @@ main(int   argc,
   g_test_add_func("/video-support/gpu-checked-once", test_gpu_checked_once);
   g_test_add_func("/video-support/no-encoder-known-before-gpu", test_no_encoder_known_before_gpu);
   g_test_add_func("/video-support/cancelled", test_cancelled);
+  g_test_add_func("/video-support/cpu-encoder-that-does-not-open", test_cpu_encoder_that_does_not_open);
   g_test_add_func("/video-support/gifski-makes-gifs", test_gifski_makes_gifs);
   g_test_add_func("/video-support/no-advice-before-check", test_no_advice_before_check);
 

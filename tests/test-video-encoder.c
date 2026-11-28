@@ -1,4 +1,5 @@
-//which va-api drivers get B-frames from h264_vaapi, read from the vendor string they name themselves with
+//which va-api drivers get B-frames from h264_vaapi, read from the vendor string they name themselves with,
+//and that the check of the encoders on the cpu opens the ones that work
 #include <glib.h>
 
 #include "waytator-video-encoder.h"
@@ -50,6 +51,29 @@ test_b_frames(void)
   }
 }
 
+//a format is greyed out when its encoder doesn't open for the check, so one that works has to
+static void
+test_software_probe(void)
+{
+  static const char *const unknown[] = { "no-such-encoder", NULL };
+  gboolean works = TRUE;
+
+  for (WaytatorVideoCodec codec = WAYTATOR_VIDEO_CODEC_H264; codec < WAYTATOR_VIDEO_CODEC_GIF; codec++) {
+    const char *name = waytator_video_encoder_find_software(codec, waytator_video_encoder_exists);
+    const char *const names[] = { name, NULL };
+
+    if (name == NULL)
+      continue;
+    g_test_message("%s", name);
+    works = FALSE;
+    waytator_video_encoder_probe_software(names, &works);
+    g_assert_true(works);
+  }
+
+  waytator_video_encoder_probe_software(unknown, &works);
+  g_assert_false(works);
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -57,6 +81,7 @@ main(int   argc,
   g_test_init(&argc, &argv, NULL);
 
   g_test_add_func("/video-encoder/b-frames", test_b_frames);
+  g_test_add_func("/video-encoder/software-probe", test_software_probe);
 
   return g_test_run();
 }

@@ -42,9 +42,20 @@ char *waytator_video_encoder_find_gifski(void);
 const char *const *waytator_video_encoder_get_names(WaytatorVideoCodec codec,
                                                     gboolean           hardware);
 
+//whether ffmpeg has the encoder called name, which doesn't say that it opens
+gboolean waytator_video_encoder_exists(const char *name);
+//the encoder on the cpu that choose takes for codec, going by has_encoder, NULL when there is none
+const char *waytator_video_encoder_find_software(WaytatorVideoCodec codec,
+                                                 gboolean         (*has_encoder)(const char *name));
+
 //for each encoder in names, whether the gpu really encodes with it, into works. opens the gpu and an encoder
 //for each, so it takes a while: call it from a worker thread
 void waytator_video_encoder_probe_hardware(const char *const *names,
+                                           gboolean          *works);
+
+//for each encoder in names, which are for the cpu, whether it opens, into works. takes a while too: call it
+//from a worker thread
+void waytator_video_encoder_probe_software(const char *const *names,
                                            gboolean          *works);
 
 //on the gpu unless preference says the cpu or the gpu can't encode a width by height picture in codec, on

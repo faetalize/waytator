@@ -660,7 +660,7 @@ waytator_window_video_profiles_checked(GObject      *source_object,
 
   (void) source_object;
 
-  waytator_video_support_check_gpu_finish(result, NULL);
+  waytator_video_support_check_finish(result, NULL);
   for (GtkWidget *row = gtk_widget_get_first_child(list); row != NULL; row = gtk_widget_get_next_sibling(row)) {
     const char *id = g_object_get_data(G_OBJECT(row), "profile-id");
 
@@ -722,8 +722,8 @@ waytator_window_video_ask_profile(WaytatorWindowVideoChoice *choice)
   }
   g_signal_connect(list, "row-activated", G_CALLBACK(waytator_window_video_profile_activated), choice);
   adw_alert_dialog_set_extra_child(ADW_ALERT_DIALOG(dialog), list);
-  //whether the gpu can make a format is only known once it has been tried
-  waytator_video_support_check_gpu_async(NULL, waytator_window_video_profiles_checked, g_object_ref(list));
+  //whether an encoder works is only known once it has been tried
+  waytator_video_support_check_async(NULL, waytator_window_video_profiles_checked, g_object_ref(list));
   adw_alert_dialog_add_response(ADW_ALERT_DIALOG(dialog), "cancel", "_Cancel");
   adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
   g_signal_connect(dialog, "closed", G_CALLBACK(waytator_window_video_profiles_closed), choice);
@@ -934,7 +934,7 @@ waytator_video_profiles_checked(GObject      *source_object,
 
   (void) source_object;
 
-  waytator_video_support_check_gpu_finish(result, NULL);
+  waytator_video_support_check_finish(result, NULL);
   for (guint i = 0; page != NULL && i < page->rows->len; i++) {
     AdwExpanderRow *expander = g_ptr_array_index(page->rows, i);
 
@@ -943,14 +943,14 @@ waytator_video_profiles_checked(GObject      *source_object,
   }
 }
 
-//the gpu is tried the first time the profiles are shown, never sooner
+//the encoders are tried the first time the profiles are shown, never at startup
 static void
 waytator_video_profiles_mapped(GtkWidget *preferences,
                                gpointer   user_data)
 {
   (void) user_data;
 
-  waytator_video_support_check_gpu_async(NULL, waytator_video_profiles_checked, g_object_ref(preferences));
+  waytator_video_support_check_async(NULL, waytator_video_profiles_checked, g_object_ref(preferences));
 }
 
 static void

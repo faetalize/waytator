@@ -157,6 +157,25 @@ waytator_video_encoder_get_names(WaytatorVideoCodec codec,
   }
 }
 
+gboolean
+waytator_video_encoder_exists(const char *name)
+{
+  return avcodec_find_encoder_by_name(name) != NULL;
+}
+
+const char *
+waytator_video_encoder_find_software(WaytatorVideoCodec codec,
+                                     gboolean         (*has_encoder)(const char *name))
+{
+  const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
+
+  for (guint i = 0; names[i] != NULL; i++) {
+    if (has_encoder(names[i]))
+      return names[i];
+  }
+  return NULL;
+}
+
 //whether the gpu really encodes this, which the encoder existing in ffmpeg doesn't say
 static gboolean
 waytator_video_encoder_hardware_encodes(const AVCodec *codec,
@@ -187,6 +206,41 @@ waytator_video_encoder_hardware_encodes(const AVCodec *codec,
   return works;
 }
 
+//whether an encoder on the cpu really opens, which ffmpeg having it doesn't say: it can be a stand-in for a
+//library that was left out
+static gboolean
+waytator_video_encoder_software_opens(const AVCodec *codec)
+{
+  AVCodecContext *context = avcodec_alloc_context3(codec);
+  gboolean opens = FALSE;
+
+  if (context != NULL) {
+    context->width = 640;
+    context->height = 360;
+    context->pix_fmt = AV_PIX_FMT_YUV420P;
+    context->time_base = (AVRational) { 1, 30 };
+    context->framerate = (AVRational) { 30, 1 };
+    //the fastest settings, which are the quickest to open too
+    waytator_video_encoder_configure(context, -1, 1.0, WAYTATOR_VIDEO_ENCODE_LIVE);
+    context->thread_count = 1;
+    opens = avcodec_open2(context, codec, NULL) >= 0;
+  }
+
+  avcodec_free_context(&context);
+  return opens;
+}
+
+void
+waytator_video_encoder_probe_software(const char *const *names,
+                                      gboolean          *works)
+{
+  for (guint i = 0; names[i] != NULL; i++) {
+    const AVCodec *found = avcodec_find_encoder_by_name(names[i]);
+
+    works[i] = found != NULL && waytator_video_encoder_software_opens(found);
+  }
+}
+
 void
 waytator_video_encoder_probe_hardware(const char *const *names,
                                       gboolean          *works)
@@ -211,6 +265,7 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
                               GError                    **error)
 {
   const char *const *names;
+  const char *software;
 
   waytator_video_encoder_choice_clear(choice);
 
@@ -235,11 +290,13 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
   if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE)
     g_debug("No hardware encoder for this profile here, encoding on the cpu");
 
-  names = waytator_video_encoder_get_names(codec, FALSE);
-  for (guint i = 0; names[i] != NULL && choice->codec == NULL; i++)
-    choice->codec = avcodec_find_encoder_by_name(names[i]);
+  software = waytator_video_encoder_find_software(codec, waytator_video_encoder_exists);
+  if (software != NULL)
+    choice->codec = avcodec_find_encoder_by_name(software);
 
   if (choice->codec == NULL) {
+    names = waytator_video_encoder_get_names(codec, FALSE);
+
     g_autofree char *wanted = g_strjoinv(", ", (char **) names);
 
     g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
