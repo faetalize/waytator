@@ -44,8 +44,10 @@ const char *const *waytator_video_encoder_get_names(WaytatorVideoCodec codec,
 
 //whether ffmpeg has the encoder called name, which doesn't say that it opens
 gboolean waytator_video_encoder_exists(const char *name);
-//the encoder on the cpu that choose takes for codec, going by has_encoder, NULL when there is none
+//the encoder on the cpu that choose takes for codec, going by has_encoder, NULL when there is none. with
+//after, the one an export tries once the encoder called after doesn't open, in the same order
 const char *waytator_video_encoder_find_software(WaytatorVideoCodec codec,
+                                                 const char        *after,
                                                  gboolean         (*has_encoder)(const char *name));
 
 //for each encoder in names, whether the gpu really encodes with it, into works. opens the gpu and an encoder

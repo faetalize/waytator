@@ -165,13 +165,16 @@ waytator_video_encoder_exists(const char *name)
 
 const char *
 waytator_video_encoder_find_software(WaytatorVideoCodec codec,
+                                     const char        *after,
                                      gboolean         (*has_encoder)(const char *name))
 {
   const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
+  gboolean past = after == NULL;
 
   for (guint i = 0; names[i] != NULL; i++) {
-    if (has_encoder(names[i]))
+    if (past && has_encoder(names[i]))
       return names[i];
+    past = past || g_str_equal(names[i], after);
   }
   return NULL;
 }
@@ -243,13 +246,11 @@ waytator_video_encoder_find_working_software(WaytatorVideoCodec codec,
                                              gboolean         (*has_encoder)(const char *name),
                                              gboolean         (*cpu_opens)(const char *name))
 {
-  const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
+  const char *name = waytator_video_encoder_find_software(codec, NULL, has_encoder);
 
-  for (guint i = 0; names[i] != NULL; i++) {
-    if (has_encoder(names[i]) && cpu_opens(names[i]))
-      return names[i];
-  }
-  return NULL;
+  while (name != NULL && !cpu_opens(name))
+    name = waytator_video_encoder_find_software(codec, name, has_encoder);
+  return name;
 }
 
 //the size the gpu is tried at to see whether it encodes a format at all, a common one that the gpus that
@@ -312,7 +313,7 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
                               WaytatorVideoEncoderChoice *choice,
                               GError                    **error)
 {
-  const char *software = waytator_video_encoder_find_software(codec, has_encoder);
+  const char *software = waytator_video_encoder_find_software(codec, NULL, has_encoder);
   AVBufferRef *device = NULL;
   gboolean other_sizes;
   g_autofree char *wanted = NULL;
@@ -362,22 +363,18 @@ waytator_video_encoder_choose_next_software(WaytatorVideoCodec          codec,
                                             gboolean                  (*has_encoder)(const char *name),
                                             WaytatorVideoEncoderChoice *choice)
 {
-  const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
-  gboolean past = FALSE;
+  const char *next;
+  const AVCodec *found;
 
   if (choice->codec == NULL || choice->device != NULL)
     return FALSE;
 
-  for (guint i = 0; names[i] != NULL; i++) {
-    const AVCodec *found = past && has_encoder(names[i]) ? avcodec_find_encoder_by_name(names[i]) : NULL;
-
-    if (found != NULL) {
-      choice->codec = found;
-      return TRUE;
-    }
-    past = past || g_str_equal(names[i], choice->codec->name);
-  }
-  return FALSE;
+  next = waytator_video_encoder_find_software(codec, choice->codec->name, has_encoder);
+  found = next != NULL ? avcodec_find_encoder_by_name(next) : NULL;
+  if (found == NULL)
+    return FALSE;
+  choice->codec = found;
+  return TRUE;
 }
 
 void

@@ -76,7 +76,7 @@ static void
 test_software_probe(void)
 {
   for (WaytatorVideoCodec codec = WAYTATOR_VIDEO_CODEC_H264; codec < WAYTATOR_VIDEO_CODEC_GIF; codec++) {
-    const char *name = waytator_video_encoder_find_software(codec, waytator_video_encoder_exists);
+    const char *name = waytator_video_encoder_find_software(codec, NULL, waytator_video_encoder_exists);
 
     if (name == NULL)
       continue;

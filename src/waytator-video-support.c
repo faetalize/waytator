@@ -65,7 +65,7 @@ waytator_video_support_cpu_may_encode(WaytatorVideoCodec codec)
     return TRUE;
   if (waytator_video_support_cpu[codec] != WAYTATOR_VIDEO_UNCHECKED)
     return waytator_video_support_cpu[codec] == WAYTATOR_VIDEO_ENCODES;
-  return waytator_video_encoder_find_software(codec, waytator_video_support_lookup->has_encoder) != NULL;
+  return waytator_video_encoder_find_software(codec, NULL, waytator_video_support_lookup->has_encoder) != NULL;
 }
 
 //the same for the gpu
