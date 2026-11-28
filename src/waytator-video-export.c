@@ -365,16 +365,10 @@ waytator_export_pick_encoder(WaytatorExporter *exporter,
                                      waytator_video_encoder_exists, &exporter->choice, &choose_error)) {
     //no encoder at all is said in the profile's terms, FFmpeg's encoder names mean nothing to most people
     if (g_error_matches(choose_error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED)) {
-      const char *codec = waytator_video_codec_get_name(profile->codec);
+      g_autofree char *message = waytator_video_profile_describe_unavailable(profile);
 
       g_debug("%s", choose_error->message);
-      if (preference == WAYTATOR_VIDEO_ENCODER_SOFTWARE)
-        g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-                    "The “%s” profile is set to the processor, which can't encode %s on this system",
-                    profile->name, codec);
-      else
-        g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-                    "The “%s” profile uses %s, which isn't available on this system", profile->name, codec);
+      g_set_error_literal(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED, message);
       return FALSE;
     }
     //the profile list offers the format, so what fails is this video's size

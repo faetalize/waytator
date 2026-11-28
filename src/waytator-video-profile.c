@@ -65,6 +65,18 @@ waytator_video_codec_get_name(WaytatorVideoCodec codec)
 }
 
 char *
+waytator_video_profile_describe_unavailable(const WaytatorVideoProfile *profile)
+{
+  const char *codec = waytator_video_codec_get_name(profile->codec);
+
+  //a GIF goes its own way whatever the profile's encoder says
+  if (profile->encoder == WAYTATOR_VIDEO_ENCODER_SOFTWARE && profile->codec != WAYTATOR_VIDEO_CODEC_GIF)
+    return g_strdup_printf("The “%s” profile is set to the processor, which can't encode %s on this system",
+                           profile->name, codec);
+  return g_strdup_printf("The “%s” profile uses %s, which isn't available on this system", profile->name, codec);
+}
+
+char *
 waytator_video_profile_describe(const WaytatorVideoProfile *profile)
 {
   g_autoptr(GString) text = g_string_new(NULL);

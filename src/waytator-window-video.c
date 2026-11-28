@@ -496,8 +496,9 @@ waytator_window_video_start(WaytatorWindow              *self,
   if (!plan->saves) {
     g_autofree char *reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
 
+    //the export's own words for it, the reason is a caption for the list
     if (reason != NULL) {
-      g_autofree char *message = g_strdup_printf("Can't copy with the “%s” profile. %s", profile->name, reason);
+      g_autofree char *message = waytator_video_profile_describe_unavailable(profile);
 
       waytator_window_show_error(self, message);
       return;

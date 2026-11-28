@@ -336,6 +336,27 @@ test_cancelled(void)
                 "Not available, using the processor");
 }
 
+//Copy and the export say why in the same words, a sentence naming the profile and its format
+static void
+test_unavailable_sentence(void)
+{
+  WaytatorVideoProfile profile = { .name = (char *) "Archive", .codec = WAYTATOR_VIDEO_CODEC_HEVC };
+  g_autofree char *automatic = NULL;
+  g_autofree char *processor = NULL;
+  g_autofree char *gif = NULL;
+
+  profile.encoder = WAYTATOR_VIDEO_ENCODER_AUTO;
+  automatic = waytator_video_profile_describe_unavailable(&profile);
+  g_assert_cmpstr(automatic, ==, "The “Archive” profile uses HEVC, which isn't available on this system");
+  profile.encoder = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
+  processor = waytator_video_profile_describe_unavailable(&profile);
+  g_assert_cmpstr(processor, ==, "The “Archive” profile is set to the processor, which can't encode HEVC on this system");
+  //a GIF goes its own way whatever the profile's encoder says
+  profile.codec = WAYTATOR_VIDEO_CODEC_GIF;
+  gif = waytator_video_profile_describe_unavailable(&profile);
+  g_assert_cmpstr(gif, ==, "The “Archive” profile uses GIF, which isn't available on this system");
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -350,6 +371,7 @@ main(int   argc,
   g_test_add_func("/video-support/cpu-encoder-that-does-not-open", test_cpu_encoder_that_does_not_open);
   g_test_add_func("/video-support/gifski-makes-gifs", test_gifski_makes_gifs);
   g_test_add_func("/video-support/no-advice-before-check", test_no_advice_before_check);
+  g_test_add_func("/video-support/unavailable-sentence", test_unavailable_sentence);
 
   return g_test_run();
 }
