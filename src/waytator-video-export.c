@@ -348,21 +348,25 @@ waytator_export_pick_encoder(WaytatorExporter *exporter,
                              GError          **error)
 {
   const WaytatorVideoProfile *profile = exporter->profile;
-  WaytatorVideoEncoder preference = profile->encoder;
+  const char *software = NULL;
   g_autoptr(GError) choose_error = NULL;
 
   if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
     return TRUE;
 
-  //two passes to land just under a size limit only work on the cpu, so Automatic goes there when it can
+  //two passes to land just under a size limit only work on the cpu, so a size limit starts on the encoder
+  //there that opens, which has been tried to find it. two passes are then planned for the encoder that
+  //runs them
   if (exporter->plan.video_bitrate > 0)
-    preference = waytator_video_encoder_for_size_limit(profile->codec, preference,
-                                                       waytator_video_encoder_exists,
-                                                       waytator_video_encoder_probe_software);
-
-  if (!waytator_video_encoder_choose(profile->codec, preference,
-                                     exporter->plan.scaled_width, exporter->plan.scaled_height,
-                                     waytator_video_encoder_exists, &exporter->choice, &choose_error)) {
+    software = waytator_video_encoder_for_size_limit(profile->codec, profile->encoder,
+                                                     waytator_video_encoder_exists,
+                                                     waytator_video_encoder_probe_software);
+  if (software != NULL) {
+    waytator_video_encoder_choice_clear(&exporter->choice);
+    exporter->choice.codec = avcodec_find_encoder_by_name(software);
+  } else if (!waytator_video_encoder_choose(profile->codec, profile->encoder,
+                                            exporter->plan.scaled_width, exporter->plan.scaled_height,
+                                            waytator_video_encoder_exists, &exporter->choice, &choose_error)) {
     //no encoder at all is said in the profile's terms, FFmpeg's encoder names mean nothing to most people
     if (g_error_matches(choose_error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED)) {
       g_autofree char *message = waytator_video_profile_describe_unavailable(profile);

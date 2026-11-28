@@ -572,10 +572,20 @@ test_next_encoder(void)
   profile->encoder = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
 
   broken_encoder = "libsvtav1";
+  broken_opens = 0;
   g_assert_true(export_to(source, state, profile, "mp4", &output));
-  broken_encoder = NULL;
   //the export did start on the broken one
   g_assert_cmpint(broken_opens, ==, 1);
+  g_unlink(output);
+  g_clear_pointer(&output, g_free);
+
+  //a size limit on Automatic has already tried them to pick the processor, and starts on the one that opened
+  profile->encoder = WAYTATOR_VIDEO_ENCODER_AUTO;
+  profile->size_limit = 0.5;
+  broken_opens = 0;
+  g_assert_true(export_to(source, state, profile, "mp4", &output));
+  g_assert_cmpint(broken_opens, ==, 1);
+  broken_encoder = NULL;
   g_unlink(output);
   g_unlink(input);
 }

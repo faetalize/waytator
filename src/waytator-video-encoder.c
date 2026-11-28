@@ -292,17 +292,15 @@ waytator_video_encoder_find_hardware(WaytatorVideoCodec codec,
   return NULL;
 }
 
-WaytatorVideoEncoder
+const char *
 waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
                                       WaytatorVideoEncoder preference,
                                       gboolean           (*has_encoder)(const char *name),
                                       gboolean           (*cpu_opens)(const char *name))
 {
-  if (preference != WAYTATOR_VIDEO_ENCODER_AUTO)
-    return preference;
-  return waytator_video_encoder_find_working_software(codec, has_encoder, cpu_opens) != NULL
-       ? WAYTATOR_VIDEO_ENCODER_SOFTWARE
-       : WAYTATOR_VIDEO_ENCODER_AUTO;
+  if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE)
+    return NULL;
+  return waytator_video_encoder_find_working_software(codec, has_encoder, cpu_opens);
 }
 
 gboolean

@@ -63,13 +63,13 @@ const char *waytator_video_encoder_find_working_software(WaytatorVideoCodec code
                                                          gboolean         (*has_encoder)(const char *name),
                                                          gboolean         (*cpu_opens)(const char *name));
 
-//where an export aiming at a size encodes, preference being what its profile says. Automatic means the
-//processor, which gets closer to the size, but stays Automatic when the processor can't make codec, so the
-//gpu can
-WaytatorVideoEncoder waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
-                                                           WaytatorVideoEncoder preference,
-                                                           gboolean           (*has_encoder)(const char *name),
-                                                           gboolean           (*cpu_opens)(const char *name));
+//the encoder on the cpu an export aiming at a size starts on, preference being what its profile says: the
+//first that opens, since the processor gets closer to the size. NULL when preference is the gpu, or when
+//none opens, which leaves Automatic free to take the gpu
+const char *waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
+                                                  WaytatorVideoEncoder preference,
+                                                  gboolean           (*has_encoder)(const char *name),
+                                                  gboolean           (*cpu_opens)(const char *name));
 
 //on the gpu unless preference says the cpu or the gpu can't encode a width by height picture in codec, on
 //the first encoder for the cpu otherwise, going by has_encoder for which encoders ffmpeg has. fails with G_IO_ERROR_NOT_SUPPORTED

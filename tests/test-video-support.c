@@ -260,7 +260,7 @@ test_cpu_encoder_that_does_not_open(void)
               "Not available, pick Automatic");
 }
 
-static WaytatorVideoEncoder
+static const char *
 size_limited(WaytatorVideoEncoder preference)
 {
   return waytator_video_encoder_for_size_limit(WAYTATOR_VIDEO_CODEC_H264, preference,
@@ -280,23 +280,25 @@ test_size_limit_without_cpu_encoder(void)
   fake_use(missing, gpu_works);
   check_encoders();
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
-  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_AUTO);
+  g_assert_null(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO));
 
   //the same for an encoder that is there and doesn't open
   fake_use(no_x264, gpu_works);
   fake_cpu_broken = broken;
-  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_AUTO);
+  g_assert_null(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO));
 
-  //the same for one that doesn't open with another behind it that does, which an export moves on to
+  //one that doesn't open with another behind it that does starts on that one, for Automatic and for the
+  //processor alike
   fake_use(NULL, gpu_works);
   fake_cpu_broken = no_x264;
-  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_SOFTWARE);
+  g_assert_cmpstr(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, "libopenh264");
+  g_assert_cmpstr(size_limited(WAYTATOR_VIDEO_ENCODER_SOFTWARE), ==, "libopenh264");
 
-  //with a processor that can, Automatic still goes there, and what was asked for stays
+  //with a processor that can, Automatic still goes there, and the gpu when asked for stays
   fake_use(NULL, gpu_works);
-  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_SOFTWARE);
-  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_HARDWARE), ==, WAYTATOR_VIDEO_ENCODER_HARDWARE);
-  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_SOFTWARE), ==, WAYTATOR_VIDEO_ENCODER_SOFTWARE);
+  g_assert_cmpstr(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, "libx264");
+  g_assert_null(size_limited(WAYTATOR_VIDEO_ENCODER_HARDWARE));
+  g_assert_cmpstr(size_limited(WAYTATOR_VIDEO_ENCODER_SOFTWARE), ==, "libx264");
 }
 
 static void
