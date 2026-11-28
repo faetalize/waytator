@@ -1,10 +1,12 @@
 #include <adwaita.h>
+#include <stdarg.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "waytator-capture.h"
 #include "waytator-command-line.h"
 #include "waytator-instance.h"
+#include "waytator-notification.h"
 #include "waytator-recording.h"
 #include "waytator-screenshot.h"
 #include "waytator-video-cache.h"
@@ -14,6 +16,9 @@
 #define WAYTATOR_APP_ID "dev.faetalize.waytator"
 //five minutes, longer than anyone needs to get the screen ready
 #define WAYTATOR_MAX_CAPTURE_DELAY 300
+
+//what a launch tells the command it hands over: whether its stderr is a terminal someone is reading
+#define APP_STDERR_TERMINAL_KEY "waytator-stderr-terminal"
 
 //enough of a stream to tell what it holds, every format waytator opens says so in its first few bytes
 #define APP_STREAM_HEAD_SIZE 4096
@@ -96,6 +101,92 @@ app_should_read_stdin(void)
 
   return S_ISFIFO(stdin_stat.st_mode)
       || S_ISREG(stdin_stat.st_mode);
+}
+
+//every launch says whether its stderr is a terminal, since only it can tell and the command may be handled by a
+//waytator that was already running
+static void (*app_parent_add_platform_data)(GApplication    *app,
+                                            GVariantBuilder *builder);
+
+static void
+app_add_platform_data(GApplication    *app,
+                      GVariantBuilder *builder)
+{
+  if (app_parent_add_platform_data != NULL)
+    app_parent_add_platform_data(app, builder);
+
+  g_variant_builder_add(builder, "{sv}", APP_STDERR_TERMINAL_KEY, g_variant_new_boolean(isatty(STDERR_FILENO)));
+}
+
+static void
+app_report_stderr_terminal(void)
+{
+  GApplicationClass *app_class = g_type_class_ref(ADW_TYPE_APPLICATION);
+
+  app_parent_add_platform_data = app_class->add_platform_data;
+  app_class->add_platform_data = app_add_platform_data;
+}
+
+//a command this waytator was launched with has its stderr right here, gio passes no platform data for it. a launch
+//that doesn't say, like an older waytator handing over, is taken to have a terminal and keeps the stderr-only
+//behaviour it had
+static gboolean
+app_command_line_has_terminal(GApplicationCommandLine *command_line)
+{
+  g_autoptr(GVariant) data = NULL;
+  gboolean terminal = TRUE;
+
+  if (!g_application_command_line_get_is_remote(command_line))
+    return isatty(STDERR_FILENO);
+
+  data = g_application_command_line_get_platform_data(command_line);
+  if (data != NULL)
+    g_variant_lookup(data, APP_STDERR_TERMINAL_KEY, "b", &terminal);
+  return terminal;
+}
+
+//a command started from a compositor keybind has nowhere to show stderr, so the mistake also comes up as a
+//notification. in a terminal the stderr line is enough
+static void
+app_command_line_notify(GApplication            *app,
+                        GApplicationCommandLine *command_line,
+                        const char              *message)
+{
+  WaytatorNotification *notification;
+
+  if (app_command_line_has_terminal(command_line))
+    return;
+
+  notification = waytator_notification_new(app, NULL, NULL, NULL);
+  if (notification == NULL)
+    return;
+
+  waytator_notification_post(notification, "Waytator command failed", message);
+  waytator_notification_free(notification);
+  //with nothing left open this waytator quits right after, the notification has to be out first
+  g_dbus_connection_flush_sync(g_application_get_dbus_connection(app), NULL, NULL);
+}
+
+static void app_command_line_fail(GApplication            *app,
+                                  GApplicationCommandLine *command_line,
+                                  const char              *format,
+                                  ...) G_GNUC_PRINTF(3, 4);
+
+static void
+app_command_line_fail(GApplication            *app,
+                      GApplicationCommandLine *command_line,
+                      const char              *format,
+                      ...)
+{
+  g_autofree char *message = NULL;
+  va_list args;
+
+  va_start(args, format);
+  message = g_strdup_vprintf(format, args);
+  va_end(args);
+
+  g_application_command_line_printerr(command_line, "%s\n", message);
+  app_command_line_notify(app, command_line, message);
 }
 
 static WaytatorWindow *
@@ -426,18 +517,18 @@ app_command_line(GApplication            *app,
 
     if (shortcut_option >= 0) {
       if (i + 1 >= argc) {
-        g_application_command_line_printerr(command_line,
-                                            "Missing value for %s\n",
-                                            arguments[i]);
+        app_command_line_fail(app, command_line,
+                              "Missing value for %s",
+                              arguments[i]);
         status = 1;
         goto done;
       }
 
       if (!waytator_window_shortcut_is_valid(arguments[i + 1])) {
-        g_application_command_line_printerr(command_line,
-                                            "Invalid shortcut for %s: %s\n",
-                                            arguments[i],
-                                            arguments[i + 1]);
+        app_command_line_fail(app, command_line,
+                              "Invalid shortcut for %s: %s",
+                              arguments[i],
+                              arguments[i + 1]);
         status = 1;
         goto done;
       }
@@ -469,9 +560,9 @@ app_command_line(GApplication            *app,
         i++;
       } else if (i + 1 < argc && arguments[i + 1][0] != '-') {
         //an image cannot go with a capture anyway, so this is most likely a mistyped mode
-        g_application_command_line_printerr(command_line,
-                                            "Unknown screenshot mode \"%s\", use area or screen\n",
-                                            arguments[i + 1]);
+        app_command_line_fail(app, command_line,
+                              "Unknown screenshot mode \"%s\", use area or screen",
+                              arguments[i + 1]);
         status = 1;
         goto done;
       }
@@ -495,9 +586,9 @@ app_command_line(GApplication            *app,
         capture_mode_given = "window";
         i++;
       } else if (i + 1 < argc && arguments[i + 1][0] != '-') {
-        g_application_command_line_printerr(command_line,
-                                            "Unknown recording mode \"%s\", use area, screen or window\n",
-                                            arguments[i + 1]);
+        app_command_line_fail(app, command_line,
+                              "Unknown recording mode \"%s\", use area, screen or window",
+                              arguments[i + 1]);
         status = 1;
         goto done;
       }
@@ -512,18 +603,18 @@ app_command_line(GApplication            *app,
 
     if (g_strcmp0(arguments[i], "--delay") == 0) {
       if (i + 1 >= argc) {
-        g_application_command_line_printerr(command_line,
-                                            "Missing value for --delay\n");
+        app_command_line_fail(app, command_line,
+                              "Missing value for --delay");
         status = 1;
         goto done;
       }
 
       delay_text = arguments[++i];
       if (!app_parse_delay(delay_text, &delay_seconds)) {
-        g_application_command_line_printerr(command_line,
-                                            "--delay takes a whole number of seconds from 0 to %d, not \"%s\"\n",
-                                            WAYTATOR_MAX_CAPTURE_DELAY,
-                                            delay_text);
+        app_command_line_fail(app, command_line,
+                              "--delay takes a whole number of seconds from 0 to %d, not \"%s\"",
+                              WAYTATOR_MAX_CAPTURE_DELAY,
+                              delay_text);
         status = 1;
         goto done;
       }
@@ -533,8 +624,8 @@ app_command_line(GApplication            *app,
 
     if (g_strcmp0(arguments[i], "--screen") == 0) {
       if (i + 1 >= argc) {
-        g_application_command_line_printerr(command_line,
-                                            "Missing value for --screen\n");
+        app_command_line_fail(app, command_line,
+                              "Missing value for --screen");
         status = 1;
         goto done;
       }
@@ -550,8 +641,8 @@ app_command_line(GApplication            *app,
 
     if (g_strcmp0(arguments[i], "--name") == 0) {
       if (i + 1 >= argc) {
-        g_application_command_line_printerr(command_line,
-                                            "Missing value for --name\n");
+        app_command_line_fail(app, command_line,
+                              "Missing value for --name");
         status = 1;
         goto done;
       }
@@ -560,31 +651,32 @@ app_command_line(GApplication            *app,
     } else if (g_strcmp0(arguments[i], "-") == 0 || g_strcmp0(arguments[i], "--stdin") == 0) {
       use_stdin = TRUE;
     } else if (arguments[i][0] == '-') {
-      g_application_command_line_printerr(command_line,
-                                          "Unknown option: %s\n",
-                                          arguments[i]);
+      app_command_line_fail(app, command_line,
+                            "Unknown option: %s",
+                            arguments[i]);
       status = 1;
       goto done;
     } else if (file == NULL) {
       file = g_application_command_line_create_file_for_arg(command_line, arguments[i]);
     } else {
       g_application_command_line_printerr(command_line, APP_USAGE, arguments[0]);
+      app_command_line_notify(app, command_line, "Only one image can be opened at a time");
       status = 1;
       goto done;
     }
   }
 
   if (screenshot && record) {
-    g_application_command_line_printerr(command_line,
-                                        "--screenshot and --record cannot be used together\n");
+    app_command_line_fail(app, command_line,
+                          "--screenshot and --record cannot be used together");
     status = 1;
     goto done;
   }
 
   if ((screenshot || record) && (use_stdin || file != NULL)) {
-    g_application_command_line_printerr(command_line,
-                                        "%s cannot be combined with an image to open\n",
-                                        screenshot ? "--screenshot" : "--record");
+    app_command_line_fail(app, command_line,
+                          "%s cannot be combined with an image to open",
+                          screenshot ? "--screenshot" : "--record");
     status = 1;
     goto done;
   }
@@ -592,23 +684,23 @@ app_command_line(GApplication            *app,
   //naming a screen is asking for that screen, there is no need to say screen twice
   if (capture_screen != NULL) {
     if (!screenshot && !record) {
-      g_application_command_line_printerr(command_line,
-                                          "--screen only works with --screenshot or --record\n");
+      app_command_line_fail(app, command_line,
+                            "--screen only works with --screenshot or --record");
       status = 1;
       goto done;
     }
 
     //GNOME's screenshot UI is where the screen is picked there, and nothing can pick it beforehand
     if (waytator_capture_uses_gnome_ui()) {
-      g_application_command_line_printerr(command_line, "--screen doesn't support GNOME\n");
+      app_command_line_fail(app, command_line, "--screen doesn't support GNOME");
       status = 1;
       goto done;
     }
 
     if (capture_mode_given != NULL) {
-      g_application_command_line_printerr(command_line,
-                                          "--screen captures a whole screen, remove \"%s\" from your command\n",
-                                          capture_mode_given);
+      app_command_line_fail(app, command_line,
+                            "--screen captures a whole screen, remove \"%s\" from your command",
+                            capture_mode_given);
       status = 1;
       goto done;
     }
@@ -617,15 +709,15 @@ app_command_line(GApplication            *app,
   }
 
   if (delay_text != NULL && !screenshot && !record) {
-    g_application_command_line_printerr(command_line,
-                                        "--delay only works with --screenshot or --record\n");
+    app_command_line_fail(app, command_line,
+                          "--delay only works with --screenshot or --record");
     status = 1;
     goto done;
   }
 
   if (notify && !screenshot && !record) {
-    g_application_command_line_printerr(command_line,
-                                        "--notify only works with --screenshot or --record\n");
+    app_command_line_fail(app, command_line,
+                          "--notify only works with --screenshot or --record");
     status = 1;
     goto done;
   }
@@ -710,18 +802,18 @@ app_command_line(GApplication            *app,
     bytes = head != NULL ? app_read_stream_bytes(stream, head, &error) : NULL;
     if (bytes == NULL
         || !waytator_window_open_bytes(window, bytes, stdin_name != NULL ? stdin_name : "stdin.png", &error)) {
-      g_application_command_line_printerr(command_line,
-                                          "Error loading image from stdin: %s\n",
-                                          error->message);
+      app_command_line_fail(app, command_line,
+                            "Error loading image from stdin: %s",
+                            error->message);
       status = 1;
       goto failed_to_open;
     }
   } else if (file != NULL) {
     if (!waytator_window_open_file(window, file, &error)) {
-      g_application_command_line_printerr(command_line,
-                                          "Error loading image '%s': %s\n",
-                                          arguments[1],
-                                          error->message);
+      app_command_line_fail(app, command_line,
+                            "Error loading image '%s': %s",
+                            arguments[1],
+                            error->message);
       status = 1;
       goto failed_to_open;
     }
@@ -876,6 +968,7 @@ main(int   argc,
   }
 
   app_skip_desktop_themes();
+  app_report_stderr_terminal();
   waytator_instance_set_launch_name(argv[0]);
   gtk_window_set_default_icon_name(WAYTATOR_APP_ID);
 
