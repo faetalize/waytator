@@ -1,0 +1,53 @@
+name: E2E
+
+# touch and pen input end to end: virtual uinput devices, a headless sway and the app, see TESTING.md
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  e2e:
+    name: touch and pen (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    # the runner itself rather than a container, the devices need the host's kernel and udev
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+
+      - name: Load uinput
+        run: |
+          sudo modprobe uinput || {
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe uinput
+          }
+          sudo modprobe evdev
+
+      # udev needs libinput's own rules to put a pen in one device group with its touchscreen, which is how
+      # libinput knows the two belong together. any desktop has them, the runner doesn't
+      - name: Install libinput's udev rules
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libinput-bin
+
+      - name: Build the test environment
+        run: nix-build tests/e2e -o build-e2e/env
+
+      # simtouch's own setup for isolated devices, plus a rule that lets its group create devices without root
+      - name: Set up the isolated seat
+        run: |
+          build-e2e/env/bin/simtouch isolation | tee /dev/stderr | bash -e
+          echo 'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="simtouch", MODE="0660"' |
+            sudo tee /etc/udev/rules.d/72-simtouch-uinput.rules
+          sudo udevadm control --reload
+          sudo udevadm trigger --settle /sys/class/misc/uinput
+
+      # sg starts a shell that has the group the user was just added to
+      - name: End to end tests
+        run: sg simtouch -c 'tests/e2e/run -v'
