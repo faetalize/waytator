@@ -1,3 +1,6 @@
+//S_ISSOCK, for stdin handed over as a socket
+#define _DEFAULT_SOURCE
+
 #include <adwaita.h>
 #include <gio/gunixinputstream.h>
 #include <stdarg.h>
@@ -111,13 +114,28 @@ app_should_read_stdin(void)
   return app_fd_is_piped(STDIN_FILENO);
 }
 
-//stdin of the launch that sent the command, which is not this process's own when waytator was already running
+//stdin of the launch that sent the command, which is not this process's own when waytator was already running.
+//--save-path only goes with a piped image, so a socket counts too, as some launchers pipe through one
 static gboolean
 app_stream_is_piped(GInputStream *stream)
 {
-  return stream != NULL
-      && G_IS_UNIX_INPUT_STREAM(stream)
-      && app_fd_is_piped(g_unix_input_stream_get_fd(G_UNIX_INPUT_STREAM(stream)));
+  struct stat fd_stat;
+  int fd;
+
+  if (stream == NULL || !G_IS_UNIX_INPUT_STREAM(stream))
+    return FALSE;
+
+  fd = g_unix_input_stream_get_fd(G_UNIX_INPUT_STREAM(stream));
+  return app_fd_is_piped(fd)
+      || (!isatty(fd) && fstat(fd, &fd_stat) == 0 && S_ISSOCK(fd_stat.st_mode));
+}
+
+//a terminal this process is in the foreground of. a compositor started from a tty can hand its keybinds that tty
+//as stderr, where nobody reads it
+static gboolean
+app_stderr_is_watched(void)
+{
+  return isatty(STDERR_FILENO) && tcgetpgrp(STDERR_FILENO) == getpgrp();
 }
 
 //every launch says whether its stderr is a terminal, since only it can tell and the command may be handled by a
@@ -132,7 +150,7 @@ app_add_platform_data(GApplication    *app,
   if (app_parent_add_platform_data != NULL)
     app_parent_add_platform_data(app, builder);
 
-  g_variant_builder_add(builder, "{sv}", APP_STDERR_TERMINAL_KEY, g_variant_new_boolean(isatty(STDERR_FILENO)));
+  g_variant_builder_add(builder, "{sv}", APP_STDERR_TERMINAL_KEY, g_variant_new_boolean(app_stderr_is_watched()));
 }
 
 static void
@@ -145,8 +163,7 @@ app_report_stderr_terminal(void)
 }
 
 //a command this waytator was launched with has its stderr right here, gio passes no platform data for it. a launch
-//that doesn't say, like an older waytator handing over, is taken to have a terminal and keeps the stderr-only
-//behaviour it had
+//that doesn't say, like an older waytator handing over, is taken to have a terminal and gets stderr only
 static gboolean
 app_command_line_has_terminal(GApplicationCommandLine *command_line)
 {
@@ -154,7 +171,7 @@ app_command_line_has_terminal(GApplicationCommandLine *command_line)
   gboolean terminal = TRUE;
 
   if (!g_application_command_line_get_is_remote(command_line))
-    return isatty(STDERR_FILENO);
+    return app_stderr_is_watched();
 
   data = g_application_command_line_get_platform_data(command_line);
   if (data != NULL)
@@ -206,18 +223,15 @@ app_command_line_fail(GApplication            *app,
   app_command_line_notify(app, command_line, message);
 }
 
-//a keybind runs the command without a shell, which would have expanded ~ in a path
+//the launch's own folder, which a running waytator handling the command doesn't share
 static GFile *
-app_command_line_file_for_path(GApplicationCommandLine *command_line,
-                               const char              *arg)
+app_command_line_save_path_file(GApplicationCommandLine *command_line,
+                                const char              *arg)
 {
-  if (g_strcmp0(arg, "~") == 0 || g_str_has_prefix(arg, "~/")) {
-    g_autofree char *path = g_build_filename(g_get_home_dir(), arg + 1, NULL);
+  const char *cwd = g_application_command_line_get_cwd(command_line);
+  g_autofree char *own_cwd = cwd == NULL ? g_get_current_dir() : NULL;
 
-    return g_file_new_for_path(path);
-  }
-
-  return g_application_command_line_create_file_for_arg(command_line, arg);
+  return waytator_command_line_save_path_file(arg, cwd != NULL ? cwd : own_cwd, g_get_home_dir());
 }
 
 static WaytatorWindow *
@@ -695,7 +709,16 @@ app_command_line(GApplication            *app,
       }
 
       g_clear_object(&save_path);
-      save_path = app_command_line_file_for_path(command_line, arguments[++i]);
+      save_path = app_command_line_save_path_file(command_line, arguments[++i]);
+      {
+        g_autofree char *unusable = waytator_command_line_save_path_unusable(arguments[i], save_path);
+
+        if (unusable != NULL) {
+          app_command_line_fail(app, command_line, "%s", unusable);
+          status = 1;
+          goto done;
+        }
+      }
     } else if (g_strcmp0(arguments[i], "-") == 0 || g_strcmp0(arguments[i], "--stdin") == 0) {
       use_stdin = TRUE;
     } else if (arguments[i][0] == '-') {

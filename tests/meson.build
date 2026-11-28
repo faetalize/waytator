@@ -213,7 +213,7 @@ test_command_line = executable(
   'test-command-line.c',
   files('../src/waytator-command-line.c'),
   include_directories: waytator_include,
-  dependencies: [gobject_dep],
+  dependencies: [gio_unix_dep],
 )
 test('command-line', test_command_line)
 

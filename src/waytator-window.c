@@ -3615,6 +3615,7 @@ waytator_window_adopt_saved_file(WaytatorWindow *self)
 
   g_clear_object(&self->current_file);
   self->current_file = g_steal_pointer(&self->adopt_file);
+  g_clear_object(&self->save_target);
   self->adopt_file_reserved = FALSE;
   g_free(self->source_name);
   self->source_name = g_file_get_basename(self->current_file);
@@ -3651,6 +3652,7 @@ waytator_window_save_export_ready(GObject      *source_object,
     self->adopt_file_reserved = FALSE;
     g_clear_object(&self->adopt_file);
     self->from_capture = FALSE;
+    g_clear_object(&self->save_target);
     waytator_window_reset_save_button(self);
     waytator_window_show_error(self, error->message);
     g_object_unref(self);
@@ -3839,10 +3841,12 @@ waytator_window_show_save_dialog(WaytatorWindow *self)
 static void
 waytator_window_save_new(WaytatorWindow *self)
 {
+  //kept until the save is over, so the menu still says where it goes meanwhile
   if (self->save_target != NULL) {
-    g_autoptr(GFile) target = g_steal_pointer(&self->save_target);
-
-    waytator_window_save_to_file(self, target);
+    if (!waytator_window_save_to_file(self, self->save_target)) {
+      g_clear_object(&self->save_target);
+      waytator_window_reset_save_button(self);
+    }
     return;
   }
 

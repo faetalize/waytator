@@ -1,6 +1,6 @@
 #pragma once
 
-#include <glib.h>
+#include <gio/gio.h>
 
 G_BEGIN_DECLS
 
@@ -17,5 +17,13 @@ const char *waytator_command_line_save_path_problem(gboolean  name,
                                                     gboolean  stdin_given,
                                                     gboolean  stdin_piped,
                                                     gboolean *read_stdin);
+
+//the file --save-path names, arg as it was typed, cwd the folder the command was run in
+GFile *waytator_command_line_save_path_file(const char *arg,
+                                            const char *cwd,
+                                            const char *home);
+
+char *waytator_command_line_save_path_unusable(const char *arg,
+                                               GFile      *file);
 
 G_END_DECLS
