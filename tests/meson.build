@@ -57,9 +57,9 @@ test('video-encoder', test_video_encoder)
 test_video_support = executable(
   'test-video-support',
   'test-video-support.c',
-  files('../src/waytator-video-encoder.c', '../src/waytator-video-support.c'),
+  files('../src/waytator-video-encoder.c', '../src/waytator-video-profile.c', '../src/waytator-video-support.c'),
   include_directories: waytator_include,
-  dependencies: [gtk_dep, m_dep, video_deps],
+  dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
 )
 test('video-support', test_video_support)
 

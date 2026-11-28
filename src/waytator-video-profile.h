@@ -45,6 +45,9 @@ typedef struct {
   int sound_bitrate;
 } WaytatorVideoProfile;
 
+//e.g. "H.264"
+const char *waytator_video_codec_get_name(WaytatorVideoCodec codec);
+
 WaytatorVideoProfile *waytator_video_profile_copy(const WaytatorVideoProfile *profile);
 void waytator_video_profile_free(WaytatorVideoProfile *profile);
 //e.g. "mp4" or "gif"

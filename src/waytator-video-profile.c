@@ -56,17 +56,24 @@ waytator_video_profile_get_extension(const WaytatorVideoProfile *profile)
   }
 }
 
+const char *
+waytator_video_codec_get_name(WaytatorVideoCodec codec)
+{
+  static const char *const names[] = { "H.264", "HEVC", "AV1", "VP9", "GIF" };
+
+  return names[codec];
+}
+
 char *
 waytator_video_profile_describe(const WaytatorVideoProfile *profile)
 {
-  static const char *const codecs[] = { "H.264", "HEVC", "AV1", "VP9", "GIF" };
   g_autoptr(GString) text = g_string_new(NULL);
   g_autofree char *extension = g_ascii_strup(waytator_video_profile_get_extension(profile), -1);
 
   if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
     g_string_append(text, "GIF");
   else
-    g_string_append_printf(text, "%s, %s", extension, codecs[profile->codec]);
+    g_string_append_printf(text, "%s, %s", extension, waytator_video_codec_get_name(profile->codec));
 
   if (profile->size_limit > 0)
     g_string_append_printf(text, ", under %g MB", profile->size_limit);

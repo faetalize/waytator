@@ -70,10 +70,19 @@ check_gpu(void)
 }
 
 static void
-assert_reason(const char *reason,
+assert_note(const char *note,
+            const char *expected)
+{
+  g_assert_cmpstr(note, ==, expected);
+}
+
+//takes reason
+static void
+assert_reason(char       *reason,
               const char *expected)
 {
   g_assert_cmpstr(reason, ==, expected);
+  g_free(reason);
 }
 
 //no libx264 or libx265, and a gpu whose driver turns both H.264 and HEVC down
@@ -84,9 +93,10 @@ test_no_patented_encoders(void)
 
   fake_use(missing, NULL);
 
-  //before the gpu has answered, HEVC may still work there and stays on offer
+  //before the gpu has answered, HEVC may still work there and stays on offer, and so does the gpu
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
+  g_assert_null(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE));
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
 
   check_gpu();
   g_assert_cmpint(fake_gpu_checks, ==, 1);
@@ -96,19 +106,26 @@ test_no_patented_encoders(void)
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE),
                 "Not available on this system");
   //nothing to say about an encoder for a format that can't be made at all
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
 
   //OpenH264 still makes H.264, on the processor even when the gpu is asked for
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE),
-                "The processor will encode this instead");
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE),
+                "Not available, using the processor");
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
+  //so the graphics card is greyed out in the encoder list, for H.264 and for the HEVC nothing makes
+  g_assert_cmpstr(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE),
+                  ==, "Not available for this format");
+  g_assert_null(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_SOFTWARE));
+  g_assert_null(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO));
+  g_assert_cmpstr(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
+                  ==, "Not available for this format");
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
 
   for (WaytatorVideoCodec codec = WAYTATOR_VIDEO_CODEC_AV1; codec <= WAYTATOR_VIDEO_CODEC_GIF; codec++)
     assert_reason(waytator_video_support_unavailable(codec, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
   //a GIF has no gpu encoder to fall back from
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_GIF, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_GIF, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
 }
 
 //the gpu is asked once, however many screens want the answer
@@ -127,10 +144,13 @@ test_gpu_checked_once(void)
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
   assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
-                "Only the graphics card can encode this here");
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
-                "Only the graphics card can encode this here");
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
+                "The processor can't encode HEVC on this system");
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
+                "Not available, pick Automatic");
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
+  g_assert_null(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_HARDWARE));
+  g_assert_cmpstr(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
+                  ==, "Not available for this format");
 }
 
 //an ffmpeg with no HEVC encoder at all is known without asking the gpu
@@ -175,8 +195,8 @@ test_cancelled(void)
 
   check_gpu();
   g_assert_cmpint(fake_gpu_checks, ==, 1);
-  assert_reason(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE),
-                "The processor will encode this instead");
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE),
+                "Not available, using the processor");
 }
 
 int

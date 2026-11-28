@@ -22,10 +22,14 @@ void waytator_video_support_set_lookup(const WaytatorVideoSupportLookup *lookup)
 
 //why a profile in codec, encoded where preference says, can't be exported here, NULL when it can. until
 //the gpu is checked, a codec only the gpu could encode counts as one that can
-const char *waytator_video_support_unavailable(WaytatorVideoCodec   codec,
-                                               WaytatorVideoEncoder preference);
-//a note for a profile that asks for the gpu when the gpu can't encode codec and the processor will instead,
-//NULL otherwise or until the gpu is checked
+char *waytator_video_support_unavailable(WaytatorVideoCodec   codec,
+                                         WaytatorVideoEncoder preference);
+//why encoder can't be picked for a profile in codec, NULL when it can. Automatic always can
+const char *waytator_video_support_encoder_unavailable(WaytatorVideoCodec   codec,
+                                                       WaytatorVideoEncoder encoder);
+//a note under the encoder of a profile already set to one that can't encode codec: the gpu, when the
+//processor will instead, or the processor, when only the gpu could. NULL otherwise, until the gpu is
+//checked, and for a format nothing here encodes, which has its own warning
 const char *waytator_video_support_encoder_note(WaytatorVideoCodec   codec,
                                                 WaytatorVideoEncoder preference);
 

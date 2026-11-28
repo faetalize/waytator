@@ -5,8 +5,9 @@
 #define WAYTATOR_VIDEO_SUPPORT_CODECS (WAYTATOR_VIDEO_CODEC_GIF + 1)
 
 static const char waytator_video_support_none[] = "Not available on this system";
-static const char waytator_video_support_on_cpu[] = "The processor will encode this instead";
-static const char waytator_video_support_only_gpu[] = "Only the graphics card can encode this here";
+static const char waytator_video_support_not_for_format[] = "Not available for this format";
+static const char waytator_video_support_on_cpu[] = "Not available, using the processor";
+static const char waytator_video_support_pick_auto[] = "Not available, pick Automatic";
 
 typedef enum {
   WAYTATOR_VIDEO_GPU_UNCHECKED,
@@ -84,7 +85,7 @@ waytator_video_support_gpu_cannot_encode(WaytatorVideoCodec codec)
       || !waytator_video_support_has_any(waytator_video_encoder_get_names(codec, TRUE));
 }
 
-const char *
+char *
 waytator_video_support_unavailable(WaytatorVideoCodec   codec,
                                    WaytatorVideoEncoder preference)
 {
@@ -96,24 +97,39 @@ waytator_video_support_unavailable(WaytatorVideoCodec   codec,
     preference = WAYTATOR_VIDEO_ENCODER_AUTO;
 
   if (!cpu && !gpu)
-    return waytator_video_support_none;
+    return g_strdup(waytator_video_support_none);
   //the processor it is, as asked, even when the gpu could
   if (preference == WAYTATOR_VIDEO_ENCODER_SOFTWARE && !cpu)
-    return waytator_video_support_only_gpu;
+    return g_strdup_printf("The processor can't encode %s on this system", waytator_video_codec_get_name(codec));
   return NULL;
+}
+
+const char *
+waytator_video_support_encoder_unavailable(WaytatorVideoCodec   codec,
+                                           WaytatorVideoEncoder encoder)
+{
+  switch (encoder) {
+  case WAYTATOR_VIDEO_ENCODER_HARDWARE:
+    return waytator_video_support_gpu_cannot_encode(codec) ? waytator_video_support_not_for_format : NULL;
+  case WAYTATOR_VIDEO_ENCODER_SOFTWARE:
+    return waytator_video_support_cpu_encodes(codec) ? NULL : waytator_video_support_not_for_format;
+  default:
+    return NULL;
+  }
 }
 
 const char *
 waytator_video_support_encoder_note(WaytatorVideoCodec   codec,
                                     WaytatorVideoEncoder preference)
 {
-  const char *unavailable = waytator_video_support_unavailable(codec, preference);
+  const gboolean cpu = waytator_video_support_cpu_encodes(codec);
 
-  if (codec == WAYTATOR_VIDEO_CODEC_GIF || unavailable == waytator_video_support_none)
+  //a GIF goes its own way whatever the profile's encoder says, and a format nothing encodes has its warning
+  if (codec == WAYTATOR_VIDEO_CODEC_GIF)
     return NULL;
-  if (unavailable != NULL)
-    return unavailable;
-  if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE && waytator_video_support_gpu_cannot_encode(codec))
+  if (preference == WAYTATOR_VIDEO_ENCODER_SOFTWARE && !cpu && waytator_video_support_gpu_may_encode(codec))
+    return waytator_video_support_pick_auto;
+  if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE && cpu && waytator_video_support_gpu_cannot_encode(codec))
     return waytator_video_support_on_cpu;
   return NULL;
 }
