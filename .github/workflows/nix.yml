@@ -45,6 +45,8 @@ jobs:
           echo "OCR, English:     $(comm -23 <(nix path-info -r ./result | sort) <(echo "$minimal") | grep -v -- '-waytator-' | xargs nix path-info -s | mib)"
           if [ "${{ matrix.nixpkgs }}" = unstable ]; then
             cache=(--store https://cache.nixos.org)
-            all=$(nix path-info "${cache[@]}" -r --inputs-from . nixpkgs#tesseract | sort)
+            # a store path rather than the installable, which nix would try to build into the cache
+            tesseract=$(nix eval --raw --inputs-from . nixpkgs#tesseract.outPath)
+            all=$(nix path-info "${cache[@]}" -r "$tesseract" | sort)
             echo "OCR, every language (nixpkgs' default tesseract): $(comm -23 <(echo "$all") <(echo "$minimal") | xargs nix path-info "${cache[@]}" -s | mib)"
           fi
