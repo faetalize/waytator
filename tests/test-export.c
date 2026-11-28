@@ -1,6 +1,7 @@
 //saving over a file that is already there: what is left of it when the save works and when it fails
 #include <glib/gstdio.h>
 #include <gtk/gtk.h>
+#include <string.h>
 
 #include "waytator-export.h"
 #include "waytator-stroke.h"
@@ -102,6 +103,43 @@ test_save_replaces_file(void)
   g_rmdir(dir);
 }
 
+//an extension waytator can't write is refused, the file would otherwise hold png under that name
+static void
+test_path_unknown_extension(void)
+{
+  g_autofree char *problem = waytator_export_save_path_problem("/tmp/shot.avif");
+
+  g_assert_nonnull(problem);
+  g_assert_nonnull(strstr(problem, ".avif"));
+  g_assert_nonnull(strstr(problem, ".png"));
+}
+
+//no extension saves as png, and a dot in a folder's name is not an extension
+static void
+test_path_without_extension(void)
+{
+  g_autofree char *bare = waytator_export_save_path_problem("/tmp/shot");
+  g_autofree char *folder = waytator_export_save_path_problem("/tmp/v1.2/shot");
+  g_autofree char *hidden = waytator_export_save_path_problem("/tmp/.shot");
+
+  g_assert_null(bare);
+  g_assert_null(folder);
+  g_assert_null(hidden);
+}
+
+//png and jpeg can always be written, in any case
+static void
+test_path_known_extension(void)
+{
+  g_autofree char *png = waytator_export_save_path_problem("/tmp/shot.PNG");
+  g_autofree char *jpg = waytator_export_save_path_problem("/tmp/shot.jpg");
+  g_autofree char *jpeg = waytator_export_save_path_problem("/tmp/shot.jpeg");
+
+  g_assert_null(png);
+  g_assert_null(jpg);
+  g_assert_null(jpeg);
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -109,5 +147,8 @@ main(int   argc,
   g_test_init(&argc, &argv, NULL);
   g_test_add_func("/export/failed-save-keeps-file", test_failed_save_keeps_file);
   g_test_add_func("/export/save-replaces-file", test_save_replaces_file);
+  g_test_add_func("/export/path-unknown-extension", test_path_unknown_extension);
+  g_test_add_func("/export/path-without-extension", test_path_without_extension);
+  g_test_add_func("/export/path-known-extension", test_path_known_extension);
   return g_test_run();
 }

@@ -2,27 +2,91 @@
 
 #include "waytator-render.h"
 
+//the extension of the file name, not of a folder above it, or NULL when it has none
+static const char *
+waytator_export_extension(const char *path)
+{
+  const char *name = strrchr(path, '/');
+  const char *dot;
+
+  name = name != NULL ? name + 1 : path;
+  dot = strrchr(name, '.');
+  return dot != NULL && dot != name ? dot + 1 : NULL;
+}
+
+//the format an extension saves as, NULL for one waytator doesn't save
+static const char *
+waytator_export_format_for_extension(const char *extension)
+{
+  if (g_ascii_strcasecmp(extension, "jpg") == 0 || g_ascii_strcasecmp(extension, "jpeg") == 0)
+    return "jpeg";
+  if (g_ascii_strcasecmp(extension, "png") == 0)
+    return "png";
+  if (g_ascii_strcasecmp(extension, "webp") == 0)
+    return "webp";
+  if (g_ascii_strcasecmp(extension, "bmp") == 0)
+    return "bmp";
+  if (g_ascii_strcasecmp(extension, "tif") == 0 || g_ascii_strcasecmp(extension, "tiff") == 0)
+    return "tiff";
+  return NULL;
+}
+
+//png for a name without an extension or with one waytator doesn't save, the Save dialog's choice is kept
 static const char *
 waytator_export_format_from_path(const char *path)
 {
-  const char *dot = strrchr(path, '.');
+  const char *extension = waytator_export_extension(path);
+  const char *format = extension != NULL ? waytator_export_format_for_extension(extension) : NULL;
 
-  if (dot == NULL)
-    return "png";
+  return format != NULL ? format : "png";
+}
 
-  dot++;
-  if (g_ascii_strcasecmp(dot, "jpg") == 0 || g_ascii_strcasecmp(dot, "jpeg") == 0)
-    return "jpeg";
-  if (g_ascii_strcasecmp(dot, "png") == 0)
-    return "png";
-  if (g_ascii_strcasecmp(dot, "webp") == 0)
-    return "webp";
-  if (g_ascii_strcasecmp(dot, "bmp") == 0)
-    return "bmp";
-  if (g_ascii_strcasecmp(dot, "tif") == 0 || g_ascii_strcasecmp(dot, "tiff") == 0)
-    return "tiff";
+//whether gdk-pixbuf can write this format here, webp needs a loader that isn't always installed
+static gboolean
+waytator_export_format_is_writable(const char *format)
+{
+  g_autoptr(GSList) formats = gdk_pixbuf_get_formats();
 
-  return "png";
+  for (GSList *link = formats; link != NULL; link = link->next) {
+    g_autofree char *name = gdk_pixbuf_format_get_name(link->data);
+
+    if (g_strcmp0(name, format) == 0)
+      return gdk_pixbuf_format_is_writable(link->data);
+  }
+  return FALSE;
+}
+
+char *
+waytator_export_save_path_problem(const char *path)
+{
+  static const struct {
+    const char *extension;
+    const char *format;
+  } offered[] = {
+    { "png", "png" },
+    { "jpg", "jpeg" },
+    { "webp", "webp" },
+    { "bmp", "bmp" },
+    { "tiff", "tiff" },
+  };
+  const char *extension = waytator_export_extension(path);
+  const char *format = extension != NULL ? waytator_export_format_for_extension(extension) : NULL;
+  g_autoptr(GPtrArray) usable = NULL;
+  g_autofree char *list = NULL;
+
+  if (extension == NULL || (format != NULL && waytator_export_format_is_writable(format)))
+    return NULL;
+
+  usable = g_ptr_array_new_with_free_func(g_free);
+  for (guint i = 0; i < G_N_ELEMENTS(offered); i++) {
+    if (waytator_export_format_is_writable(offered[i].format))
+      g_ptr_array_add(usable, g_strconcat(".", offered[i].extension, NULL));
+  }
+  g_ptr_array_add(usable, NULL);
+  list = g_strjoinv(", ", (char **) usable->pdata);
+  return g_strdup_printf("--save-path can't save .%s files here. Use %s, or no extension for PNG",
+                         extension,
+                         list);
 }
 
 static const char *

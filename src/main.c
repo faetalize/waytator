@@ -9,6 +9,7 @@
 
 #include "waytator-capture.h"
 #include "waytator-command-line.h"
+#include "waytator-export.h"
 #include "waytator-instance.h"
 #include "waytator-notification.h"
 #include "waytator-recording.h"
@@ -711,7 +712,11 @@ app_command_line(GApplication            *app,
       g_clear_object(&save_path);
       save_path = app_command_line_save_path_file(command_line, arguments[++i]);
       {
+        g_autofree char *path = g_file_get_path(save_path);
         g_autofree char *unusable = waytator_command_line_save_path_unusable(arguments[i], save_path);
+
+        if (unusable == NULL)
+          unusable = waytator_export_save_path_problem(path);
 
         if (unusable != NULL) {
           app_command_line_fail(app, command_line, "%s", unusable);
