@@ -27,6 +27,68 @@ Get it from the AUR:
 yay -S waytator
 ```
 
+### Fedora
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-fedora-x86_64.rpm
+```
+
+```bash
+dnf install ./waytator-fedora-x86_64.rpm
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-fedora-aarch64.rpm
+```
+
+```bash
+dnf install ./waytator-fedora-aarch64.rpm
+```
+
+For GPU-accelerated H.264 recording, add RPM Fusion's ffmpeg and drivers: see [RPM Fusion's multimedia guide](https://rpmfusion.org/Howto/Multimedia).
+
+### Debian 13
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-debian-amd64.deb
+```
+
+```bash
+apt install ./waytator-debian-amd64.deb
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-debian-arm64.deb
+```
+
+```bash
+apt install ./waytator-debian-arm64.deb
+```
+
+### Ubuntu 26.04 and 26.10
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-ubuntu-amd64.deb
+```
+
+```bash
+apt install ./waytator-ubuntu-amd64.deb
+```
+
+On ARM:
+
+```bash
+curl -LO https://github.com/faetalize/waytator/releases/latest/download/waytator-ubuntu-arm64.deb
+```
+
+```bash
+apt install ./waytator-ubuntu-arm64.deb
+```
+
 ### Nix
 
 Waytator is in nixpkgs, though it can lag a release or two behind:
