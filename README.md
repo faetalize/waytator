@@ -29,7 +29,7 @@ yay -S waytator
 
 ### Nix
 
-Waytator is in nixpkgs, though it can lag a release or two behind:
+Waytator is in nixpkgs:
 
 ```bash
 nix run nixpkgs#waytator
@@ -71,7 +71,7 @@ environment.systemPackages = [
 OCR is included. For a smaller install without it, use `.waytator-minimal` instead of `.default`, or try it with:
 
 ```bash
-nix run github:faetalize/waytator#waytator-minimal
+nix run github:faetalize/waytator/stable#waytator-minimal
 ```
 
 To turn OCR off on a package you build yourself, override it with `enableOcr = false`.
