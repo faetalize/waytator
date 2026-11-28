@@ -55,9 +55,7 @@ nix run github:faetalize/waytator/stable#waytator-minimal
 nix run github:faetalize/waytator#waytator-minimal
 ```
 
-#### NixOS
-
-Add it as a flake input:
+**On NixOS**, add it as a flake input:
 
 ```nix
 # flake.nix
