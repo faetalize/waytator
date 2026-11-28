@@ -120,9 +120,9 @@ waytator_video_encoder_quality(const char *encoder,
   return (int) round(40 - quality * 0.25);
 }
 
-static const char *const *
-waytator_video_encoder_names(WaytatorVideoCodec codec,
-                             gboolean           hardware)
+const char *const *
+waytator_video_encoder_get_names(WaytatorVideoCodec codec,
+                                 gboolean           hardware)
 {
   static const char *const h264_hardware[] = { "h264_vaapi", NULL };
   static const char *const h264_software[] = { "libx264", "libopenh264", NULL };
@@ -132,6 +132,8 @@ waytator_video_encoder_names(WaytatorVideoCodec codec,
   static const char *const av1_software[] = { "libsvtav1", "libaom-av1", "librav1e", NULL };
   static const char *const vp9_hardware[] = { "vp9_vaapi", NULL };
   static const char *const vp9_software[] = { "libvpx-vp9", NULL };
+  static const char *const gif_hardware[] = { NULL };
+  static const char *const gif_software[] = { "gif", NULL };
 
   switch (codec) {
   case WAYTATOR_VIDEO_CODEC_H264:
@@ -142,6 +144,8 @@ waytator_video_encoder_names(WaytatorVideoCodec codec,
     return hardware ? av1_hardware : av1_software;
   case WAYTATOR_VIDEO_CODEC_VP9:
     return hardware ? vp9_hardware : vp9_software;
+  case WAYTATOR_VIDEO_CODEC_GIF:
+    return hardware ? gif_hardware : gif_software;
   default:
     return NULL;
   }
@@ -177,6 +181,21 @@ waytator_video_encoder_hardware_encodes(const AVCodec *codec,
   return works;
 }
 
+void
+waytator_video_encoder_probe_hardware(const char *const *names,
+                                      gboolean          *works)
+{
+  AVBufferRef *device = waytator_video_encoder_open_device();
+
+  for (guint i = 0; names[i] != NULL; i++) {
+    const AVCodec *found = device != NULL ? avcodec_find_encoder_by_name(names[i]) : NULL;
+
+    //a common size, the gpus that encode anything at all encode this
+    works[i] = found != NULL && waytator_video_encoder_hardware_encodes(found, device, 1280, 720);
+  }
+  av_buffer_unref(&device);
+}
+
 gboolean
 waytator_video_encoder_choose(WaytatorVideoCodec          codec,
                               WaytatorVideoEncoder        preference,
@@ -193,7 +212,7 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
     AVBufferRef *device = waytator_video_encoder_open_device();
 
     if (device != NULL) {
-      names = waytator_video_encoder_names(codec, TRUE);
+      names = waytator_video_encoder_get_names(codec, TRUE);
       for (guint i = 0; names[i] != NULL; i++) {
         const AVCodec *found = avcodec_find_encoder_by_name(names[i]);
 
@@ -210,7 +229,7 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
   if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE)
     g_debug("No hardware encoder for this profile here, encoding on the cpu");
 
-  names = waytator_video_encoder_names(codec, FALSE);
+  names = waytator_video_encoder_get_names(codec, FALSE);
   for (guint i = 0; names[i] != NULL && choice->codec == NULL; i++)
     choice->codec = avcodec_find_encoder_by_name(names[i]);
 

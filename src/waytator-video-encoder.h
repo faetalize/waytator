@@ -34,6 +34,16 @@ typedef struct {
   AVBufferRef *device;
 } WaytatorVideoEncoderChoice;
 
+//the encoders ffmpeg may have for codec, on the gpu or on the cpu, in the order they are tried. a GIF has
+//only ffmpeg's own on the cpu, gifski aside
+const char *const *waytator_video_encoder_get_names(WaytatorVideoCodec codec,
+                                                    gboolean           hardware);
+
+//for each encoder in names, whether the gpu really encodes with it, into works. opens the gpu and an encoder
+//for each, so it takes a while: call it from a worker thread
+void waytator_video_encoder_probe_hardware(const char *const *names,
+                                           gboolean          *works);
+
 //on the gpu unless preference says the cpu or the gpu can't encode a width by height picture in codec, on
 //the cpu otherwise. fails with G_IO_ERROR_NOT_SUPPORTED when this ffmpeg can't encode codec at all. not for
 //GIFs. whatever choice held is cleared first, and it is left cleared on failure. clear it with

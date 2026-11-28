@@ -104,6 +104,8 @@ waytator_sources = files(
   'waytator-video-proxy.h',
   'waytator-video-source.c',
   'waytator-video-source.h',
+  'waytator-video-support.c',
+  'waytator-video-support.h',
   'waytator-video-thumbnails.c',
   'waytator-video-thumbnails.h',
   'waytator-video-timeline.c',
