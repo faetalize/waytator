@@ -489,6 +489,21 @@ waytator_window_video_start(WaytatorWindow              *self,
     }
   }
 
+  //Copy has no list that greys its profile out, so one known not to export here says why. it never waits
+  //for the encoders to be tried, Copy is meant to be quick: until they have been, one that only trying
+  //them rules out is exported anyway and fails with the export's own error. an export to a file had its
+  //profile picked from the list
+  if (!plan->saves) {
+    g_autofree char *reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
+
+    if (reason != NULL) {
+      g_autofree char *message = g_strdup_printf("Can't copy with the “%s” profile. %s", profile->name, reason);
+
+      waytator_window_show_error(self, message);
+      return;
+    }
+  }
+
   save = g_new0(WaytatorWindowVideoSave, 1);
   save->window = g_object_ref(self);
   save->file = file != NULL ? g_object_ref(file) : waytator_window_video_new_file(self, profile, &error);
@@ -935,12 +950,17 @@ waytator_video_profiles_checked(GObject      *source_object,
   (void) source_object;
 
   waytator_video_support_check_finish(result, NULL);
-  for (guint i = 0; page != NULL && i < page->rows->len; i++) {
+  //preferences closed in the meantime have no window to fill the Copy row from
+  if (page == NULL || gtk_widget_get_root(preferences) == NULL)
+    return;
+
+  for (guint i = 0; i < page->rows->len; i++) {
     AdwExpanderRow *expander = g_ptr_array_index(page->rows, i);
 
     waytator_video_profiles_show_support(expander, g_ptr_array_index(page->profiles, i));
     waytator_video_profiles_set_list_factories(expander);
   }
+  waytator_video_profiles_fill_copy_row(page);
 }
 
 //the encoders are tried the first time the profiles are shown, never at startup
@@ -974,7 +994,6 @@ waytator_video_profiles_row_changed(GObject    *object,
     g_free(profile->name);
     profile->name = g_strdup(name);
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(expander), name);
-    waytator_video_profiles_fill_copy_row(page);
   } else if (g_str_equal(field, "codec")) {
     profile->codec = adw_combo_row_get_selected(ADW_COMBO_ROW(row));
     //which encoders can make it changes with it
@@ -996,6 +1015,9 @@ waytator_video_profiles_row_changed(GObject    *object,
   }
 
   waytator_video_profiles_show_support(expander, profile);
+  //the Copy row shows the names, and which profiles can be exported
+  if (g_str_equal(field, "name") || g_str_equal(field, "codec") || g_str_equal(field, "encoder"))
+    waytator_video_profiles_fill_copy_row(page);
   waytator_video_profiles_page_store(page);
 }
 
@@ -1088,7 +1110,22 @@ waytator_video_profiles_copy_changed(GObject    *object,
   waytator_window_save_preferences(page->window);
 }
 
-//the names in the row picking Copy's profile, kept up with the profiles
+//a profile Copy couldn't export with here
+static char *
+waytator_video_profiles_copy_reason(guint    position,
+                                    gpointer user_data)
+{
+  const WaytatorVideoProfilesPage *page = user_data;
+  const WaytatorVideoProfile *profile;
+
+  if (position >= page->profiles->len)
+    return NULL;
+
+  profile = g_ptr_array_index(page->profiles, position);
+  return waytator_video_support_unavailable(profile->codec, profile->encoder);
+}
+
+//the names in the row picking Copy's profile and which of them it can be, kept up with the profiles
 static void
 waytator_video_profiles_fill_copy_row(WaytatorVideoProfilesPage *page)
 {
@@ -1109,6 +1146,7 @@ waytator_video_profiles_fill_copy_row(WaytatorVideoProfilesPage *page)
   adw_combo_row_set_model(page->copy_row, G_LIST_MODEL(names));
   adw_combo_row_set_selected(page->copy_row, selected);
   page->filling = FALSE;
+  waytator_choice_list_install(page->copy_row, waytator_video_profiles_copy_reason, page);
 }
 
 static void
