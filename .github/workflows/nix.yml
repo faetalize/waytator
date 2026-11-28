@@ -28,25 +28,15 @@ jobs:
         run: |
           nix path-info -r ./result | grep -q -- '-wl-clipboard-'
           nix path-info -r ./result | grep -q -- '-tesseract-'
-      - run: nix build -L ${{ matrix.override }} .#waytator-minimal -o result-minimal
-      - name: Check waytator-minimal ships wl-copy and no tesseract
+      # waytator-minimal and the withOcr alias are checked from their derivations, without a second build.
+      # tesseract is a direct input of the default package, so its absence from waytator-minimal's inputs
+      # means OCR is off, and withOcr = false has to give that same derivation
+      - name: Check waytator-minimal and withOcr = false leave tesseract out
         run: |
-          closure=$(nix path-info -r ./result-minimal)
-          grep -q -- '-wl-clipboard-' <<< "$closure"
-          if grep -- '-tesseract-' <<< "$closure"; then exit 1; fi
-      # what OCR adds is the paths in the closure of the app with it and not without it. for comparison, the
-      # same for the all-languages tesseract nixpkgs ships by default, read from the binary cache
-      - name: Closure sizes
-        run: |
-          mib() { awk '{ sum += $2 } END { printf "%.1f MiB\n", sum / 1048576 }'; }
-          minimal=$(nix path-info -r ./result-minimal | sort)
-          echo "waytator:         $(nix path-info -S ./result | mib)"
-          echo "waytator-minimal: $(nix path-info -S ./result-minimal | mib)"
-          echo "OCR, English:     $(comm -23 <(nix path-info -r ./result | sort) <(echo "$minimal") | grep -v -- '-waytator-' | xargs nix path-info -s | mib)"
-          if [ "${{ matrix.nixpkgs }}" = unstable ]; then
-            cache=(--store https://cache.nixos.org)
-            # a store path rather than the installable, which nix would try to build into the cache
-            tesseract=$(nix eval --raw --inputs-from . nixpkgs#tesseract.outPath)
-            all=$(nix path-info "${cache[@]}" -r "$tesseract" | sort)
-            echo "OCR, every language (nixpkgs' default tesseract): $(comm -23 <(echo "$all") <(echo "$minimal") | xargs nix path-info "${cache[@]}" -s | mib)"
-          fi
+          inputs() { nix-store --query --references "$(nix eval --raw ${{ matrix.override }} "$@")"; }
+          inputs .#waytator.drvPath | grep -q -- '-tesseract-'
+          minimal=$(inputs .#waytator-minimal.drvPath)
+          grep -q -- '-wl-clipboard-' <<< "$minimal"
+          if grep -- '-tesseract-' <<< "$minimal"; then exit 1; fi
+          [ "$(nix eval --raw ${{ matrix.override }} .#waytator --apply 'p: (p.override { withOcr = false; }).drvPath')" \
+            = "$(nix eval --raw ${{ matrix.override }} .#waytator-minimal.drvPath)" ]
