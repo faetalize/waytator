@@ -63,6 +63,16 @@ test_video_support = executable(
 )
 test('video-support', test_video_support)
 
+#a drop-down with greyed out choices, on a Broadway display of the test's own
+test_choice_list = executable(
+  'test-choice-list',
+  'test-choice-list.c',
+  files('../src/waytator-choice-list.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep, gtk_dep, adw_dep],
+)
+test('choice-list', test_choice_list)
+
 #makes its own videos and saves them through every turn and flip, checking the corners land where the editor shows them
 test_video_export = executable(
   'test-video-export',
