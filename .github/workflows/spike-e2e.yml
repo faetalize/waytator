@@ -6,8 +6,12 @@ on:
 
 jobs:
   host:
-    name: uinput into headless sway (host runner)
-    runs-on: ubuntu-latest
+    name: uinput into headless sway (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -51,6 +55,20 @@ jobs:
           sudo -u "$USER" env PATH="$PWD/simtouch-env/bin:$PATH" \
             python3 spike/e2e/e2e.py --mode isolated --logs "$PWD/e2e-logs/alone"
 
+      - name: Repeat it 25 times to look for flakiness
+        run: |
+          passed=0
+          for i in $(seq 25); do
+            if sudo -u "$USER" env PATH="$PWD/simtouch-env/bin:$PATH" timeout 90 \
+              python3 spike/e2e/e2e.py --mode isolated --logs "$PWD/e2e-logs/repeat-$i" > repeat.log 2>&1; then
+              passed=$((passed + 1))
+            else
+              echo "::group::run $i failed"; cat repeat.log; echo "::endgroup::"
+            fi
+          done
+          echo "passed $passed of 25"
+          [ "$passed" = 25 ]
+
       # the stand-in desktop reads seat0 and the visible devices stay root:input, so it needs that group
       - name: Seat isolation against a seat0 compositor
         run: |
@@ -69,7 +87,11 @@ jobs:
           for mode in isolated visible; do
             echo "=================== $mode ==================="
             rm -f go && mkfifo go
-            sudo env PATH="$PATH" python3 spike/e2e/inject.py --mode "$mode" < go > inject.log &
+            # as a desktop user would be for visible mode: able to open /dev/uinput, not in the input group, so
+            # unable to open the seat0 nodes it creates
+            install -m 644 spike/e2e/inject.py /tmp/inject.py
+            sudo -u nobody -g simtouch id
+            sudo -u nobody -g simtouch "$PWD/simtouch-env/bin/python3" /tmp/inject.py --mode "$mode" < go > inject.log &
             injector=$!
             exec 3> go
             timeout 20 sh -c 'until grep -qx ready inject.log; do sleep 0.1; done'
@@ -82,6 +104,10 @@ jobs:
               ls -l "$node"
               getfacl -p "$node" 2>/dev/null || true
             done
+
+            # what in the kernel itself listens, which no udev seat can change
+            echo "--- kernel handlers"
+            grep -A8 "simtouch-" /proc/bus/input/devices | grep -E '^(N|H):'
 
             for seat in seat0 seat-simtouch; do
               sudo env PATH="$PATH" timeout -s INT 12 libinput debug-events --udev "$seat" > "events-$seat.log" 2>&1 &
@@ -128,7 +154,7 @@ jobs:
       - name: Compositor and probe logs
         if: always()
         run: |
-          for log in e2e-logs/*/sway-*.log; do
+          for log in e2e-logs/{alone,isolation,visible}/sway-*.log; do
             echo "::group::$log"
             grep -iE 'libseat|libinput|session|simtouch|tablet|touch|\[ERROR\]' "$log" | head -150
             echo "::endgroup::"

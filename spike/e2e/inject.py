@@ -8,6 +8,7 @@ Prints "ready" once both devices exist, then waits for a line on stdin before pl
 """
 
 import argparse
+import fcntl
 import glob
 import os
 import subprocess
@@ -74,15 +75,13 @@ def make_pen(prefix):
     )
 
 
-def event_node(name):
-    for path in glob.glob("/sys/class/input/event*"):
-        try:
-            with open(os.path.join(path, "device", "name")) as handle:
-                if handle.read().strip() == name:
-                    return "/dev/input/" + os.path.basename(path)
-        except OSError:
-            pass
-    return None
+def event_node(device):
+    """The /dev/input node of this very device. Looking it up by name could find a leftover namesake on another
+    seat, and the seat check below has to be about the device the events go into."""
+    # UI_GET_SYSNAME(64) from linux/uinput.h
+    sysname = fcntl.ioctl(device.fd, 0x8040552C, bytes(64)).split(b"\0", 1)[0].decode()
+    nodes = glob.glob(f"/sys/devices/virtual/input/{sysname}/event*")
+    return "/dev/input/" + os.path.basename(nodes[0]) if nodes else None
 
 
 def udev_properties(node):
@@ -91,18 +90,18 @@ def udev_properties(node):
     return dict(line.split("=", 1) for line in out.splitlines() if "=" in line)
 
 
-def wait_for_udev(name):
+def wait_for_udev(device):
     """The node and properties of a new device once udev has finished with it."""
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
-        node = event_node(name)
+        node = event_node(device)
         if node is not None:
             subprocess.run(["udevadm", "settle", "--timeout=5"], check=False)
             properties = udev_properties(node)
             if "ID_INPUT" in properties:
                 return node, properties
         time.sleep(0.05)
-    raise SystemExit(f"udev never finished setting up {name!r}")
+    raise SystemExit(f"udev never finished setting up {device.name!r}")
 
 
 def frame(device, *events):
@@ -167,10 +166,10 @@ def main():
     prefix = f"simtouch-{args.mode}"
     devices = [make_touchscreen(prefix), make_pen(prefix)]
     try:
-        for suffix in ("touchscreen", "pen"):
-            node, properties = wait_for_udev(f"{prefix} {suffix}")
+        for device in devices:
+            node, properties = wait_for_udev(device)
             seat = properties.get("ID_SEAT", "seat0")
-            print(f"device node={node} seat={seat} name=\"{prefix} {suffix}\"", flush=True)
+            print(f"device node={node} seat={seat} name=\"{device.name}\"", flush=True)
             # fail closed: on seat0 these events would land on the real desktop
             if args.mode == "isolated" and seat != ISOLATED_SEAT:
                 print(f"refusing to play: {node} is on {seat}, is 72-simtouch.rules installed?", file=sys.stderr)
