@@ -254,6 +254,8 @@ waytator_export_run_task(GTask        *task,
   g_autoptr(GdkPixbuf) encoded_pixbuf = NULL;
   char *option_keys[] = { NULL, NULL };
   char *option_values[] = { NULL, NULL };
+  g_autofree char *buffer = NULL;
+  gsize length = 0;
   const char *format;
 
   if (path == NULL) {
@@ -288,21 +290,24 @@ waytator_export_run_task(GTask        *task,
     return;
   }
 
-  if (option_keys[0] != NULL) {
-    if (!gdk_pixbuf_savev(encoded_pixbuf,
-                          path,
-                          format,
-                          option_keys,
-                          option_values,
-                          &error)) {
-      g_task_return_error(task, g_steal_pointer(&error));
-      return;
-    }
-  } else if (!gdk_pixbuf_save(encoded_pixbuf,
-                              path,
-                              format,
-                              &error,
-                              NULL)) {
+  //encoded in memory first and swapped in whole, so a save that fails halfway leaves the file that was there.
+  //gdk_pixbuf_savev empties the file before encoding and deletes it when encoding fails
+  if (!gdk_pixbuf_save_to_bufferv(encoded_pixbuf,
+                                  &buffer,
+                                  &length,
+                                  format,
+                                  option_keys,
+                                  option_values,
+                                  &error)
+      || !g_file_replace_contents(request->file,
+                                  buffer,
+                                  length,
+                                  NULL,
+                                  FALSE,
+                                  G_FILE_CREATE_NONE,
+                                  NULL,
+                                  NULL,
+                                  &error)) {
     g_task_return_error(task, g_steal_pointer(&error));
     return;
   }
