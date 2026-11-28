@@ -1,4 +1,4 @@
-//which saves put the edits into the file being edited
+//which saves put the edits into the file being edited, and where a first save goes
 #include <gio/gio.h>
 
 #include "waytator-save.h"
@@ -32,6 +32,29 @@ test_first_save_is_document(void)
   g_assert_true(waytator_save_target_is_document(NULL, file));
 }
 
+//a piped image given --save-path saves there, without asking
+static void
+test_first_save_target(void)
+{
+  g_assert_cmpint(waytator_save_first_destination(TRUE, FALSE, TRUE), ==, WAYTATOR_FIRST_SAVE_TARGET);
+  g_assert_cmpint(waytator_save_first_destination(TRUE, FALSE, FALSE), ==, WAYTATOR_FIRST_SAVE_TARGET);
+}
+
+//a piped image without one is asked about, the screenshot folder is only for captures
+static void
+test_first_save_piped_asks(void)
+{
+  g_assert_cmpint(waytator_save_first_destination(FALSE, FALSE, TRUE), ==, WAYTATOR_FIRST_SAVE_DIALOG);
+}
+
+//a capture goes to the screenshot folder when one is set, and is asked about when not
+static void
+test_first_save_capture(void)
+{
+  g_assert_cmpint(waytator_save_first_destination(FALSE, TRUE, TRUE), ==, WAYTATOR_FIRST_SAVE_FOLDER);
+  g_assert_cmpint(waytator_save_first_destination(FALSE, TRUE, FALSE), ==, WAYTATOR_FIRST_SAVE_DIALOG);
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -40,5 +63,8 @@ main(int   argc,
   g_test_add_func("/save/copy-is-not-document", test_copy_is_not_document);
   g_test_add_func("/save/open-file-is-document", test_open_file_is_document);
   g_test_add_func("/save/first-save-is-document", test_first_save_is_document);
+  g_test_add_func("/save/first-save-target", test_first_save_target);
+  g_test_add_func("/save/first-save-piped-asks", test_first_save_piped_asks);
+  g_test_add_func("/save/first-save-capture", test_first_save_capture);
   return g_test_run();
 }

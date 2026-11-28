@@ -15,9 +15,11 @@ WaytatorWindow *waytator_window_new(AdwApplication *app);
 gboolean waytator_window_open_file(WaytatorWindow *self,
                                    GFile          *file,
                                    GError        **error);
+//save_target is where its first save goes without asking, or NULL to ask
 gboolean waytator_window_open_bytes(WaytatorWindow *self,
                                     GBytes         *bytes,
                                     const char     *display_name,
+                                    GFile          *save_target,
                                     GError        **error);
 //a video coming through a pipe, head being what was already read of it to tell it apart from an image
 void waytator_window_open_video_stream(WaytatorWindow *self,

@@ -1,4 +1,5 @@
 #include <adwaita.h>
+#include <gio/gunixinputstream.h>
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -88,19 +89,35 @@ app_read_stream_bytes(GInputStream *stream,
   return g_byte_array_free_to_bytes(g_steal_pointer(&buffer));
 }
 
+//a pipe or a file redirected in, not a terminal and not /dev/null
+static gboolean
+app_fd_is_piped(int fd)
+{
+  struct stat fd_stat;
+
+  if (isatty(fd))
+    return FALSE;
+
+  if (fstat(fd, &fd_stat) != 0)
+    return FALSE;
+
+  return S_ISFIFO(fd_stat.st_mode)
+      || S_ISREG(fd_stat.st_mode);
+}
+
 static gboolean
 app_should_read_stdin(void)
 {
-  struct stat stdin_stat;
+  return app_fd_is_piped(STDIN_FILENO);
+}
 
-  if (isatty(STDIN_FILENO))
-    return FALSE;
-
-  if (fstat(STDIN_FILENO, &stdin_stat) != 0)
-    return FALSE;
-
-  return S_ISFIFO(stdin_stat.st_mode)
-      || S_ISREG(stdin_stat.st_mode);
+//stdin of the launch that sent the command, which is not this process's own when waytator was already running
+static gboolean
+app_stream_is_piped(GInputStream *stream)
+{
+  return stream != NULL
+      && G_IS_UNIX_INPUT_STREAM(stream)
+      && app_fd_is_piped(g_unix_input_stream_get_fd(G_UNIX_INPUT_STREAM(stream)));
 }
 
 //every launch says whether its stderr is a terminal, since only it can tell and the command may be handled by a
@@ -189,6 +206,20 @@ app_command_line_fail(GApplication            *app,
   app_command_line_notify(app, command_line, message);
 }
 
+//a keybind runs the command without a shell, which would have expanded ~ in a path
+static GFile *
+app_command_line_file_for_path(GApplicationCommandLine *command_line,
+                               const char              *arg)
+{
+  if (g_strcmp0(arg, "~") == 0 || g_str_has_prefix(arg, "~/")) {
+    g_autofree char *path = g_build_filename(g_get_home_dir(), arg + 1, NULL);
+
+    return g_file_new_for_path(path);
+  }
+
+  return g_application_command_line_create_file_for_arg(command_line, arg);
+}
+
 static WaytatorWindow *
 app_get_or_create_window(AdwApplication *app)
 {
@@ -253,6 +284,10 @@ app_open(GApplication  *app,
   "Usage: %s [OPTIONS] [IMAGE|VIDEO|-|--stdin]\n" \
   "\n" \
   "  --name NAME                             Name for an image or video read from stdin\n" \
+  "  --save-path PATH                        Where Save puts an image read from stdin,\n" \
+  "                                          without asking. PATH includes the file\n" \
+  "                                          name, its extension picks the format,\n" \
+  "                                          and a file already there is overwritten\n" \
   "  --screenshot [area|screen]              Take a screenshot, of an area unless told\n" \
   "                                          otherwise. Opens the editor unless that's\n" \
   "                                          turned off in Preferences\n" \
@@ -489,6 +524,9 @@ app_command_line(GApplication            *app,
   int close_on_copy = -1;
   const char *shortcuts[G_N_ELEMENTS(app_shortcut_options)] = { NULL };
   const char *stdin_name = NULL;
+  g_autoptr(GFile) save_path = NULL;
+  //gio hands over a launch's stdin only once, so it is taken once and kept
+  g_autoptr(GInputStream) stdin_stream = NULL;
   g_autoptr(GError) error = NULL;
   g_autoptr(GFile) file = NULL;
   //a window made for this command, which has no reason to stay if what it was made for fails to open
@@ -648,6 +686,15 @@ app_command_line(GApplication            *app,
       }
 
       stdin_name = arguments[++i];
+    } else if (g_strcmp0(arguments[i], "--save-path") == 0) {
+      if (i + 1 >= argc) {
+        app_command_line_fail(app, command_line, "Missing value for --save-path");
+        status = 1;
+        goto done;
+      }
+
+      g_clear_object(&save_path);
+      save_path = app_command_line_file_for_path(command_line, arguments[++i]);
     } else if (g_strcmp0(arguments[i], "-") == 0 || g_strcmp0(arguments[i], "--stdin") == 0) {
       use_stdin = TRUE;
     } else if (arguments[i][0] == '-') {
@@ -679,6 +726,28 @@ app_command_line(GApplication            *app,
                           screenshot ? "--screenshot" : "--record");
     status = 1;
     goto done;
+  }
+
+  if (use_stdin || save_path != NULL)
+    stdin_stream = g_application_command_line_get_stdin(command_line);
+
+  if (save_path != NULL) {
+    gboolean read_stdin = FALSE;
+    const char *problem = waytator_command_line_save_path_problem(stdin_name != NULL,
+                                                                  file != NULL,
+                                                                  screenshot,
+                                                                  record,
+                                                                  use_stdin,
+                                                                  app_stream_is_piped(stdin_stream),
+                                                                  &read_stdin);
+
+    if (problem != NULL) {
+      app_command_line_fail(app, command_line, "%s", problem);
+      status = 1;
+      goto done;
+    }
+
+    use_stdin = read_stdin;
   }
 
   //naming a screen is asking for that screen, there is no need to say screen twice
@@ -787,21 +856,36 @@ app_command_line(GApplication            *app,
   }
 
   if (use_stdin) {
-    g_autoptr(GInputStream) stream = g_application_command_line_get_stdin(command_line);
+    GInputStream *stream = stdin_stream;
     g_autoptr(GBytes) head = NULL;
     g_autoptr(GBytes) bytes = NULL;
+    g_autofree char *save_name = NULL;
 
+    if (stream == NULL)
+      g_set_error_literal(&error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT, "No image data was provided on stdin");
     head = stream != NULL ? app_read_stream_head(stream, &error) : NULL;
     //a video is read as it arrives, it can be far too big to hold, and it opens once the pipe closes
     if (head != NULL && waytator_video_editor_handles_data(head)) {
+      if (save_path != NULL) {
+        app_command_line_fail(app, command_line, "--save-path only works with images, not videos");
+        status = 1;
+        goto failed_to_open;
+      }
+
       waytator_window_open_video_stream(window, stream, head, stdin_name != NULL ? stdin_name : "Video");
       gtk_window_present(GTK_WINDOW(window));
       goto done;
     }
 
     bytes = head != NULL ? app_read_stream_bytes(stream, head, &error) : NULL;
+    if (save_path != NULL)
+      save_name = g_file_get_basename(save_path);
     if (bytes == NULL
-        || !waytator_window_open_bytes(window, bytes, stdin_name != NULL ? stdin_name : "stdin.png", &error)) {
+        || !waytator_window_open_bytes(window,
+                                       bytes,
+                                       save_name != NULL ? save_name : stdin_name != NULL ? stdin_name : "stdin.png",
+                                       save_path,
+                                       &error)) {
       app_command_line_fail(app, command_line,
                             "Error loading image from stdin: %s",
                             error->message);

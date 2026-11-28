@@ -1,5 +1,6 @@
-//which command lines take their screenshot without a window
+//which command lines take their screenshot without a window, and where --save-path fits
 #include <glib.h>
+#include <string.h>
 
 #include "waytator-command-line.h"
 
@@ -33,6 +34,63 @@ test_screenshot_editor_on(void)
   g_assert_false(waytator_command_line_captures_in_background(TRUE, FALSE, TRUE));
 }
 
+//a piped image takes a save path, with or without - to say so
+static void
+test_save_path_piped(void)
+{
+  gboolean read_stdin = FALSE;
+
+  g_assert_null(waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, FALSE, TRUE, TRUE, &read_stdin));
+  g_assert_true(read_stdin);
+  g_assert_null(waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, &read_stdin));
+  g_assert_true(read_stdin);
+}
+
+//nothing piped in, so there is no image for the path to belong to
+static void
+test_save_path_nothing_piped(void)
+{
+  gboolean read_stdin = TRUE;
+  const char *problem = waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, &read_stdin);
+
+  g_assert_nonnull(problem);
+  g_assert_nonnull(strstr(problem, "needs an image piped in"));
+  g_assert_false(read_stdin);
+}
+
+//the path holds the file name, so a second name has nowhere to go
+static void
+test_save_path_with_name(void)
+{
+  gboolean read_stdin = TRUE;
+  const char *problem = waytator_command_line_save_path_problem(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE, &read_stdin);
+
+  g_assert_nonnull(problem);
+  g_assert_nonnull(strstr(problem, "remove --name"));
+  g_assert_false(read_stdin);
+}
+
+//each of the others says where that kind of save goes instead, whether or not something is piped
+static void
+test_save_path_elsewhere(void)
+{
+  gboolean read_stdin = TRUE;
+  const char *problem;
+
+  problem = waytator_command_line_save_path_problem(FALSE, TRUE, FALSE, FALSE, FALSE, TRUE, &read_stdin);
+  g_assert_nonnull(problem);
+  g_assert_nonnull(strstr(problem, "Save a copy"));
+  g_assert_false(read_stdin);
+
+  problem = waytator_command_line_save_path_problem(FALSE, FALSE, TRUE, FALSE, FALSE, TRUE, &read_stdin);
+  g_assert_nonnull(problem);
+  g_assert_nonnull(strstr(problem, "screenshot folder"));
+
+  problem = waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, &read_stdin);
+  g_assert_nonnull(problem);
+  g_assert_nonnull(strstr(problem, "recording folder"));
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -42,5 +100,9 @@ main(int   argc,
   g_test_add_func("/command-line/screenshot-editor-off", test_screenshot_editor_off);
   g_test_add_func("/command-line/screenshot-notify", test_screenshot_notify);
   g_test_add_func("/command-line/screenshot-editor-on", test_screenshot_editor_on);
+  g_test_add_func("/command-line/save-path-piped", test_save_path_piped);
+  g_test_add_func("/command-line/save-path-nothing-piped", test_save_path_nothing_piped);
+  g_test_add_func("/command-line/save-path-with-name", test_save_path_with_name);
+  g_test_add_func("/command-line/save-path-elsewhere", test_save_path_elsewhere);
   return g_test_run();
 }
