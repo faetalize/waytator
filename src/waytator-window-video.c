@@ -5,11 +5,13 @@
 #include <math.h>
 #include <string.h>
 
+#include "waytator-choice-list.h"
 #include "waytator-clipboard.h"
 #include "waytator-video-cache.h"
 #include "waytator-video-copy.h"
 #include "waytator-video-editor.h"
 #include "waytator-video-profile.h"
+#include "waytator-video-support.h"
 
 //the window shows a video while one is open or on its way
 gboolean
@@ -473,6 +475,7 @@ waytator_window_video_start(WaytatorWindow              *self,
   g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
   const WaytatorVideoProfile *profile = waytator_window_video_find_profile(profiles, profile_id);
   g_autoptr(GError) error = NULL;
+  g_autofree char *reason = NULL;
   WaytatorWindowVideoSave *save;
 
   if (waytator_video_editor_get_edit(editor) == NULL || waytator_video_editor_is_exporting(editor))
@@ -485,6 +488,19 @@ waytator_window_video_start(WaytatorWindow              *self,
       waytator_window_video_copy_again(self, made, plan);
       return;
     }
+  }
+
+  //a profile known not to export here says why. Copy has no list that greys its profile out, and a row of
+  //Export As can be picked before the encoders have been tried, with the file dialog outlasting the check.
+  //it never waits for them, Copy is meant to be quick: until they have been tried, one that only trying them
+  //rules out is exported anyway and fails with the export's own error. the message is the export's own,
+  //the reason is a caption for the list
+  reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
+  if (reason != NULL) {
+    g_autofree char *message = waytator_video_profile_describe_unavailable(profile);
+
+    waytator_window_show_error(self, message);
+    return;
   }
 
   save = g_new0(WaytatorWindowVideoSave, 1);
@@ -626,6 +642,51 @@ waytator_window_video_export_picked(WaytatorWindowVideoChoice *choice)
   waytator_window_video_choice_free(choice);
 }
 
+//what a profile makes, and on a line of its own why it can't be exported here if it can't
+static char *
+waytator_window_video_profile_subtitle(const WaytatorVideoProfile *profile)
+{
+  g_autofree char *description = waytator_video_profile_describe(profile);
+  g_autofree char *reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
+
+  return reason != NULL ? g_strdup_printf("%s\n%s", description, reason) : g_steal_pointer(&description);
+}
+
+//a profile that can't be exported here is greyed out with the reason, rather than failing once picked
+static void
+waytator_window_video_update_profile_row(GtkWidget                  *row,
+                                         const WaytatorVideoProfile *profile)
+{
+  g_autofree char *subtitle = waytator_window_video_profile_subtitle(profile);
+  g_autofree char *reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
+
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(row), subtitle);
+  gtk_widget_set_sensitive(row, reason == NULL);
+}
+
+static void
+waytator_window_video_profiles_checked(GObject      *source_object,
+                                       GAsyncResult *result,
+                                       gpointer      user_data)
+{
+  g_autoptr(GtkWidget) list = user_data;
+  g_autoptr(GPtrArray) profiles = waytator_window_video_profiles();
+
+  (void) source_object;
+
+  waytator_video_support_check_finish(result, NULL);
+  for (GtkWidget *row = gtk_widget_get_first_child(list); row != NULL; row = gtk_widget_get_next_sibling(row)) {
+    const char *id = g_object_get_data(G_OBJECT(row), "profile-id");
+
+    for (guint i = 0; id != NULL && i < profiles->len; i++) {
+      const WaytatorVideoProfile *profile = g_ptr_array_index(profiles, i);
+
+      if (g_str_equal(profile->id, id))
+        waytator_window_video_update_profile_row(row, profile);
+    }
+  }
+}
+
 static void
 waytator_window_video_profile_activated(GtkListBox    *list,
                                         GtkListBoxRow *row,
@@ -665,17 +726,20 @@ waytator_window_video_ask_profile(WaytatorWindowVideoChoice *choice)
   gtk_widget_add_css_class(list, "boxed-list");
   for (guint i = 0; i < profiles->len; i++) {
     const WaytatorVideoProfile *profile = g_ptr_array_index(profiles, i);
-    g_autofree char *description = waytator_video_profile_describe(profile);
     GtkWidget *row = adw_action_row_new();
 
+    //a name is plain text, which a row would otherwise read as markup and show nothing for at an &
+    adw_preferences_row_set_use_markup(ADW_PREFERENCES_ROW(row), FALSE);
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), profile->name);
-    adw_action_row_set_subtitle(ADW_ACTION_ROW(row), description);
+    waytator_window_video_update_profile_row(row, profile);
     gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
     g_object_set_data_full(G_OBJECT(row), "profile-id", g_strdup(profile->id), g_free);
     gtk_list_box_append(GTK_LIST_BOX(list), row);
   }
   g_signal_connect(list, "row-activated", G_CALLBACK(waytator_window_video_profile_activated), choice);
   adw_alert_dialog_set_extra_child(ADW_ALERT_DIALOG(dialog), list);
+  //whether an encoder works is only known once it has been tried
+  waytator_video_support_check_async(NULL, waytator_window_video_profiles_checked, g_object_ref(list));
   adw_alert_dialog_add_response(ADW_ALERT_DIALOG(dialog), "cancel", "_Cancel");
   adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
   g_signal_connect(dialog, "closed", G_CALLBACK(waytator_window_video_profiles_closed), choice);
@@ -823,6 +887,93 @@ waytator_video_profiles_row_profile(GtkWidget                 *row,
   return g_ptr_array_index((*page)->profiles, GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(row), "index")));
 }
 
+//the warning on a profile that can't be exported here, and the note under its encoder when it won't encode
+//where it asks to
+static void
+waytator_video_profiles_show_support(AdwExpanderRow             *expander,
+                                     const WaytatorVideoProfile *profile)
+{
+  g_autofree char *reason = waytator_video_support_unavailable(profile->codec, profile->encoder);
+  const char *note = waytator_video_support_encoder_note(profile->codec, profile->encoder);
+  GtkWidget *warning = g_object_get_data(G_OBJECT(expander), "warning");
+  GtkWidget *encoder = g_object_get_data(G_OBJECT(expander), "encoder-row");
+  g_autofree char *subtitle = waytator_window_video_profile_subtitle(profile);
+
+  adw_expander_row_set_subtitle(expander, subtitle);
+  gtk_widget_set_visible(warning, reason != NULL);
+  gtk_widget_set_tooltip_text(warning, reason);
+  adw_action_row_set_subtitle(ADW_ACTION_ROW(encoder), note != NULL ? note : "");
+}
+
+//a format nothing here can encode
+static char *
+waytator_video_profiles_codec_reason(guint    position,
+                                     gpointer user_data)
+{
+  (void) user_data;
+
+  return waytator_video_support_unavailable(position, WAYTATOR_VIDEO_ENCODER_AUTO);
+}
+
+//an encoder that can't make the format of the profile whose encoder row user_data is
+static char *
+waytator_video_profiles_encoder_reason(guint    position,
+                                       gpointer user_data)
+{
+  WaytatorVideoProfilesPage *page;
+  const WaytatorVideoProfile *profile = waytator_video_profiles_row_profile(user_data, &page);
+
+  return g_strdup(waytator_video_support_encoder_unavailable(profile->codec, position));
+}
+
+static void
+waytator_video_profiles_install_encoder_list(GtkWidget *encoder_row)
+{
+  waytator_choice_list_install(ADW_COMBO_ROW(encoder_row), waytator_video_profiles_encoder_reason, encoder_row);
+}
+
+static void
+waytator_video_profiles_set_list_factories(AdwExpanderRow *expander)
+{
+  waytator_choice_list_install(ADW_COMBO_ROW(g_object_get_data(G_OBJECT(expander), "codec-row")),
+                               waytator_video_profiles_codec_reason, NULL);
+  waytator_video_profiles_install_encoder_list(g_object_get_data(G_OBJECT(expander), "encoder-row"));
+}
+
+static void
+waytator_video_profiles_checked(GObject      *source_object,
+                                GAsyncResult *result,
+                                gpointer      user_data)
+{
+  g_autoptr(GtkWidget) preferences = user_data;
+  WaytatorVideoProfilesPage *page = g_object_get_data(G_OBJECT(preferences), "profiles");
+
+  (void) source_object;
+
+  waytator_video_support_check_finish(result, NULL);
+  //preferences closed in the meantime have no window to fill the Copy row from
+  if (page == NULL || gtk_widget_get_root(preferences) == NULL)
+    return;
+
+  for (guint i = 0; i < page->rows->len; i++) {
+    AdwExpanderRow *expander = g_ptr_array_index(page->rows, i);
+
+    waytator_video_profiles_show_support(expander, g_ptr_array_index(page->profiles, i));
+    waytator_video_profiles_set_list_factories(expander);
+  }
+  waytator_video_profiles_fill_copy_row(page);
+}
+
+//the encoders are tried the first time the profiles are shown, never at startup
+static void
+waytator_video_profiles_mapped(GtkWidget *preferences,
+                               gpointer   user_data)
+{
+  (void) user_data;
+
+  waytator_video_support_check_async(NULL, waytator_video_profiles_checked, g_object_ref(preferences));
+}
+
 static void
 waytator_video_profiles_row_changed(GObject    *object,
                                     GParamSpec *pspec,
@@ -833,7 +984,6 @@ waytator_video_profiles_row_changed(GObject    *object,
   WaytatorVideoProfilesPage *page;
   WaytatorVideoProfile *profile = waytator_video_profiles_row_profile(row, &page);
   AdwExpanderRow *expander = g_object_get_data(G_OBJECT(row), "expander");
-  g_autofree char *description = NULL;
 
   (void) pspec;
 
@@ -845,9 +995,10 @@ waytator_video_profiles_row_changed(GObject    *object,
     g_free(profile->name);
     profile->name = g_strdup(name);
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(expander), name);
-    waytator_video_profiles_fill_copy_row(page);
   } else if (g_str_equal(field, "codec")) {
     profile->codec = adw_combo_row_get_selected(ADW_COMBO_ROW(row));
+    //which encoders can make it changes with it
+    waytator_video_profiles_install_encoder_list(g_object_get_data(G_OBJECT(expander), "encoder-row"));
   } else if (g_str_equal(field, "encoder")) {
     profile->encoder = adw_combo_row_get_selected(ADW_COMBO_ROW(row));
   } else if (g_str_equal(field, "quality")) {
@@ -864,8 +1015,10 @@ waytator_video_profiles_row_changed(GObject    *object,
     profile->sound_bitrate = (int) adw_spin_row_get_value(ADW_SPIN_ROW(row));
   }
 
-  description = waytator_video_profile_describe(profile);
-  adw_expander_row_set_subtitle(expander, description);
+  waytator_video_profiles_show_support(expander, profile);
+  //the Copy row shows the names, and which profiles can be exported
+  if (g_str_equal(field, "name") || g_str_equal(field, "codec") || g_str_equal(field, "encoder"))
+    waytator_video_profiles_fill_copy_row(page);
   waytator_video_profiles_page_store(page);
 }
 
@@ -958,7 +1111,22 @@ waytator_video_profiles_copy_changed(GObject    *object,
   waytator_window_save_preferences(page->window);
 }
 
-//the names in the row picking Copy's profile, kept up with the profiles
+//a profile Copy couldn't export with here
+static char *
+waytator_video_profiles_copy_reason(guint    position,
+                                    gpointer user_data)
+{
+  const WaytatorVideoProfilesPage *page = user_data;
+  const WaytatorVideoProfile *profile;
+
+  if (position >= page->profiles->len)
+    return NULL;
+
+  profile = g_ptr_array_index(page->profiles, position);
+  return waytator_video_support_unavailable(profile->codec, profile->encoder);
+}
+
+//the names in the row picking Copy's profile and which of them it can be, kept up with the profiles
 static void
 waytator_video_profiles_fill_copy_row(WaytatorVideoProfilesPage *page)
 {
@@ -979,6 +1147,7 @@ waytator_video_profiles_fill_copy_row(WaytatorVideoProfilesPage *page)
   adw_combo_row_set_model(page->copy_row, G_LIST_MODEL(names));
   adw_combo_row_set_selected(page->copy_row, selected);
   page->filling = FALSE;
+  waytator_choice_list_install(page->copy_row, waytator_video_profiles_copy_reason, page);
 }
 
 static void
@@ -1046,24 +1215,34 @@ waytator_video_profiles_page_rebuild(WaytatorVideoProfilesPage *page)
   for (guint i = 0; i < page->profiles->len; i++) {
     const WaytatorVideoProfile *profile = g_ptr_array_index(page->profiles, i);
     AdwExpanderRow *expander = ADW_EXPANDER_ROW(adw_expander_row_new());
-    g_autofree char *description = waytator_video_profile_describe(profile);
+    GtkWidget *warning = gtk_image_new_from_icon_name("dialog-warning-symbolic");
+    GtkWidget *codec;
+    GtkWidget *encoder;
     GtkWidget *name = adw_entry_row_new();
     GtkWidget *actions = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     GtkWidget *remove = gtk_button_new_with_label("Remove");
     GtkWidget *actions_row = adw_preferences_row_new();
 
+    //the name is plain text, see the Export As list
+    adw_preferences_row_set_use_markup(ADW_PREFERENCES_ROW(expander), FALSE);
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(expander), profile->name);
-    adw_expander_row_set_subtitle(expander, description);
+    gtk_widget_add_css_class(warning, "warning");
+    adw_expander_row_add_suffix(expander, warning);
 
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(name), "Name");
     gtk_editable_set_text(GTK_EDITABLE(name), profile->name);
     waytator_video_profiles_add_row(expander, page, i, name, "name", "changed");
-    waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_combo("Format", codecs, profile->codec),
-                                    "codec", "notify::selected");
-    waytator_video_profiles_add_row(expander, page, i,
-                                    waytator_video_profiles_combo("Encoder", encoders, profile->encoder),
-                                    "encoder", "notify::selected");
+    codec = waytator_video_profiles_add_row(expander, page, i,
+                                            waytator_video_profiles_combo("Format", codecs, profile->codec),
+                                            "codec", "notify::selected");
+    encoder = waytator_video_profiles_add_row(expander, page, i,
+                                              waytator_video_profiles_combo("Encoder", encoders, profile->encoder),
+                                              "encoder", "notify::selected");
+    g_object_set_data(G_OBJECT(expander), "warning", warning);
+    g_object_set_data(G_OBJECT(expander), "codec-row", codec);
+    g_object_set_data(G_OBJECT(expander), "encoder-row", encoder);
+    waytator_video_profiles_set_list_factories(expander);
+    waytator_video_profiles_show_support(expander, profile);
     waytator_video_profiles_add_row(expander, page, i,
                                     waytator_video_profiles_spin("Quality", "Used when there is no size limit",
                                                                  0, 100, 5, 0, profile->quality),
@@ -1171,6 +1350,7 @@ waytator_window_new_videos_page(WaytatorWindow *self)
   g_object_set_data_full(G_OBJECT(page), "profiles", profiles_page, waytator_video_profiles_page_free);
   g_signal_connect(add, "clicked", G_CALLBACK(waytator_video_profiles_add), profiles_page);
   g_signal_connect(reset, "clicked", G_CALLBACK(waytator_video_profiles_reset), profiles_page);
+  g_signal_connect(page, "map", G_CALLBACK(waytator_video_profiles_mapped), NULL);
   waytator_video_profiles_page_rebuild(profiles_page);
 
   adw_preferences_page_add(page, editing);

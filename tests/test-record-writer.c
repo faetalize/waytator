@@ -1622,7 +1622,7 @@ main(int    argc,
 
   //a gpu that is there but can't encode is as good as none
   gpu_available = waytator_video_encoder_choose(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE,
-                                                WIDTH, HEIGHT, &choice, NULL)
+                                                WIDTH, HEIGHT, waytator_video_encoder_exists, &choice, NULL)
                && choice.device != NULL;
   waytator_video_encoder_choice_clear(&choice);
 

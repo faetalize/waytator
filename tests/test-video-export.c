@@ -13,6 +13,28 @@
 #include "waytator-video-export.h"
 #include "waytator-video-source.h"
 
+//an encoder that won't open for the export, the way a stand-in ffmpeg lists for a library that was left out
+//doesn't. avcodec_open2 is wrapped at link time
+static const char *broken_encoder;
+//how often it was asked to open
+static int broken_opens;
+
+int __real_avcodec_open2(AVCodecContext *context,
+                         const AVCodec  *codec,
+                         AVDictionary  **options);
+
+int
+__wrap_avcodec_open2(AVCodecContext *context,
+                     const AVCodec  *codec,
+                     AVDictionary  **options)
+{
+  if (broken_encoder != NULL && codec != NULL && g_str_equal(codec->name, broken_encoder)) {
+    broken_opens++;
+    return AVERROR(ENOSYS);
+  }
+  return __real_avcodec_open2(context, codec, options);
+}
+
 #define WIDTH 320
 #define HEIGHT 240
 #define N_FRAMES 30
@@ -524,6 +546,50 @@ test_size_limit(void)
   g_unlink(input);
 }
 
+//an encoder on the cpu that doesn't open leaves the export to the next one ffmpeg has for the format
+static void
+test_next_encoder(void)
+{
+  g_autofree char *input = NULL;
+  g_autoptr(GError) error = NULL;
+  g_autoptr(WaytatorVideoSource) source = NULL;
+  g_autoptr(WaytatorVideoEdit) edit = NULL;
+  g_autoptr(WaytatorVideoState) state = NULL;
+  g_autoptr(WaytatorVideoProfile) profile = test_profile();
+  g_autofree char *output = NULL;
+
+  if (avcodec_find_encoder_by_name("libsvtav1") == NULL || avcodec_find_encoder_by_name("libaom-av1") == NULL) {
+    g_test_skip("This FFmpeg doesn't have both libsvtav1 and libaom-av1");
+    return;
+  }
+
+  input = make_video(0);
+  source = waytator_video_source_open(input, NULL, &error);
+  g_assert_no_error(error);
+  edit = waytator_video_edit_new(waytator_video_source_get_frames(source), WIDTH, HEIGHT, TRUE);
+  state = waytator_video_edit_get_state(edit);
+  profile->codec = WAYTATOR_VIDEO_CODEC_AV1;
+  profile->encoder = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
+
+  broken_encoder = "libsvtav1";
+  broken_opens = 0;
+  g_assert_true(export_to(source, state, profile, "mp4", &output));
+  //the export did start on the broken one
+  g_assert_cmpint(broken_opens, ==, 1);
+  g_unlink(output);
+  g_clear_pointer(&output, g_free);
+
+  //a size limit on Automatic has already tried them to pick the processor, and starts on the one that opened
+  profile->encoder = WAYTATOR_VIDEO_ENCODER_AUTO;
+  profile->size_limit = 0.5;
+  broken_opens = 0;
+  g_assert_true(export_to(source, state, profile, "mp4", &output));
+  g_assert_cmpint(broken_opens, ==, 1);
+  broken_encoder = NULL;
+  g_unlink(output);
+  g_unlink(input);
+}
+
 static void
 test_gif(void)
 {
@@ -636,6 +702,7 @@ main(int   argc,
   g_test_add_data_func("/video-export/sound/aac", GINT_TO_POINTER(WAYTATOR_VIDEO_SOUND_AAC), test_sound);
   g_test_add_data_func("/video-export/sound/opus", GINT_TO_POINTER(WAYTATOR_VIDEO_SOUND_OPUS), test_sound);
   g_test_add_func("/video-export/size-limit", test_size_limit);
+  g_test_add_func("/video-export/next-encoder", test_next_encoder);
   g_test_add_func("/video-export/gif", test_gif);
   g_test_add_func("/video-export/permissions", test_permissions);
 

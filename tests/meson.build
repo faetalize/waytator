@@ -53,6 +53,26 @@ test_video_encoder = executable(
 )
 test('video-encoder', test_video_encoder)
 
+#which formats are offered, against a made-up ffmpeg and gpu. the real gpu check isn't run here
+test_video_support = executable(
+  'test-video-support',
+  'test-video-support.c',
+  files('../src/waytator-video-encoder.c', '../src/waytator-video-profile.c', '../src/waytator-video-support.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
+)
+test('video-support', test_video_support)
+
+#a drop-down with greyed out choices, on a Broadway display of the test's own
+test_choice_list = executable(
+  'test-choice-list',
+  'test-choice-list.c',
+  files('../src/waytator-choice-list.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep, gtk_dep, adw_dep],
+)
+test('choice-list', test_choice_list)
+
 #makes its own videos and saves them through every turn and flip, checking the corners land where the editor shows them
 test_video_export = executable(
   'test-video-export',
@@ -68,6 +88,8 @@ test_video_export = executable(
   waytator_video_edit_sources,
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
+  #lets the test break an encoder, see broken_encoder there
+  link_args: ['-Wl,--wrap=avcodec_open2'],
 )
 test('video-export', test_video_export, timeout: 300)
 
