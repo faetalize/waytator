@@ -21,6 +21,12 @@ static const char *const waytator_last_tool_names[WAYTATOR_N_TOOLS] = {
   [WAYTATOR_TOOL_BLUR] = "blur",
 };
 
+const char *
+waytator_last_tool_name(WaytatorTool tool)
+{
+  return waytator_last_tool_names[tool];
+}
+
 static void
 waytator_last_tool_read_rgba(GKeyFile   *key_file,
                              const char *key,

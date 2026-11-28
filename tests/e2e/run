@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# the end to end tests, see TESTING.md
+#
+#   tests/e2e/run [--visible] [pytest arguments]
+#
+# with nix-build around, everything comes from tests/e2e/default.nix. without it, or with WAYTATOR_E2E_NIX=0,
+# the system's sway, dbus-daemon, python and compiler are used, and everything built goes under build-e2e/
+set -euo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+root=$(cd "$here/../.." && pwd)
+build=$root/build-e2e
+
+pin() {
+  python3 -c 'import functools, json, sys; print(functools.reduce(dict.get, sys.argv[2:], json.load(open(sys.argv[1]))))' \
+    "$here/pins.json" "$@"
+}
+
+need() {
+  command -v "$1" > /dev/null || {
+    echo "tests/e2e: $1 is needed without Nix" >&2
+    exit 1
+  }
+}
+
+mkdir -p "$build"
+
+if [ "${WAYTATOR_E2E_NIX:-1}" != 0 ] && command -v nix-build > /dev/null; then
+  nix-build "$here" -o "$build/env"
+  env=$build/env
+  python=$env/bin/python3
+  export E2E_WAYTATOR=$env/bin/waytator
+  export E2E_SWAY=$env/bin/sway
+  export E2E_SWAYMSG=$env/bin/swaymsg
+  export E2E_DBUS_DAEMON=$env/bin/dbus-daemon
+  export E2E_SEATSHIM=$env/lib/simtouch-seatshim.so
+else
+  for tool in python3 sway swaymsg dbus-daemon cc meson curl tar; do
+    need "$tool"
+  done
+
+  found=$(sway --version | sed -n 's/^sway version \([0-9.]*\).*/\1/p')
+  case $found in
+    "$(pin sway)" | "$(pin sway)".*) ;;
+    *) echo "tests/e2e: warning: CI runs sway $(pin sway), this is sway ${found:-of an unknown version}" >&2 ;;
+  esac
+
+  rev=$(pin simtouch rev)
+  source=$build/simtouch-$rev
+  if [ ! -e "$source/pyproject.toml" ]; then
+    rm -rf "$source" && mkdir -p "$source"
+    curl -sSfL "https://github.com/$(pin simtouch repo)/archive/$rev.tar.gz" |
+      tar -xz -C "$source" --strip-components=1
+  fi
+
+  # on top of the system's packages, so a distro's evdev and pytest are used when it has them
+  python=$build/venv/bin/python3
+  [ -x "$python" ] || python3 -m venv --system-site-packages "$build/venv"
+  "$python" -c 'import evdev, pytest' 2> /dev/null || "$python" -m pip install -q 'evdev>=1.3' pytest
+  if [ "$(cat "$build/venv/simtouch-rev" 2> /dev/null)" != "$rev" ]; then
+    "$python" -m pip install -q --force-reinstall --no-deps "$source"
+    echo "$rev" > "$build/venv/simtouch-rev"
+  fi
+
+  cc -Wall -shared -fPIC -o "$build/simtouch-seatshim.so" "$source/isolation/seatshim.c" -ldl
+
+  [ -e "$build/waytator/build.ninja" ] || meson setup "$build/waytator" "$root" -Dtest_report=true
+  meson configure "$build/waytator" -Dtest_report=true
+  meson compile -C "$build/waytator"
+
+  export E2E_WAYTATOR=$build/waytator/src/waytator
+  E2E_SWAY=$(command -v sway)
+  E2E_SWAYMSG=$(command -v swaymsg)
+  E2E_DBUS_DAEMON=$(command -v dbus-daemon)
+  export E2E_SWAY E2E_SWAYMSG E2E_DBUS_DAEMON
+  export E2E_SEATSHIM=$build/simtouch-seatshim.so
+fi
+
+# nothing is to be written into the checkout
+export PYTHONDONTWRITEBYTECODE=1
+exec "$python" -m pytest -p no:cacheprovider -c "$here/pytest.ini" --rootdir "$here" "$here" "$@"

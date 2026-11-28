@@ -38,3 +38,9 @@ jobs:
       # tests that need a gpu, a display or pipewire skip themselves, as in the Nix build
       - run: meson setup build
       - run: meson test -C build --print-errorlogs
+      # what tests/e2e builds has code no other build compiles, once on the newest libraries is enough for CI
+      - name: Build with the test report
+        if: matrix.name == 'Arch'
+        run: |
+          meson setup build-report -Dtest_report=true
+          meson compile -C build-report

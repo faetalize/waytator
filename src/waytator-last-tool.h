@@ -16,6 +16,8 @@ typedef struct {
   int blur_type;
 } WaytatorLastTool;
 
+//what a tool is called in the settings file
+const char *waytator_last_tool_name(WaytatorTool tool);
 void waytator_last_tool_read(WaytatorLastTool *last_tool,
                              GKeyFile         *key_file);
 void waytator_last_tool_write(const WaytatorLastTool *last_tool,

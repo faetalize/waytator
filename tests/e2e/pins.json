@@ -1,0 +1,8 @@
+{
+  "simtouch": {
+    "repo": "faetalize/simulated-touch",
+    "rev": "df7fd6e4bd3cd708aa8c251dbbdf3144b145fcad",
+    "hash": "sha256-Xg+KeKv+qH6pACvSGZg8WJAUeXHgreGhGF790UPeGdw="
+  },
+  "sway": "1.12"
+}

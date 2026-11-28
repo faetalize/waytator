@@ -5,6 +5,7 @@
 
 #include "waytator-select.h"
 #include "waytator-stroke.h"
+#include "waytator-window-test-report.h"
 
 //the select tool: a press picks the stroke under it, which gets a dashed box with handles on it, a knob to turn it
 //by and buttons beside it. the arithmetic is in waytator-select.c, this is the part that needs a window
@@ -501,6 +502,7 @@ waytator_window_select_end(GtkGestureDrag *gesture,
 
   if (moved) {
     self->select_click_stroke = NULL;
+    waytator_window_report_move(self, stroke);
     waytator_window_reset_save_button(self);
     waytator_window_maybe_auto_copy_latest_change(self);
     return;

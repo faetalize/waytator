@@ -316,6 +316,17 @@ waytator_document_can_redo(WaytatorDocument *document)
   return !g_queue_is_empty(document->redo_history);
 }
 
+#ifdef WAYTATOR_ENABLE_TEST_REPORT
+void
+waytator_document_get_history_depth(WaytatorDocument *document,
+                                    guint            *undo,
+                                    guint            *redo)
+{
+  *undo = g_queue_get_length(document->undo_history);
+  *redo = g_queue_get_length(document->redo_history);
+}
+#endif
+
 void
 waytator_document_record_undo_step(WaytatorDocument *document)
 {

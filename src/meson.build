@@ -151,6 +151,16 @@ waytator_resources = gnome.compile_resources(
   c_name: 'waytator',
 )
 
+#what the end to end tests read, only in builds made for them, see tests/e2e
+waytator_c_args = []
+if get_option('test_report')
+  waytator_sources += files(
+    'waytator-test-report.c',
+    'waytator-window-test-report.c',
+  )
+  waytator_c_args += '-DWAYTATOR_ENABLE_TEST_REPORT'
+endif
+
 executable(
   'waytator',
   waytator_sources,
@@ -158,6 +168,7 @@ executable(
   waytator_resources,
   waytator_video_edit_sources,
   wayland_protocol_sources,
+  c_args: waytator_c_args,
   #the layer shell has to be linked ahead of libwayland-client to hook into it
   dependencies: [layer_shell_dep, gtk_dep, adw_dep, wayland_client_dep, m_dep, video_deps],
   install: true,
