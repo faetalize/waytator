@@ -275,6 +275,16 @@ test_export = executable(
 )
 test('export', test_export)
 
+#notification text as it goes out, no server needed
+test_notification = executable(
+  'test-notification',
+  'test-notification.c',
+  files('../src/waytator-notification.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep],
+)
+test('notification', test_notification)
+
 #records a screen of a stand-in portal and a PipeWire daemon of the test's own and decodes the files, skipping without
 #pipewire or VA-API. the wait for the first picture is shortened so the case where none comes is quick
 test_record_recorder = executable(
