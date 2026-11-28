@@ -235,7 +235,7 @@ test_command_line = executable(
   'test-command-line.c',
   files('../src/waytator-command-line.c'),
   include_directories: waytator_include,
-  dependencies: [gobject_dep],
+  dependencies: [gio_unix_dep],
 )
 test('command-line', test_command_line)
 
@@ -286,6 +286,26 @@ test_save = executable(
   dependencies: [gtk_dep],
 )
 test('save', test_save)
+
+#saving over a file that is already there, with no window
+test_export = executable(
+  'test-export',
+  'test-export.c',
+  files('../src/waytator-export.c', '../src/waytator-render.c', '../src/waytator-stroke.c'),
+  include_directories: waytator_include,
+  dependencies: [gtk_dep, adw_dep, m_dep],
+)
+test('export', test_export)
+
+#notification text as it goes out, no server needed
+test_notification = executable(
+  'test-notification',
+  'test-notification.c',
+  files('../src/waytator-notification.c'),
+  include_directories: waytator_include,
+  dependencies: [gio_unix_dep],
+)
+test('notification', test_notification)
 
 #records a screen of a stand-in portal and a PipeWire daemon of the test's own and decodes the files, skipping without
 #pipewire or VA-API. the wait for the first picture is shortened so the case where none comes is quick

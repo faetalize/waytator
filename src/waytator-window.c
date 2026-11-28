@@ -3016,21 +3016,43 @@ waytator_window_flash_copy_success(WaytatorWindow *self,
                                                  g_object_ref(self));
 }
 
-//a capture with a screenshot folder to go to, and no file of its own yet
-static gboolean
-waytator_window_saves_to_folder(WaytatorWindow *self)
+//where Save puts an image with no file of its own yet
+static WaytatorFirstSave
+waytator_window_first_save(WaytatorWindow *self)
 {
-  return self->from_capture && self->current_file == NULL && *self->settings.screenshot_save_dir != '\0';
+  return waytator_save_first_destination(self->save_target != NULL,
+                                         self->from_capture,
+                                         *self->settings.screenshot_save_dir != '\0');
+}
+
+//the place Save goes to without asking, as the menu shows it, or NULL when it asks
+static char *
+waytator_window_save_destination(WaytatorWindow *self)
+{
+  g_autofree char *path = NULL;
+
+  if (self->current_file != NULL)
+    return NULL;
+
+  switch (waytator_window_first_save(self)) {
+  case WAYTATOR_FIRST_SAVE_TARGET:
+    path = g_file_get_path(self->save_target);
+    return path != NULL ? waytator_screenshot_display_path(path) : g_file_get_uri(self->save_target);
+  case WAYTATOR_FIRST_SAVE_FOLDER:
+    return waytator_screenshot_display_path(self->settings.screenshot_save_dir);
+  case WAYTATOR_FIRST_SAVE_DIALOG:
+  default:
+    return NULL;
+  }
 }
 
 //the menu only exists where there is a choice, an image with nowhere obvious to go gets the plain button and a dialog
 void
 waytator_window_update_save_menu(WaytatorWindow *self)
 {
-  const gboolean to_folder = waytator_window_saves_to_folder(self);
-  const gboolean has_menu = self->current_file != NULL || to_folder;
-  g_autofree char *folder = to_folder ? waytator_screenshot_display_path(self->settings.screenshot_save_dir) : NULL;
-  g_autofree char *key = g_strdup_printf("%d:%s", self->current_file != NULL, folder != NULL ? folder : "");
+  g_autofree char *destination = waytator_window_save_destination(self);
+  const gboolean has_menu = self->current_file != NULL || destination != NULL;
+  g_autofree char *key = g_strdup_printf("%d:%s", self->current_file != NULL, destination != NULL ? destination : "");
 
   if (self->save_menu == NULL)
     return;
@@ -3054,8 +3076,8 @@ waytator_window_update_save_menu(WaytatorWindow *self)
   //the menu button and the plain one need not be the same width
   waytator_window_queue_chrome_layout(self);
   g_menu_remove_all(self->save_menu);
-  if (to_folder) {
-    g_autofree char *label = g_strdup_printf("Save to %s", folder);
+  if (destination != NULL) {
+    g_autofree char *label = waytator_save_menu_label(destination);
 
     g_menu_append(self->save_menu, label, "win.save-image");
     g_menu_append(self->save_menu, "Save as…", "win.save-as");
@@ -3593,6 +3615,7 @@ waytator_window_adopt_saved_file(WaytatorWindow *self)
 
   g_clear_object(&self->current_file);
   self->current_file = g_steal_pointer(&self->adopt_file);
+  g_clear_object(&self->save_target);
   self->adopt_file_reserved = FALSE;
   g_free(self->source_name);
   self->source_name = g_file_get_basename(self->current_file);
@@ -3629,6 +3652,7 @@ waytator_window_save_export_ready(GObject      *source_object,
     self->adopt_file_reserved = FALSE;
     g_clear_object(&self->adopt_file);
     self->from_capture = FALSE;
+    g_clear_object(&self->save_target);
     waytator_window_reset_save_button(self);
     waytator_window_show_error(self, error->message);
     g_object_unref(self);
@@ -3762,7 +3786,7 @@ waytator_window_save_capture_to_folder(WaytatorWindow *self)
   g_autoptr(GError) error = NULL;
   g_autoptr(GFile) file = NULL;
 
-  if (!self->from_capture || self->current_file != NULL || *self->settings.screenshot_save_dir == '\0')
+  if (self->current_file != NULL || waytator_window_first_save(self) != WAYTATOR_FIRST_SAVE_FOLDER)
     return FALSE;
 
   file = waytator_screenshot_reserve_file(self->settings.screenshot_save_dir, self->source_name, &error);
@@ -3812,10 +3836,20 @@ waytator_window_show_save_dialog(WaytatorWindow *self)
                        g_object_ref(self));
 }
 
-//the first save of an image with no file: the screenshot folder when it applies, a dialog otherwise
+//the first save of an image with no file: the --save-path file or the screenshot folder when one applies, a
+//dialog otherwise. the file is overwritten, it was named on purpose
 static void
 waytator_window_save_new(WaytatorWindow *self)
 {
+  //kept until the save is over, so the menu still says where it goes meanwhile
+  if (self->save_target != NULL) {
+    if (!waytator_window_save_to_file(self, self->save_target)) {
+      g_clear_object(&self->save_target);
+      waytator_window_reset_save_button(self);
+    }
+    return;
+  }
+
   if (!waytator_window_save_capture_to_folder(self))
     waytator_window_show_save_dialog(self);
 }
@@ -4152,6 +4186,7 @@ waytator_window_clear_image(WaytatorWindow *self)
   }
   g_clear_pointer(&self->source_name, g_free);
   g_clear_object(&self->adopt_file);
+  g_clear_object(&self->save_target);
   self->adopt_file_reserved = FALSE;
   self->never_saved = FALSE;
   self->from_capture = FALSE;
@@ -4243,6 +4278,7 @@ gboolean
 waytator_window_open_bytes(WaytatorWindow *self,
                            GBytes         *bytes,
                            const char     *display_name,
+                           GFile          *save_target,
                            GError        **error)
 {
   g_autoptr(GdkTexture) texture = NULL;
@@ -4258,6 +4294,9 @@ waytator_window_open_bytes(WaytatorWindow *self,
                             texture,
                             NULL,
                             display_name != NULL ? display_name : "stdin.png");
+  //after the image, which clears whatever the window had before
+  g_set_object(&self->save_target, save_target);
+  waytator_window_reset_save_button(self);
   return TRUE;
 }
 
@@ -5326,6 +5365,7 @@ waytator_window_dispose(GObject *object)
   g_clear_pointer(&self->capture_output_name, g_free);
   g_clear_pointer(&self->capture_hidden_windows, g_ptr_array_unref);
   g_clear_object(&self->adopt_file);
+  g_clear_object(&self->save_target);
   g_clear_object(&self->save_menu);
   g_clear_object(&self->capture_menu);
   g_clear_handle_id(&self->record_tick_id, g_source_remove);
