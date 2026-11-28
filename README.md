@@ -91,7 +91,7 @@ apt install ./waytator-ubuntu-arm64.deb
 
 ### Nix
 
-Waytator is in nixpkgs, though it can lag a release or two behind:
+Waytator is in nixpkgs:
 
 ```bash
 nix run nixpkgs#waytator
@@ -109,17 +109,24 @@ To follow `master` instead:
 nix run github:faetalize/waytator
 ```
 
-On NixOS, add it as a flake input:
+For a smaller download without OCR, add `#waytator-minimal` to either:
+
+```bash
+nix run github:faetalize/waytator/stable#waytator-minimal
+# OR
+nix run github:faetalize/waytator#waytator-minimal
+```
+
+**Installing on NixOS:** add it as a flake input:
 
 ```nix
 # flake.nix
 inputs.waytator = {
   url = "github:faetalize/waytator/stable";
+  # to follow master instead: url = "github:faetalize/waytator";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
-
-To follow `master` instead, use `url = "github:faetalize/waytator";`.
 
 Then add the package to your system:
 
@@ -127,10 +134,11 @@ Then add the package to your system:
 # configuration.nix
 environment.systemPackages = [
   inputs.waytator.packages.${pkgs.stdenv.hostPlatform.system}.default
+  # use .waytator-minimal instead of .default to install without OCR
 ];
 ```
 
-OCR is included. For a smaller install without it, use `.default.override { withOcr = false; }` instead of `.default`.
+To turn OCR off on a package you build yourself, override it with `enableOcr = false`.
 
 ### From source
 
