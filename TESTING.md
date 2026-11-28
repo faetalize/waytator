@@ -53,20 +53,81 @@ A test must show it would fail. Test driven regression testing starts by proving
 
 ## Layer 2: a real compositor, headless
 
-Some behaviour only a compositor can show: how a layer surface really moves, what the overlay looks like on two
-screens of different scales, real pointer input. For those, run a real compositor that draws to memory instead of
-a screen. It runs in a session of its own, so nothing appears on the desktop of whoever runs it.
-
-The plan, not set up yet:
-
-- **Compositor:** sway with `WLR_BACKENDS=headless`. It has layer-shell, screencopy and outputs made on the fly,
-  so tests can use two screens or a scale of 1.5.
-- **Input:** `swaymsg seat … cursor set/press/release` moves and clicks the pointer.
-- **Checking:** `grim` takes pictures of the headless screens.
-- **Same version everywhere:** the flake pins sway's version, so CI and every machine run the same compositor.
+Some behaviour only a compositor can show, such as what real touch and pen input does on its way through the
+kernel, libinput, the compositor and GTK to the canvas. For that, run a real compositor that draws to memory
+instead of a screen. It runs in a session of its own, so nothing appears on the desktop of whoever runs it.
 
 Reach for this layer only when a layer 1 model can't be trusted, which is when the question is exactly what the
 model would have to assume. If a layer 1 test with an honest model passes, a layer 2 test isn't needed.
+
+### The end to end tests: touch and pen
+
+`tests/e2e` plays gestures and pen strokes on a virtual touchscreen and pen made with uinput, through
+[simtouch](https://github.com/faetalize/simulated-touch). They are not part of `meson test`:
+
+```bash
+tests/e2e/run                  # everything, on a headless sway
+tests/e2e/run -k pinch -v      # pytest's own arguments work
+```
+
+- **Compositor:** a headless sway with one 1280x800 screen. The devices go on a udev seat of their own,
+  `seat-simtouch`, which your desktop doesn't read, and simtouch's seat shim has the test's sway read that one.
+  The tests stop if that sway lists any other input device.
+- **App:** waytator built with `-Dtest_report=true`, fullscreen, with a new 1600x1000 image, its own settings,
+  session bus and runtime directory, and a stand-in for `wl-copy`.
+- **Checking:** that build appends a line of JSON for each thing that happens to the file named by
+  `WAYTATOR_TEST_REPORT`: where the image is shown, strokes with their bounding box and pressure, tool changes,
+  undo and redo, touches, the pen coming into range. What goes in the lines is in
+  `src/waytator-window-test-report.c`. Builds without the option have none of it.
+
+**One-time setup.** All of it needs root once, and the tests themselves never run `sudo`:
+
+- the `uinput` module (`sudo modprobe uinput`) and write access to `/dev/uinput`, see simtouch's README
+- simtouch's udev rule and group, which keep the devices off your desktop. Without the rule, `tests/e2e/run`
+  stops before creating any device and prints the commands to set it up
+- libinput's udev rules, which put a pen and its touchscreen in one device group. Desktops have them. A server
+  install of Debian or Ubuntu may need `libinput-bin`
+
+**With Nix,** `tests/e2e/run` builds everything from `tests/e2e/default.nix`: waytator from your checkout, and
+sway and python from the nixpkgs revision `flake.lock` pins, so CI and every machine run the same compositor.
+
+**Without Nix** (or with `WAYTATOR_E2E_NIX=0`) it uses your `sway`, `swaymsg`, `dbus-daemon`, `python3` 3.11 or
+newer, `curl` and waytator's build dependencies. It installs the pinned simtouch, along with `evdev` and
+`pytest` if your python lacks them, into a venv, and builds the seat shim and waytator, all under `build-e2e/`.
+It warns when your sway differs from the version in `tests/e2e/pins.json`, which is the one CI runs.
+
+**Watching them.** `tests/e2e/run --visible` runs the same tests on your own desktop. **The virtual touches and
+pen strokes are real input there**, so there is a warning and a 3 second countdown first, and you leave the
+mouse and keyboard alone until it's done. waytator opens fullscreen, and your compositor has to map the
+`simtouch` touchscreen and pen to the output it opens on. In niri that is:
+
+```kdl
+input {
+    touch { map-to-output "DP-1"; }
+    tablet { map-to-output "DP-1"; }
+}
+```
+
+These two settings apply to real touchscreens and tablets too, so put yours back afterwards.
+
+**CI** runs them on the x86_64 and arm64 runners themselves (`.github/workflows/e2e.yml`). uinput needs the
+host's kernel and udev, so a container job can't.
+
+**Writing one.** The rules for any test apply, plus:
+
+- **Wait for a line in the report, never for time to pass.** A sleep belongs only where time is part of the
+  gesture, such as a tap held too long.
+- **Before asserting that nothing happened, wait for something that comes after it.** A touch line is written
+  after everything its event led to, so once the last finger's `end` is there, so is anything the gesture did.
+  Where input never reaches the app, send something later that must arrive.
+- **Move a tap that has to get through.** A touch libinput rejects takes its coordinates with it, and the
+  kernel only sends the ones that changed. A tap in the same spot again lands wherever libinput last saw a
+  finger.
+- **Aim in image pixels.** `session.at(x, y)` gives the window pixel an image pixel is shown at. The image's
+  zoom and position depend on the size the window had when it opened.
+- **Show that it fails,** for instance by asserting a wrong value first.
+
+`tests/e2e/test_harness.py` covers the harness's own logic and creates no devices.
 
 ## Layer 3: by hand, on real desktops
 
@@ -90,7 +151,8 @@ reliably.
 
 ## Never touch the real session
 
-A test, or anyone running one, must not reach the desktop of whoever runs it:
+A test, or anyone running one, must not reach the desktop of whoever runs it. The one exception is
+`tests/e2e/run --visible`, which someone asks for in order to watch it:
 
 - **No screen.** Unset `WAYLAND_DISPLAY` and `DISPLAY` for anything that could open a window, or use Broadway.
 - **No real bus.** Use GTestDBus or `dbus-run-session`, and in tests assert that the bus is the private one.
