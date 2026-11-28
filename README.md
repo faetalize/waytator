@@ -68,7 +68,13 @@ environment.systemPackages = [
 ];
 ```
 
-OCR is included. For a smaller install without it, use `.default.override { withOcr = false; }` instead of `.default`.
+OCR is included. For a smaller install without it, use `.waytator-minimal` instead of `.default`, or try it with:
+
+```bash
+nix run github:faetalize/waytator#waytator-minimal
+```
+
+To turn OCR off on a package you build yourself, override it with `enableOcr = false`.
 
 ### From source
 

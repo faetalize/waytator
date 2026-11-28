@@ -26,7 +26,9 @@
   gifski,
   tesseract,
   dbus,
+  # enableOcr matches the flag of the nixpkgs package. withOcr is the older name and still works
   withOcr ? true,
+  enableOcr ? withOcr,
   # when the commit was made, the source has no .git to read it from
   commitTime ? 0,
 }:
@@ -77,10 +79,19 @@ stdenv.mkDerivation {
     export HOME=$(mktemp -d)
   '';
 
-  # the app runs wl-copy for the clipboard, gifski for GIFs and tesseract for OCR
+  # the app runs wl-copy for the clipboard, gifski for GIFs and tesseract for OCR. waytator only
+  # runs tesseract in English, so the other languages' data would be dead weight
   preFixup = ''
     gappsWrapperArgs+=(
-      --prefix PATH : ${lib.makeBinPath ([ wl-clipboard gifski ] ++ lib.optional withOcr tesseract)}
+      --prefix PATH : ${
+        lib.makeBinPath (
+          [
+            wl-clipboard
+            gifski
+          ]
+          ++ lib.optional enableOcr (tesseract.override { enableLanguages = [ "eng" ]; })
+        )
+      }
     )
   '';
 
