@@ -529,6 +529,7 @@ app_command_line(GApplication            *app,
   g_autoptr(GInputStream) stdin_stream = NULL;
   g_autoptr(GError) error = NULL;
   g_autoptr(GFile) file = NULL;
+  const char *file_arg = NULL;
   //a window made for this command, which has no reason to stay if what it was made for fails to open
   gboolean window_is_new;
   WaytatorCaptureEarly *early = NULL;
@@ -704,6 +705,7 @@ app_command_line(GApplication            *app,
       status = 1;
       goto done;
     } else if (file == NULL) {
+      file_arg = arguments[i];
       file = g_application_command_line_create_file_for_arg(command_line, arguments[i]);
     } else {
       g_application_command_line_printerr(command_line, APP_USAGE, arguments[0]);
@@ -896,7 +898,7 @@ app_command_line(GApplication            *app,
     if (!waytator_window_open_file(window, file, &error)) {
       app_command_line_fail(app, command_line,
                             "Error loading image '%s': %s",
-                            arguments[1],
+                            file_arg,
                             error->message);
       status = 1;
       goto failed_to_open;
