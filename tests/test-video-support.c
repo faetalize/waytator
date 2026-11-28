@@ -1,5 +1,6 @@
 //which formats a profile can be exported in, against a made-up ffmpeg and gpu
 #include <glib.h>
+#include <string.h>
 
 #include "waytator-video-encoder.h"
 #include "waytator-video-support.h"
@@ -8,6 +9,8 @@ static const char *const *fake_missing;
 static const char *const *fake_gpu_works;
 //encoders on the cpu that ffmpeg has but that don't open
 static const char *const *fake_cpu_broken;
+//the encoders on the cpu tried so far, one per line
+static GString *fake_cpu_tried;
 static gboolean fake_gifski;
 static int fake_gpu_checks;
 
@@ -37,6 +40,7 @@ fake_cpu_encodes(const char *const *names,
   for (guint i = 0; names[i] != NULL; i++) {
     g_assert_true(fake_has_encoder(names[i]));
     works[i] = !fake_listed(fake_cpu_broken, names[i]);
+    g_string_append_printf(fake_cpu_tried, "%s\n", names[i]);
   }
 }
 
@@ -66,6 +70,9 @@ fake_use(const char *const *missing,
   fake_gpu_works = gpu_works;
   fake_gifski = FALSE;
   fake_cpu_broken = NULL;
+  if (fake_cpu_tried == NULL)
+    fake_cpu_tried = g_string_new(NULL);
+  g_string_truncate(fake_cpu_tried, 0);
   fake_gpu_checks = 0;
   waytator_video_support_set_lookup(&fake_lookup);
 }
@@ -239,9 +246,11 @@ test_cpu_encoder_that_does_not_open(void)
   g_assert_cmpstr(waytator_video_support_encoder_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
                   ==, "Not available for this format");
   assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_HARDWARE), NULL);
-  //an export takes the first encoder ffmpeg has, so one further down that would open doesn't help
-  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_AV1, WAYTATOR_VIDEO_ENCODER_AUTO),
-                "Not available on this system");
+  //an export moves on to the next encoder ffmpeg has when one doesn't open, so one further down that opens
+  //makes the format, and the ones after it aren't tried
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_AV1, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
+  g_assert_nonnull(strstr(fake_cpu_tried->str, "libsvtav1\nlibaom-av1\n"));
+  g_assert_null(strstr(fake_cpu_tried->str, "librav1e"));
 
   //with a gpu that can, only the processor is out
   fake_use(missing, gpu_works);
@@ -280,6 +289,11 @@ test_size_limit_without_cpu_encoder(void)
   fake_use(no_x264, gpu_works);
   fake_cpu_broken = broken;
   g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_AUTO);
+
+  //the same for one that doesn't open with another behind it that does, which an export moves on to
+  fake_use(NULL, gpu_works);
+  fake_cpu_broken = no_x264;
+  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_SOFTWARE);
 
   //with a processor that can, Automatic still goes there, and what was asked for stays
   fake_use(NULL, gpu_works);

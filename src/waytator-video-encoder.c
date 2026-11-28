@@ -288,14 +288,22 @@ waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
                                       void               (*cpu_encodes)(const char *const *names,
                                                                         gboolean          *works))
 {
-  const char *const names[] = { waytator_video_encoder_find_software(codec, has_encoder), NULL };
-  gboolean works = FALSE;
+  const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
 
   if (preference != WAYTATOR_VIDEO_ENCODER_AUTO)
     return preference;
-  if (names[0] != NULL)
-    cpu_encodes(names, &works);
-  return works ? WAYTATOR_VIDEO_ENCODER_SOFTWARE : WAYTATOR_VIDEO_ENCODER_AUTO;
+  //an export moves on to the next encoder when one doesn't open, so any of them that opens will do
+  for (guint i = 0; names[i] != NULL; i++) {
+    const char *const one[] = { names[i], NULL };
+    gboolean works = FALSE;
+
+    if (!has_encoder(names[i]))
+      continue;
+    cpu_encodes(one, &works);
+    if (works)
+      return WAYTATOR_VIDEO_ENCODER_SOFTWARE;
+  }
+  return WAYTATOR_VIDEO_ENCODER_AUTO;
 }
 
 gboolean
@@ -349,6 +357,29 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
   wanted = g_strjoinv(", ", (char **) waytator_video_encoder_get_names(codec, FALSE));
   g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
               "This system's FFmpeg can't encode this profile's video, it needs one of: %s", wanted);
+  return FALSE;
+}
+
+gboolean
+waytator_video_encoder_choose_next_software(WaytatorVideoCodec          codec,
+                                            gboolean                  (*has_encoder)(const char *name),
+                                            WaytatorVideoEncoderChoice *choice)
+{
+  const char *const *names = waytator_video_encoder_get_names(codec, FALSE);
+  gboolean past = FALSE;
+
+  if (choice->codec == NULL || choice->device != NULL)
+    return FALSE;
+
+  for (guint i = 0; names[i] != NULL; i++) {
+    const AVCodec *found = past && has_encoder(names[i]) ? avcodec_find_encoder_by_name(names[i]) : NULL;
+
+    if (found != NULL) {
+      choice->codec = found;
+      return TRUE;
+    }
+    past = past || g_str_equal(names[i], choice->codec->name);
+  }
   return FALSE;
 }
 

@@ -88,6 +88,8 @@ test_video_export = executable(
   waytator_video_edit_sources,
   include_directories: waytator_include,
   dependencies: [gtk_dep, adw_dep, m_dep, video_deps],
+  #lets the test break an encoder, see broken_encoder there
+  link_args: ['-Wl,--wrap=avcodec_open2'],
 )
 test('video-export', test_video_export, timeout: 300)
 

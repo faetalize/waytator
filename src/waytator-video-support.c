@@ -193,11 +193,21 @@ waytator_video_support_check_thread(GTask        *task,
                                     GCancellable *cancellable)
 {
   WaytatorVideoSupportCheck *check = task_data;
+  gboolean opened[WAYTATOR_VIDEO_SUPPORT_CODECS] = { FALSE };
 
   (void) source_object;
   (void) cancellable;
 
-  check->lookup.cpu_encodes((const char *const *) check->cpu.names->pdata, check->cpu.works);
+  //in the order an export tries them, up to the first that opens, which is the one it ends up with
+  for (guint i = 0; i < check->cpu.codecs->len; i++) {
+    const WaytatorVideoCodec codec = g_array_index(check->cpu.codecs, WaytatorVideoCodec, i);
+    const char *const one[] = { g_ptr_array_index(check->cpu.names, i), NULL };
+
+    if (opened[codec])
+      continue;
+    check->lookup.cpu_encodes(one, &check->cpu.works[i]);
+    opened[codec] = check->cpu.works[i];
+  }
   check->lookup.gpu_encodes((const char *const *) check->gpu.names->pdata, check->gpu.works);
   g_task_return_boolean(task, TRUE);
 }
@@ -242,15 +252,16 @@ waytator_video_support_start_check(void)
     batches[i]->codecs = g_array_new(FALSE, FALSE, sizeof(WaytatorVideoCodec));
   }
   for (WaytatorVideoCodec codec = 0; codec < WAYTATOR_VIDEO_SUPPORT_CODECS; codec++) {
-    const char *const *names = waytator_video_encoder_get_names(codec, TRUE);
-    //only the one an export takes: whether another would open doesn't help it
-    const char *software = waytator_video_encoder_find_software(codec, check->lookup.has_encoder);
+    const char *const *software = waytator_video_encoder_get_names(codec, FALSE);
+    const char *const *hardware = waytator_video_encoder_get_names(codec, TRUE);
 
-    if (software != NULL && codec != WAYTATOR_VIDEO_CODEC_GIF)
-      waytator_video_support_batch_add(&check->cpu, software, codec);
-    for (guint i = 0; names[i] != NULL; i++) {
-      if (check->lookup.has_encoder(names[i]))
-        waytator_video_support_batch_add(&check->gpu, names[i], codec);
+    for (guint i = 0; software[i] != NULL && codec != WAYTATOR_VIDEO_CODEC_GIF; i++) {
+      if (check->lookup.has_encoder(software[i]))
+        waytator_video_support_batch_add(&check->cpu, software[i], codec);
+    }
+    for (guint i = 0; hardware[i] != NULL; i++) {
+      if (check->lookup.has_encoder(hardware[i]))
+        waytator_video_support_batch_add(&check->gpu, hardware[i], codec);
     }
   }
   for (guint i = 0; i < G_N_ELEMENTS(batches); i++) {
