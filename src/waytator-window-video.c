@@ -729,6 +729,8 @@ waytator_window_video_ask_profile(WaytatorWindowVideoChoice *choice)
     const WaytatorVideoProfile *profile = g_ptr_array_index(profiles, i);
     GtkWidget *row = adw_action_row_new();
 
+    //a name is plain text, which a row would otherwise read as markup and show nothing for at an &
+    adw_preferences_row_set_use_markup(ADW_PREFERENCES_ROW(row), FALSE);
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), profile->name);
     waytator_window_video_update_profile_row(row, profile);
     gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
@@ -1222,6 +1224,8 @@ waytator_video_profiles_page_rebuild(WaytatorVideoProfilesPage *page)
     GtkWidget *remove = gtk_button_new_with_label("Remove");
     GtkWidget *actions_row = adw_preferences_row_new();
 
+    //the name is plain text, see the Export As list
+    adw_preferences_row_set_use_markup(ADW_PREFERENCES_ROW(expander), FALSE);
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(expander), profile->name);
     gtk_widget_add_css_class(warning, "warning");
     adw_expander_row_add_suffix(expander, warning);
