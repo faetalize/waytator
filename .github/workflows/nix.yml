@@ -28,3 +28,11 @@ jobs:
         run: |
           nix path-info -r ./result | grep -q -- '-wl-clipboard-'
           nix path-info -r ./result | grep -q -- '-tesseract-'
+      - run: nix build -L ${{ matrix.override }} .#waytator-minimal -o result-minimal
+      - name: Check waytator-minimal ships wl-copy and no tesseract
+        run: |
+          closure=$(nix path-info -r ./result-minimal)
+          grep -q -- '-wl-clipboard-' <<< "$closure"
+          if grep -- '-tesseract-' <<< "$closure"; then exit 1; fi
+      - name: Closure sizes
+        run: nix path-info -Sh ./result ./result-minimal
