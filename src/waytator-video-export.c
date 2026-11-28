@@ -831,6 +831,35 @@ waytator_export_write_png(WaytatorExporter *exporter,
   return written;
 }
 
+//whether a frame's rows run bottom to top in memory, which is how ffmpeg's vflip turns a picture over without
+//copying it
+static gboolean
+waytator_export_rows_upward(const AVFrame *frame)
+{
+  for (int i = 0; i < AV_NUM_DATA_POINTERS && frame->data[i] != NULL; i++) {
+    if (frame->linesize[i] < 0)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+//the same picture with its rows top to bottom. libopenh264, which Fedora's ffmpeg makes H.264 with, reads a picture
+//with upward rows as garbage, so a vertically flipped export gets copied for it. only flipped frames pay for it
+static AVFrame *
+waytator_export_copy_rows_downward(const AVFrame *frame)
+{
+  AVFrame *copy = av_frame_alloc();
+
+  if (copy == NULL)
+    return NULL;
+  copy->format = frame->format;
+  copy->width = frame->width;
+  copy->height = frame->height;
+  if (av_frame_get_buffer(copy, 0) < 0 || av_frame_copy(copy, frame) < 0 || av_frame_copy_props(copy, frame) < 0)
+    av_frame_free(&copy);
+  return copy;
+}
+
 //hands a filtered frame to whatever the pass makes of it
 static gboolean
 waytator_export_take_filtered(WaytatorExporter  *exporter,
@@ -849,7 +878,16 @@ waytator_export_take_filtered(WaytatorExporter  *exporter,
 
   frame->pts = index;
   frame->pict_type = AV_PICTURE_TYPE_NONE;
-  code = avcodec_send_frame(exporter->video_encoder, frame);
+  if (waytator_export_rows_upward(frame)) {
+    AVFrame *copy = waytator_export_copy_rows_downward(frame);
+
+    if (copy == NULL)
+      return waytator_video_encoder_fail(error, AVERROR(ENOMEM), "Could not encode the video");
+    code = avcodec_send_frame(exporter->video_encoder, copy);
+    av_frame_free(&copy);
+  } else {
+    code = avcodec_send_frame(exporter->video_encoder, frame);
+  }
   if (code < 0)
     return waytator_video_encoder_fail(error, code, "Could not encode the video");
   return waytator_export_write_packets(exporter, exporter->video_encoder, exporter->video_stream, error);

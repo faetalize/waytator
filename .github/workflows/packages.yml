@@ -1,0 +1,110 @@
+name: Packages
+
+# a .deb built on Debian 13, the oldest distro waytator supports, one built on Ubuntu 26.04, whose libraries
+# have moved past Debian 13's, and an .rpm built on the current Fedora against its own ffmpeg-free. each gets
+# installed in a fresh container and started before a release gets it. the release assets keep the same names
+# every time, so the README can link to releases/latest/download
+on:
+  release:
+    types: [published]
+  # builds and tests the packages without releasing them, they're kept as the run's artifacts
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - packaging/**
+      - .github/workflows/packages.yml
+      - meson.build
+      - meson_options.txt
+      - src/meson.build
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.distro }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: debian, image: 'debian:13', format: deb, arch: x86_64, runner: ubuntu-latest }
+          - { distro: debian, image: 'debian:13', format: deb, arch: aarch64, runner: ubuntu-24.04-arm }
+          - { distro: ubuntu, image: 'ubuntu:26.04', format: deb, arch: x86_64, runner: ubuntu-latest }
+          - { distro: ubuntu, image: 'ubuntu:26.04', format: deb, arch: aarch64, runner: ubuntu-24.04-arm }
+          - { distro: fedora, image: 'fedora:latest', format: rpm, arch: x86_64, runner: ubuntu-latest }
+          - { distro: fedora, image: 'fedora:latest', format: rpm, arch: aarch64, runner: ubuntu-24.04-arm }
+    steps:
+      - if: matrix.format == 'deb'
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates git dpkg-dev
+      - if: matrix.format == 'rpm'
+        run: dnf install -y git rpm-build dnf5-plugins
+      - uses: actions/checkout@v7
+      # a release must be of the version in meson.build, which is what the package says it is
+      - if: github.event_name == 'release'
+        run: |
+          version=$(sed -n "s/^  version: '\(.*\)',$/\1/p" meson.build)
+          test "$GITHUB_REF_NAME" = "v$version" || { echo "tag $GITHUB_REF_NAME isn't v$version"; exit 1; }
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - run: packaging/build-${{ matrix.format }}.sh out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.distro }}-${{ matrix.arch }}
+          path: out/*
+          if-no-files-found: error
+
+  install:
+    name: install (${{ matrix.name }}, ${{ matrix.arch }})
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Debian 13, image: 'debian:13', distro: debian, format: deb, arch: x86_64, runner: ubuntu-latest }
+          - { name: Debian 13, image: 'debian:13', distro: debian, format: deb, arch: aarch64, runner: ubuntu-24.04-arm }
+          - { name: Ubuntu 26.04, image: 'ubuntu:26.04', distro: ubuntu, format: deb, arch: x86_64, runner: ubuntu-latest }
+          - { name: Ubuntu 26.04, image: 'ubuntu:26.04', distro: ubuntu, format: deb, arch: aarch64, runner: ubuntu-24.04-arm }
+          - { name: Ubuntu rolling, image: 'ubuntu:rolling', distro: ubuntu, format: deb, arch: x86_64, runner: ubuntu-latest }
+          - { name: Fedora, image: 'fedora:latest', distro: fedora, format: rpm, arch: x86_64, runner: ubuntu-latest }
+          - { name: Fedora, image: 'fedora:latest', distro: fedora, format: rpm, arch: aarch64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.distro }}-${{ matrix.arch }}
+          path: pkg
+      # with recommended packages, as users get them, so tesseract shows the recommendation resolves
+      - if: matrix.format == 'deb'
+        run: |
+          apt-get update
+          apt-get install -y ./pkg/waytator-*.deb
+      - if: matrix.format == 'rpm'
+        run: dnf install -y --setopt=install_weak_deps=True ./pkg/waytator-*.rpm
+      # the smoke test starts waytator on GTK's Broadway backend
+      - if: matrix.format == 'deb'
+        run: apt-get install -y --no-install-recommends libgtk-4-bin
+      - if: matrix.format == 'rpm'
+        run: dnf install -y /usr/bin/gtk4-broadwayd
+      - run: sh packaging/smoke-test.sh
+
+  release:
+    if: github.event_name == 'release'
+    needs: install
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: pkg
+          merge-multiple: true
+      - run: gh release upload "$GITHUB_REF_NAME" pkg/* --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -28,3 +28,15 @@ jobs:
         run: |
           nix path-info -r ./result | grep -q -- '-wl-clipboard-'
           nix path-info -r ./result | grep -q -- '-tesseract-'
+      # waytator-minimal and the withOcr alias are checked from their derivations, without a second build.
+      # tesseract is a direct input of the default package, so its absence from waytator-minimal's inputs
+      # means OCR is off, and withOcr = false has to give that same derivation
+      - name: Check waytator-minimal and withOcr = false leave tesseract out
+        run: |
+          inputs() { nix-store --query --references "$(nix eval --raw ${{ matrix.override }} "$@")"; }
+          inputs .#waytator.drvPath | grep -q -- '-tesseract-'
+          minimal=$(inputs .#waytator-minimal.drvPath)
+          grep -q -- '-wl-clipboard-' <<< "$minimal"
+          if grep -- '-tesseract-' <<< "$minimal"; then exit 1; fi
+          [ "$(nix eval --raw ${{ matrix.override }} .#waytator --apply 'p: (p.override { withOcr = false; }).drvPath')" \
+            = "$(nix eval --raw ${{ matrix.override }} .#waytator-minimal.drvPath)" ]

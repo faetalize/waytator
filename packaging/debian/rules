@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+#sets SOURCE_DATE_EPOCH from debian/changelog, which build-deb.sh dates to the commit being built
+include /usr/share/dpkg/pkg-info.mk
+
+%:
+	dh $@ --buildsystem=meson
+
+#the source comes from git archive, without a .git folder to read the commit time from
+override_dh_auto_configure:
+	dh_auto_configure -- -Dcommit_time=$(SOURCE_DATE_EPOCH)
