@@ -35,27 +35,38 @@ test_screenshot_editor_on(void)
   g_assert_false(waytator_command_line_captures_in_background(TRUE, FALSE, TRUE));
 }
 
+static char *
+problem(WaytatorSavePathUse use,
+        gboolean           *read_stdin)
+{
+  if (use.save_arg == NULL)
+    use.save_arg = "~/shot.png";
+  return waytator_command_line_save_path_problem(&use, read_stdin);
+}
+
 //a piped image takes a save path, with or without - to say so
 static void
 test_save_path_piped(void)
 {
   gboolean read_stdin = FALSE;
+  g_autofree char *given = problem((WaytatorSavePathUse) { .stdin_given = TRUE, .stdin_piped = TRUE }, &read_stdin);
 
-  g_assert_null(waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, FALSE, TRUE, TRUE, &read_stdin));
+  g_assert_null(given);
   g_assert_true(read_stdin);
-  g_assert_null(waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, &read_stdin));
+
+  read_stdin = FALSE;
+  g_assert_null(problem((WaytatorSavePathUse) { .stdin_piped = TRUE }, &read_stdin));
   g_assert_true(read_stdin);
 }
 
-//nothing piped in, so there is no image for the path to belong to
+//nothing piped in: the command with something piped
 static void
 test_save_path_nothing_piped(void)
 {
   gboolean read_stdin = TRUE;
-  const char *problem = waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, FALSE, FALSE, FALSE, &read_stdin);
+  g_autofree char *message = problem((WaytatorSavePathUse) { .grim = TRUE }, &read_stdin);
 
-  g_assert_nonnull(problem);
-  g_assert_nonnull(strstr(problem, "needs an image piped in"));
+  g_assert_cmpstr(message, ==, "--save-path only works with stdin, try: grim - | waytator --save-path ~/shot.png");
   g_assert_false(read_stdin);
 }
 
@@ -64,32 +75,55 @@ static void
 test_save_path_with_name(void)
 {
   gboolean read_stdin = TRUE;
-  const char *problem = waytator_command_line_save_path_problem(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE, &read_stdin);
+  g_autofree char *message = problem((WaytatorSavePathUse) { .name = TRUE, .stdin_piped = TRUE }, &read_stdin);
 
-  g_assert_nonnull(problem);
-  g_assert_nonnull(strstr(problem, "remove --name"));
+  g_assert_cmpstr(message, ==, "--save-path already names the file, remove --name");
   g_assert_false(read_stdin);
 }
 
-//each of the others says where that kind of save goes instead, whether or not something is piped
+//an opened file is piped in instead, with the paths as they were typed and quoted where a shell needs it
 static void
-test_save_path_elsewhere(void)
+test_save_path_with_file(void)
 {
   gboolean read_stdin = TRUE;
-  const char *problem;
+  g_autofree char *plain = problem((WaytatorSavePathUse) { .file_arg = "in.png" }, &read_stdin);
+  g_autofree char *spaces = problem((WaytatorSavePathUse) { .save_arg = "~/my shot.png", .file_arg = "it's.png" },
+                                    &read_stdin);
 
-  problem = waytator_command_line_save_path_problem(FALSE, TRUE, FALSE, FALSE, FALSE, TRUE, &read_stdin);
-  g_assert_nonnull(problem);
-  g_assert_nonnull(strstr(problem, "Save a copy"));
+  g_assert_cmpstr(plain, ==, "--save-path only works with stdin, try: waytator --save-path ~/shot.png < in.png");
+  g_assert_cmpstr(spaces, ==, "--save-path only works with stdin, try: waytator --save-path ~/'my shot.png' < 'it'\\''s.png'");
   g_assert_false(read_stdin);
+}
 
-  problem = waytator_command_line_save_path_problem(FALSE, FALSE, TRUE, FALSE, FALSE, TRUE, &read_stdin);
-  g_assert_nonnull(problem);
-  g_assert_nonnull(strstr(problem, "screenshot folder"));
+//a screenshot is taken with grim and piped in, of the same area or screen
+static void
+test_save_path_with_screenshot(void)
+{
+  gboolean read_stdin = TRUE;
+  g_autofree char *area = problem((WaytatorSavePathUse) { .screenshot = TRUE, .screenshot_area = TRUE, .grim = TRUE },
+                                  &read_stdin);
+  g_autofree char *screen = problem((WaytatorSavePathUse) { .screenshot = TRUE, .grim = TRUE }, &read_stdin);
+  g_autofree char *named = problem((WaytatorSavePathUse) { .screenshot = TRUE, .screen = "DP-1", .grim = TRUE },
+                                   &read_stdin);
 
-  problem = waytator_command_line_save_path_problem(FALSE, FALSE, FALSE, TRUE, FALSE, FALSE, &read_stdin);
-  g_assert_nonnull(problem);
-  g_assert_nonnull(strstr(problem, "recording folder"));
+  g_assert_cmpstr(area, ==, "--save-path only works with stdin, try: grim -g \"$(slurp)\" - | waytator --save-path ~/shot.png");
+  g_assert_cmpstr(screen, ==, "--save-path only works with stdin, try: grim - | waytator --save-path ~/shot.png");
+  g_assert_cmpstr(named, ==, "--save-path only works with stdin, try: grim -o DP-1 - | waytator --save-path ~/shot.png");
+  g_assert_false(read_stdin);
+}
+
+//no command does these, so they say where they are saved instead: GNOME's screenshots, which grim can't take, and
+//recordings, which are not images
+static void
+test_save_path_no_command(void)
+{
+  gboolean read_stdin = TRUE;
+  g_autofree char *gnome = problem((WaytatorSavePathUse) { .screenshot = TRUE, .screenshot_area = TRUE }, &read_stdin);
+  g_autofree char *record = problem((WaytatorSavePathUse) { .record = TRUE, .grim = TRUE }, &read_stdin);
+
+  g_assert_cmpstr(gnome, ==, "--save-path only works with stdin. Screenshots are saved to the screenshot folder set in Preferences");
+  g_assert_cmpstr(record, ==, "--save-path only works with stdin. Recordings are saved to the recording folder set in Preferences");
+  g_assert_false(read_stdin);
 }
 
 static char *
@@ -175,7 +209,9 @@ main(int   argc,
   g_test_add_func("/command-line/save-path-piped", test_save_path_piped);
   g_test_add_func("/command-line/save-path-nothing-piped", test_save_path_nothing_piped);
   g_test_add_func("/command-line/save-path-with-name", test_save_path_with_name);
-  g_test_add_func("/command-line/save-path-elsewhere", test_save_path_elsewhere);
+  g_test_add_func("/command-line/save-path-with-file", test_save_path_with_file);
+  g_test_add_func("/command-line/save-path-with-screenshot", test_save_path_with_screenshot);
+  g_test_add_func("/command-line/save-path-no-command", test_save_path_no_command);
   g_test_add_func("/command-line/save-path-colon", test_save_path_colon);
   g_test_add_func("/command-line/save-path-resolves", test_save_path_resolves);
   g_test_add_func("/command-line/save-path-usable", test_save_path_usable);

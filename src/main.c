@@ -540,6 +540,7 @@ app_command_line(GApplication            *app,
   const char *shortcuts[G_N_ELEMENTS(app_shortcut_options)] = { NULL };
   const char *stdin_name = NULL;
   g_autoptr(GFile) save_path = NULL;
+  const char *save_arg = NULL;
   //gio hands over a launch's stdin only once, so it is taken once and kept
   g_autoptr(GInputStream) stdin_stream = NULL;
   g_autoptr(GError) error = NULL;
@@ -710,7 +711,8 @@ app_command_line(GApplication            *app,
       }
 
       g_clear_object(&save_path);
-      save_path = app_command_line_save_path_file(command_line, arguments[++i]);
+      save_arg = arguments[++i];
+      save_path = app_command_line_save_path_file(command_line, save_arg);
       {
         g_autofree char *path = g_file_get_path(save_path);
         g_autofree char *unusable = waytator_command_line_save_path_unusable(arguments[i], save_path);
@@ -763,13 +765,19 @@ app_command_line(GApplication            *app,
 
   if (save_path != NULL) {
     gboolean read_stdin = FALSE;
-    const char *problem = waytator_command_line_save_path_problem(stdin_name != NULL,
-                                                                  file != NULL,
-                                                                  screenshot,
-                                                                  record,
-                                                                  use_stdin,
-                                                                  app_stream_is_piped(stdin_stream),
-                                                                  &read_stdin);
+    const WaytatorSavePathUse use = {
+      .name = stdin_name != NULL,
+      .save_arg = save_arg,
+      .file_arg = file_arg,
+      .screenshot = screenshot,
+      .screenshot_area = capture_mode == WAYTATOR_CAPTURE_AREA,
+      .screen = capture_screen,
+      .grim = !waytator_capture_uses_gnome_ui(),
+      .record = record,
+      .stdin_given = use_stdin,
+      .stdin_piped = app_stream_is_piped(stdin_stream),
+    };
+    g_autofree char *problem = waytator_command_line_save_path_problem(&use, &read_stdin);
 
     if (problem != NULL) {
       app_command_line_fail(app, command_line, "%s", problem);

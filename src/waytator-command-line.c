@@ -1,5 +1,7 @@
 #include "waytator-command-line.h"
 
+#include <string.h>
+
 //only a screenshot is taken without a window, with --notify or the editor switched off.
 //an image, stdin or a bare launch always gets a window
 gboolean
@@ -10,31 +12,62 @@ waytator_command_line_captures_in_background(gboolean screenshot,
   return screenshot && (notify || !screenshot_opens_editor);
 }
 
-//each mistake says what the user most likely meant instead
-const char *
-waytator_command_line_save_path_problem(gboolean  name,
-                                        gboolean  file,
-                                        gboolean  screenshot,
-                                        gboolean  record,
-                                        gboolean  stdin_given,
-                                        gboolean  stdin_piped,
-                                        gboolean *read_stdin)
+//arg as it would be typed into a shell, quoted only when it has to be. a leading ~/ stays outside the quotes, where the
+//shell still expands it
+static char *
+waytator_command_line_shell_word(const char *arg)
 {
+  const char *rest = g_str_has_prefix(arg, "~/") ? arg + 2 : arg;
+  g_autofree char *quoted = NULL;
+  gboolean plain = *rest != '\0';
+
+  for (const char *c = rest; *c != '\0' && plain; c++)
+    plain = g_ascii_isalnum(*c) || strchr("_./-+=:,@%~", *c) != NULL;
+
+  if (plain)
+    return g_strdup(arg);
+
+  quoted = g_shell_quote(rest);
+  return rest != arg ? g_strconcat("~/", quoted, NULL) : g_steal_pointer(&quoted);
+}
+
+//each mistake says what the user most likely meant, and the command that does it when there is one
+char *
+waytator_command_line_save_path_problem(const WaytatorSavePathUse *use,
+                                        gboolean                  *read_stdin)
+{
+  g_autofree char *save = waytator_command_line_shell_word(use->save_arg);
+
   *read_stdin = FALSE;
 
-  if (name)
-    return "--save-path already names the file, remove --name";
-  if (file)
-    return "--save-path only works with an image piped in. An opened file saves back to itself; "
-           "use Save a copy to save it elsewhere";
-  if (screenshot)
-    return "--save-path only works with an image piped in. Screenshots are saved to the screenshot folder "
-           "set in Preferences";
-  if (record)
-    return "--save-path only works with an image piped in. Recordings are saved to the recording folder "
-           "set in Preferences";
-  if (!stdin_given && !stdin_piped)
-    return "--save-path needs an image piped in, for example: grim - | waytator --save-path ~/shot.png";
+  if (use->name)
+    return g_strdup("--save-path already names the file, remove --name");
+
+  if (use->file_arg != NULL) {
+    g_autofree char *file = waytator_command_line_shell_word(use->file_arg);
+
+    return g_strdup_printf("--save-path only works with stdin, try: waytator --save-path %s < %s", save, file);
+  }
+
+  if (use->screenshot && use->grim) {
+    g_autofree char *screen = use->screen != NULL ? waytator_command_line_shell_word(use->screen) : NULL;
+    g_autofree char *grim = screen != NULL ? g_strdup_printf("grim -o %s -", screen)
+                          : use->screenshot_area ? g_strdup("grim -g \"$(slurp)\" -")
+                          : g_strdup("grim -");
+
+    return g_strdup_printf("--save-path only works with stdin, try: %s | waytator --save-path %s", grim, save);
+  }
+
+  if (use->screenshot)
+    return g_strdup("--save-path only works with stdin. Screenshots are saved to the screenshot folder set in "
+                    "Preferences");
+
+  if (use->record)
+    return g_strdup("--save-path only works with stdin. Recordings are saved to the recording folder set in "
+                    "Preferences");
+
+  if (!use->stdin_given && !use->stdin_piped)
+    return g_strdup_printf("--save-path only works with stdin, try: grim - | waytator --save-path %s", save);
 
   *read_stdin = TRUE;
   return NULL;
