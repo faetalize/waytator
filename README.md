@@ -51,9 +51,7 @@ For a smaller download without OCR, add `#waytator-minimal` to either:
 
 ```bash
 nix run github:faetalize/waytator/stable#waytator-minimal
-```
-
-```bash
+# OR
 nix run github:faetalize/waytator#waytator-minimal
 ```
 
