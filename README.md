@@ -41,6 +41,12 @@ To get new releases the day they're out, use this repo's flake:
 nix run github:faetalize/waytator/stable
 ```
 
+For a smaller download without OCR, use `waytator-minimal`:
+
+```bash
+nix run github:faetalize/waytator/stable#waytator-minimal
+```
+
 To follow `master` instead:
 
 ```bash
@@ -68,11 +74,7 @@ environment.systemPackages = [
 ];
 ```
 
-OCR is included. For a smaller install without it, use `.waytator-minimal` instead of `.default`, or try it with:
-
-```bash
-nix run github:faetalize/waytator/stable#waytator-minimal
-```
+For the smaller install without OCR, use `.waytator-minimal` instead of `.default`.
 
 To turn OCR off on a package you build yourself, override it with `enableOcr = false`.
 
