@@ -29,7 +29,8 @@ const char *waytator_video_support_encoder_unavailable(WaytatorVideoCodec   code
                                                        WaytatorVideoEncoder encoder);
 //a note under the encoder of a profile already set to one that can't encode codec: the gpu, when the
 //processor will instead, or the processor, when only the gpu could. NULL otherwise, until the gpu is
-//checked, and for a format nothing here encodes, which has its own warning
+//checked, and for a format nothing here encodes, which has its own warning. unlike the rest, nothing is
+//said early
 const char *waytator_video_support_encoder_note(WaytatorVideoCodec   codec,
                                                 WaytatorVideoEncoder preference);
 

@@ -124,8 +124,9 @@ waytator_video_support_encoder_note(WaytatorVideoCodec   codec,
 {
   const gboolean cpu = waytator_video_support_cpu_encodes(codec);
 
-  //a GIF goes its own way whatever the profile's encoder says, and a format nothing encodes has its warning
-  if (codec == WAYTATOR_VIDEO_CODEC_GIF)
+  //nothing until the check is in, which could take the advice back. a GIF goes its own way whatever the
+  //profile's encoder says, and a format nothing encodes has its warning
+  if (!waytator_video_support_checked || codec == WAYTATOR_VIDEO_CODEC_GIF)
     return NULL;
   if (preference == WAYTATOR_VIDEO_ENCODER_SOFTWARE && !cpu && waytator_video_support_gpu_may_encode(codec))
     return waytator_video_support_pick_auto;

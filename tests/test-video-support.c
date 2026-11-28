@@ -165,6 +165,21 @@ test_no_encoder_known_before_gpu(void)
   g_assert_cmpint(fake_gpu_checks, ==, 0);
 }
 
+//Automatic is only suggested once the gpu is known to encode the format, since it may turn out not to
+static void
+test_no_advice_before_check(void)
+{
+  static const char *const missing[] = { "libx265", NULL };
+
+  fake_use(missing, NULL);
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
+
+  check_gpu();
+  assert_note(waytator_video_support_encoder_note(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE), NULL);
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_SOFTWARE),
+                "Not available on this system");
+}
+
 static void
 cancelled_done(GObject      *source_object,
                GAsyncResult *result,
@@ -209,6 +224,7 @@ main(int   argc,
   g_test_add_func("/video-support/gpu-checked-once", test_gpu_checked_once);
   g_test_add_func("/video-support/no-encoder-known-before-gpu", test_no_encoder_known_before_gpu);
   g_test_add_func("/video-support/cancelled", test_cancelled);
+  g_test_add_func("/video-support/no-advice-before-check", test_no_advice_before_check);
 
   return g_test_run();
 }
