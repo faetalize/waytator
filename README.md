@@ -41,16 +41,20 @@ To get new releases the day they're out, use this repo's flake:
 nix run github:faetalize/waytator/stable
 ```
 
-For a smaller download without OCR, use `waytator-minimal`:
+To follow `master` instead:
+
+```bash
+nix run github:faetalize/waytator
+```
+
+For a smaller download without OCR, add `#waytator-minimal` to either:
 
 ```bash
 nix run github:faetalize/waytator/stable#waytator-minimal
 ```
 
-To follow `master` instead:
-
 ```bash
-nix run github:faetalize/waytator
+nix run github:faetalize/waytator#waytator-minimal
 ```
 
 On NixOS, add it as a flake input:
