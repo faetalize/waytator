@@ -31,7 +31,8 @@ waytator_command_line_shell_word(const char *arg)
   return rest != arg ? g_strconcat("~/", quoted, NULL) : g_steal_pointer(&quoted);
 }
 
-//each mistake says what the user most likely meant, and the command that does it when there is one
+//each mistake says what the user most likely meant: the command that does it for an opened file, the setting for
+//where screenshots and recordings go
 char *
 waytator_command_line_save_path_problem(const WaytatorSavePathUse *use,
                                         gboolean                  *read_stdin)
@@ -49,25 +50,14 @@ waytator_command_line_save_path_problem(const WaytatorSavePathUse *use,
     return g_strdup_printf("--save-path only works with stdin, try: waytator --save-path %s < %s", save, file);
   }
 
-  if (use->screenshot && use->grim) {
-    g_autofree char *screen = use->screen != NULL ? waytator_command_line_shell_word(use->screen) : NULL;
-    g_autofree char *grim = screen != NULL ? g_strdup_printf("grim -o %s -", screen)
-                          : use->screenshot_area ? g_strdup("grim -g \"$(slurp)\" -")
-                          : g_strdup("grim -");
-
-    return g_strdup_printf("--save-path only works with stdin, try: %s | waytator --save-path %s", grim, save);
-  }
-
-  if (use->screenshot)
-    return g_strdup("--save-path only works with stdin. Screenshots are saved to the screenshot folder set in "
-                    "Preferences");
+  //both most likely took it for where a screenshot is saved
+  if (use->screenshot || (!use->record && !use->stdin_given && !use->stdin_piped))
+    return g_strdup("--save-path only works with stdin. To choose where screenshots go, set Save folder in "
+                    "Preferences → Screenshots");
 
   if (use->record)
-    return g_strdup("--save-path only works with stdin. Recordings are saved to the recording folder set in "
-                    "Preferences");
-
-  if (!use->stdin_given && !use->stdin_piped)
-    return g_strdup_printf("--save-path only works with stdin, try: grim - | waytator --save-path %s", save);
+    return g_strdup("--save-path only works with stdin. Recordings are saved to the Save folder in "
+                    "Preferences → Recordings");
 
   *read_stdin = TRUE;
   return NULL;

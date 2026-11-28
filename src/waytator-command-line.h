@@ -15,11 +15,6 @@ typedef struct {
   const char *save_arg;
   const char *file_arg;
   gboolean screenshot;
-  gboolean screenshot_area;
-  //--screen's value, or NULL
-  const char *screen;
-  //whether grim can take the screenshot instead, it can't on GNOME
-  gboolean grim;
   gboolean record;
   gboolean stdin_given;
   gboolean stdin_piped;

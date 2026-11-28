@@ -59,14 +59,17 @@ test_save_path_piped(void)
   g_assert_true(read_stdin);
 }
 
-//nothing piped in: the command with something piped
+#define SCREENSHOT_FOLDER "--save-path only works with stdin. To choose where screenshots go, set Save folder in " \
+                          "Preferences → Screenshots"
+
+//nothing piped in: most likely taken for where screenshots are saved
 static void
 test_save_path_nothing_piped(void)
 {
   gboolean read_stdin = TRUE;
-  g_autofree char *message = problem((WaytatorSavePathUse) { .grim = TRUE }, &read_stdin);
+  g_autofree char *message = problem((WaytatorSavePathUse) { 0 }, &read_stdin);
 
-  g_assert_cmpstr(message, ==, "--save-path only works with stdin, try: grim - | waytator --save-path ~/shot.png");
+  g_assert_cmpstr(message, ==, SCREENSHOT_FOLDER);
   g_assert_false(read_stdin);
 }
 
@@ -95,34 +98,17 @@ test_save_path_with_file(void)
   g_assert_false(read_stdin);
 }
 
-//a screenshot is taken with grim and piped in, of the same area or screen
+//a screenshot and a recording point to where those are saved, there is no command that saves them to a path
 static void
-test_save_path_with_screenshot(void)
+test_save_path_screenshot_and_record(void)
 {
   gboolean read_stdin = TRUE;
-  g_autofree char *area = problem((WaytatorSavePathUse) { .screenshot = TRUE, .screenshot_area = TRUE, .grim = TRUE },
-                                  &read_stdin);
-  g_autofree char *screen = problem((WaytatorSavePathUse) { .screenshot = TRUE, .grim = TRUE }, &read_stdin);
-  g_autofree char *named = problem((WaytatorSavePathUse) { .screenshot = TRUE, .screen = "DP-1", .grim = TRUE },
-                                   &read_stdin);
+  g_autofree char *screenshot = problem((WaytatorSavePathUse) { .screenshot = TRUE, .stdin_piped = TRUE }, &read_stdin);
+  g_autofree char *record = problem((WaytatorSavePathUse) { .record = TRUE }, &read_stdin);
 
-  g_assert_cmpstr(area, ==, "--save-path only works with stdin, try: grim -g \"$(slurp)\" - | waytator --save-path ~/shot.png");
-  g_assert_cmpstr(screen, ==, "--save-path only works with stdin, try: grim - | waytator --save-path ~/shot.png");
-  g_assert_cmpstr(named, ==, "--save-path only works with stdin, try: grim -o DP-1 - | waytator --save-path ~/shot.png");
-  g_assert_false(read_stdin);
-}
-
-//no command does these, so they say where they are saved instead: GNOME's screenshots, which grim can't take, and
-//recordings, which are not images
-static void
-test_save_path_no_command(void)
-{
-  gboolean read_stdin = TRUE;
-  g_autofree char *gnome = problem((WaytatorSavePathUse) { .screenshot = TRUE, .screenshot_area = TRUE }, &read_stdin);
-  g_autofree char *record = problem((WaytatorSavePathUse) { .record = TRUE, .grim = TRUE }, &read_stdin);
-
-  g_assert_cmpstr(gnome, ==, "--save-path only works with stdin. Screenshots are saved to the screenshot folder set in Preferences");
-  g_assert_cmpstr(record, ==, "--save-path only works with stdin. Recordings are saved to the recording folder set in Preferences");
+  g_assert_cmpstr(screenshot, ==, SCREENSHOT_FOLDER);
+  g_assert_cmpstr(record, ==, "--save-path only works with stdin. Recordings are saved to the Save folder in "
+                              "Preferences → Recordings");
   g_assert_false(read_stdin);
 }
 
@@ -210,8 +196,7 @@ main(int   argc,
   g_test_add_func("/command-line/save-path-nothing-piped", test_save_path_nothing_piped);
   g_test_add_func("/command-line/save-path-with-name", test_save_path_with_name);
   g_test_add_func("/command-line/save-path-with-file", test_save_path_with_file);
-  g_test_add_func("/command-line/save-path-with-screenshot", test_save_path_with_screenshot);
-  g_test_add_func("/command-line/save-path-no-command", test_save_path_no_command);
+  g_test_add_func("/command-line/save-path-screenshot-and-record", test_save_path_screenshot_and_record);
   g_test_add_func("/command-line/save-path-colon", test_save_path_colon);
   g_test_add_func("/command-line/save-path-resolves", test_save_path_resolves);
   g_test_add_func("/command-line/save-path-usable", test_save_path_usable);
