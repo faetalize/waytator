@@ -400,6 +400,8 @@ app_command_line(GApplication            *app,
   const char *stdin_name = NULL;
   g_autoptr(GError) error = NULL;
   g_autoptr(GFile) file = NULL;
+  //a window made for this command, which has no reason to stay if what it was made for fails to open
+  gboolean window_is_new;
   WaytatorCaptureEarly *early = NULL;
   WaytatorWindow *window;
 
@@ -672,9 +674,14 @@ app_command_line(GApplication            *app,
     early = waytator_capture_early_start();
 
   //a bare launch brings back whatever is already open, anything carrying an image gets a window to itself
-  window = screenshot || use_stdin || file != NULL
-         ? waytator_window_for_new_image(GTK_APPLICATION(app))
-         : app_get_or_create_window(ADW_APPLICATION(app));
+  {
+    g_autoptr(GList) windows = g_list_copy(gtk_application_get_windows(GTK_APPLICATION(app)));
+
+    window = screenshot || use_stdin || file != NULL
+           ? waytator_window_for_new_image(GTK_APPLICATION(app))
+           : app_get_or_create_window(ADW_APPLICATION(app));
+    window_is_new = g_list_find(windows, window) == NULL;
+  }
   app_apply_overrides(window, close_on_copy, shortcuts);
 
   //the window shows itself once the capture is over
@@ -707,7 +714,7 @@ app_command_line(GApplication            *app,
                                           "Error loading image from stdin: %s\n",
                                           error->message);
       status = 1;
-      goto done;
+      goto failed_to_open;
     }
   } else if (file != NULL) {
     if (!waytator_window_open_file(window, file, &error)) {
@@ -716,11 +723,17 @@ app_command_line(GApplication            *app,
                                           arguments[1],
                                           error->message);
       status = 1;
-      goto done;
+      goto failed_to_open;
     }
   }
 
   gtk_window_present(GTK_WINDOW(window));
+  goto done;
+
+failed_to_open:
+  //left hidden it would keep waytator running with nothing on screen
+  if (window_is_new)
+    gtk_window_destroy(GTK_WINDOW(window));
 
 done:
   g_strfreev(arguments);
