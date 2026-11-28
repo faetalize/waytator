@@ -51,7 +51,27 @@ test_b_frames(void)
   }
 }
 
-//a format is greyed out when its encoder doesn't open for the check, so one that works has to
+//whether codec opens the way an export opens it, a file of a common size at the quality profiles start with
+static gboolean
+opens_for_export(const AVCodec *codec)
+{
+  AVCodecContext *context = avcodec_alloc_context3(codec);
+  gboolean opens;
+
+  context->width = 640;
+  context->height = 360;
+  context->pix_fmt = AV_PIX_FMT_YUV420P;
+  context->time_base = (AVRational) { 1, 30 };
+  context->framerate = (AVRational) { 30, 1 };
+  waytator_video_encoder_configure(context, 50, 2.0, WAYTATOR_VIDEO_ENCODE_SAVE);
+  opens = avcodec_open2(context, codec, NULL) >= 0;
+  avcodec_free_context(&context);
+  return opens;
+}
+
+//a format is greyed out when its encoder doesn't open for the check, so one that an export can open has to.
+//one that doesn't open either way is left alone: an FFmpeg built with a stand-in for a library that was left
+//out lists encoders like that, and the check is right to say no to them
 static void
 test_software_probe(void)
 {
@@ -64,10 +84,14 @@ test_software_probe(void)
 
     if (name == NULL)
       continue;
-    g_test_message("%s", name);
     works = FALSE;
     waytator_video_encoder_probe_software(names, &works);
-    g_assert_true(works);
+    if (works) {
+      g_test_message("%s opens", name);
+      continue;
+    }
+    g_test_message("%s doesn't open for the check", name);
+    g_assert_false(opens_for_export(avcodec_find_encoder_by_name(name)));
   }
 
   waytator_video_encoder_probe_software(unknown, &works);
