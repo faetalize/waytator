@@ -353,9 +353,11 @@ waytator_export_pick_encoder(WaytatorExporter *exporter,
   if (profile->codec == WAYTATOR_VIDEO_CODEC_GIF)
     return TRUE;
 
-  //two passes to land just under a size limit only work on the cpu
-  if (exporter->plan.video_bitrate > 0 && preference == WAYTATOR_VIDEO_ENCODER_AUTO)
-    preference = WAYTATOR_VIDEO_ENCODER_SOFTWARE;
+  //two passes to land just under a size limit only work on the cpu, so Automatic goes there when it can
+  if (exporter->plan.video_bitrate > 0)
+    preference = waytator_video_encoder_for_size_limit(profile->codec, preference,
+                                                       waytator_video_encoder_exists,
+                                                       waytator_video_encoder_probe_software);
 
   if (!waytator_video_encoder_choose(profile->codec, preference,
                                      exporter->plan.scaled_width, exporter->plan.scaled_height,

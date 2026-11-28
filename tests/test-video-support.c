@@ -1,6 +1,7 @@
 //which formats a profile can be exported in, against a made-up ffmpeg and gpu
 #include <glib.h>
 
+#include "waytator-video-encoder.h"
 #include "waytator-video-support.h"
 
 static const char *const *fake_missing;
@@ -253,6 +254,40 @@ test_cpu_encoder_that_does_not_open(void)
               "Not available, pick Automatic");
 }
 
+static WaytatorVideoEncoder
+size_limited(WaytatorVideoEncoder preference)
+{
+  return waytator_video_encoder_for_size_limit(WAYTATOR_VIDEO_CODEC_H264, preference,
+                                               fake_has_encoder, fake_cpu_encodes);
+}
+
+//a size limit goes to the processor, but Automatic has to stay free to take the gpu when only the gpu can
+//make the format, or the export fails after the checks offered it
+static void
+test_size_limit_without_cpu_encoder(void)
+{
+  static const char *const missing[] = { "libx264", "libopenh264", NULL };
+  static const char *const no_x264[] = { "libx264", NULL };
+  static const char *const broken[] = { "libopenh264", NULL };
+  static const char *const gpu_works[] = { "h264_vaapi", NULL };
+
+  fake_use(missing, gpu_works);
+  check_encoders();
+  assert_reason(waytator_video_support_unavailable(WAYTATOR_VIDEO_CODEC_H264, WAYTATOR_VIDEO_ENCODER_AUTO), NULL);
+  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_AUTO);
+
+  //the same for an encoder that is there and doesn't open
+  fake_use(no_x264, gpu_works);
+  fake_cpu_broken = broken;
+  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_AUTO);
+
+  //with a processor that can, Automatic still goes there, and what was asked for stays
+  fake_use(NULL, gpu_works);
+  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_AUTO), ==, WAYTATOR_VIDEO_ENCODER_SOFTWARE);
+  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_HARDWARE), ==, WAYTATOR_VIDEO_ENCODER_HARDWARE);
+  g_assert_cmpint(size_limited(WAYTATOR_VIDEO_ENCODER_SOFTWARE), ==, WAYTATOR_VIDEO_ENCODER_SOFTWARE);
+}
+
 static void
 cancelled_done(GObject      *source_object,
                GAsyncResult *result,
@@ -297,6 +332,7 @@ main(int   argc,
   g_test_add_func("/video-support/gpu-checked-once", test_gpu_checked_once);
   g_test_add_func("/video-support/no-encoder-known-before-gpu", test_no_encoder_known_before_gpu);
   g_test_add_func("/video-support/cancelled", test_cancelled);
+  g_test_add_func("/video-support/size-limit-without-cpu-encoder", test_size_limit_without_cpu_encoder);
   g_test_add_func("/video-support/cpu-encoder-that-does-not-open", test_cpu_encoder_that_does_not_open);
   g_test_add_func("/video-support/gifski-makes-gifs", test_gifski_makes_gifs);
   g_test_add_func("/video-support/no-advice-before-check", test_no_advice_before_check);

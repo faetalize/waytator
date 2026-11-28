@@ -58,6 +58,15 @@ void waytator_video_encoder_probe_hardware(const char *const *names,
 void waytator_video_encoder_probe_software(const char *const *names,
                                            gboolean          *works);
 
+//where an export aiming at a size encodes, preference being what its profile says. Automatic means the
+//processor, which gets closer to the size, but stays Automatic when the processor can't make codec, so the
+//gpu can. has_encoder and cpu_encodes are what the checks ask too, see waytator-video-support.h
+WaytatorVideoEncoder waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
+                                                           WaytatorVideoEncoder preference,
+                                                           gboolean           (*has_encoder)(const char *name),
+                                                           void               (*cpu_encodes)(const char *const *names,
+                                                                                             gboolean          *works));
+
 //on the gpu unless preference says the cpu or the gpu can't encode a width by height picture in codec, on
 //the cpu otherwise. fails with G_IO_ERROR_NOT_SUPPORTED when this ffmpeg can't encode codec at all. not for
 //GIFs. whatever choice held is cleared first, and it is left cleared on failure. clear it with

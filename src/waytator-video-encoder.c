@@ -256,6 +256,23 @@ waytator_video_encoder_probe_hardware(const char *const *names,
   av_buffer_unref(&device);
 }
 
+WaytatorVideoEncoder
+waytator_video_encoder_for_size_limit(WaytatorVideoCodec   codec,
+                                      WaytatorVideoEncoder preference,
+                                      gboolean           (*has_encoder)(const char *name),
+                                      void               (*cpu_encodes)(const char *const *names,
+                                                                        gboolean          *works))
+{
+  const char *const names[] = { waytator_video_encoder_find_software(codec, has_encoder), NULL };
+  gboolean works = FALSE;
+
+  if (preference != WAYTATOR_VIDEO_ENCODER_AUTO)
+    return preference;
+  if (names[0] != NULL)
+    cpu_encodes(names, &works);
+  return works ? WAYTATOR_VIDEO_ENCODER_SOFTWARE : WAYTATOR_VIDEO_ENCODER_AUTO;
+}
+
 gboolean
 waytator_video_encoder_choose(WaytatorVideoCodec          codec,
                               WaytatorVideoEncoder        preference,
