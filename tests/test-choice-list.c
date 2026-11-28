@@ -190,8 +190,7 @@ main(int   argc,
   g_setenv("GSETTINGS_BACKEND", "memory", TRUE);
 
   g_test_init(&argc, &argv, NULL);
-  if (program != NULL)
-    broadway = test_start_broadway(program, folder);
+  broadway = program != NULL ? test_start_broadway(program, folder) : NULL;
   if (program == NULL) {
     g_print("1..0 # SKIP gtk4-broadwayd isn't installed\n");
     result = 77;
