@@ -61,11 +61,10 @@ nix run github:faetalize/waytator#waytator-minimal
 # flake.nix
 inputs.waytator = {
   url = "github:faetalize/waytator/stable";
+  # to follow master instead: url = "github:faetalize/waytator";
   inputs.nixpkgs.follows = "nixpkgs";
 };
 ```
-
-To follow `master` instead, use `url = "github:faetalize/waytator";`.
 
 Then add the package to your system:
 
