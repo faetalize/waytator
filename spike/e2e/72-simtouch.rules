@@ -1,0 +1,6 @@
+# Moves waytator's isolated test devices off seat0, so the desktop's compositor never takes them.
+# Must sort before 73-seat-late.rules, which turns ID_SEAT into the seat's tag.
+# ATTRS also matches the parent, which covers both the inputN device and its eventN node.
+ACTION=="remove", GOTO="simtouch_end"
+SUBSYSTEM=="input", ATTRS{name}=="simtouch-isolated *", ENV{ID_SEAT}="seat-simtouch", GROUP="simtouch", MODE="0660"
+LABEL="simtouch_end"

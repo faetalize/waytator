@@ -1,0 +1,176 @@
+name: Spike e2e input
+
+on:
+  push:
+    branches: [spike/e2e-input]
+
+jobs:
+  host:
+    name: uinput into headless sway (host runner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+
+      - name: Load uinput
+        run: |
+          uname -r
+          sudo modprobe uinput || {
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+            sudo modprobe uinput
+          }
+          sudo modprobe evdev
+          ls -l /dev/uinput
+          systemctl is-active systemd-udevd
+
+      - name: Build the test environment from flake.lock's nixpkgs
+        run: |
+          nix-build spike/e2e -o simtouch-env
+          ./simtouch-env/bin/sway --version
+          ./simtouch-env/bin/libinput --version
+
+      # everything that needs root. The first half is what a developer installs once, the uinput rule is the
+      # developer's way to create devices without sudo
+      - name: One-time setup
+        run: |
+          sudo groupadd --system simtouch
+          sudo usermod -aG simtouch "$USER"
+          sudo install -m 644 spike/e2e/72-simtouch.rules /etc/udev/rules.d/72-simtouch.rules
+          echo 'KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="simtouch", MODE="0660"' |
+            sudo tee /etc/udev/rules.d/72-simtouch-uinput.rules
+          sudo udevadm control --reload
+          sudo udevadm trigger --settle /sys/class/misc/uinput
+          ls -l /dev/uinput
+
+      # a fresh sudo to the same user picks up the new group. No root and no input group from here on
+      - name: e2e on seat-simtouch, unprivileged
+        run: |
+          sudo -u "$USER" id
+          sudo -u "$USER" env PATH="$PWD/simtouch-env/bin:$PATH" \
+            python3 spike/e2e/e2e.py --mode isolated --logs "$PWD/e2e-logs/alone"
+
+      # the stand-in desktop reads seat0 and the visible devices stay root:input, so it needs that group
+      - name: Seat isolation against a seat0 compositor
+        run: |
+          sudo usermod -aG input "$USER"
+          sudo -u "$USER" env PATH="$PWD/simtouch-env/bin:$PATH" \
+            python3 spike/e2e/e2e.py --mode isolated --standin --logs "$PWD/e2e-logs/isolation"
+
+      - name: Control, visible devices reach seat0 only
+        run: |
+          sudo -u "$USER" env PATH="$PWD/simtouch-env/bin:$PATH" \
+            python3 spike/e2e/e2e.py --mode visible --standin --logs "$PWD/e2e-logs/visible"
+
+      - name: How udev and libinput see the devices
+        run: |
+          export PATH="$PWD/simtouch-env/bin:$PATH"
+          for mode in isolated visible; do
+            echo "=================== $mode ==================="
+            rm -f go && mkfifo go
+            sudo env PATH="$PATH" python3 spike/e2e/inject.py --mode "$mode" < go > inject.log &
+            injector=$!
+            exec 3> go
+            timeout 20 sh -c 'until grep -qx ready inject.log; do sleep 0.1; done'
+            cat inject.log
+
+            for node in $(sed -n 's/^device node=\([^ ]*\).*/\1/p' inject.log); do
+              echo "--- $node"
+              udevadm info --query=property --name="$node" |
+                grep -E '^(ID_SEAT|ID_INPUT[A-Z_]*|TAGS|CURRENT_TAGS|LIBINPUT_DEVICE_GROUP)='
+              ls -l "$node"
+              getfacl -p "$node" 2>/dev/null || true
+            done
+
+            for seat in seat0 seat-simtouch; do
+              sudo env PATH="$PATH" timeout -s INT 12 libinput debug-events --udev "$seat" > "events-$seat.log" 2>&1 &
+            done
+            sleep 3
+            echo go >&3
+            timeout 20 sh -c 'until grep -qx played inject.log; do sleep 0.1; done'
+            sleep 10
+            for seat in seat0 seat-simtouch; do
+              echo "--- libinput debug-events --udev $seat: devices"
+              grep DEVICE_ADDED "events-$seat.log" || true
+              echo "--- libinput debug-events --udev $seat: event counts"
+              grep -oE '(TOUCH|TABLET_TOOL)_[A-Z_]+' "events-$seat.log" | sort | uniq -c || true
+            done
+            echo "--- tablet tool lines"
+            grep -h TABLET_TOOL_PROXIMITY events-seat*.log || true
+
+            if [ "$mode" = isolated ]; then own=seat-simtouch other=seat0; else own=seat0 other=seat-simtouch; fi
+            grep -q 'TOUCH_DOWN' "events-$own.log"
+            grep -q 'TABLET_TOOL_PROXIMITY' "events-$own.log"
+            if grep -E "simtouch-" "events-$other.log"; then echo "$other saw the $mode devices"; exit 1; fi
+
+            if [ "$mode" = visible ]; then
+              echo "--- libinput list-devices"
+              sudo env PATH="$PATH" libinput list-devices | grep -B1 -A22 'Device: *simtouch'
+            fi
+            exec 3>&-
+            wait "$injector"
+          done
+          echo "--- logind seats"
+          loginctl list-seats --no-pager || true
+
+      - name: Isolated mode refuses to play without the udev rule
+        run: |
+          export PATH="$PWD/simtouch-env/bin:$PATH"
+          sudo rm /etc/udev/rules.d/72-simtouch.rules
+          sudo udevadm control --reload
+          status=0
+          echo go | sudo env PATH="$PATH" python3 spike/e2e/inject.py --mode isolated > inject.log 2>&1 || status=$?
+          cat inject.log
+          [ "$status" = 2 ]
+          ! grep -qx played inject.log
+
+      - name: Compositor and probe logs
+        if: always()
+        run: |
+          for log in e2e-logs/*/sway-*.log; do
+            echo "::group::$log"
+            grep -iE 'libseat|libinput|session|simtouch|tablet|touch|\[ERROR\]' "$log" | head -150
+            echo "::endgroup::"
+          done
+
+  # whether a container job could do this instead. It gets every advantage a job container can: privileged, with
+  # the host's /dev and modules
+  container:
+    name: same devices inside a privileged container
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: ubuntu:24.04
+      options: --privileged -v /dev:/dev -v /lib/modules:/lib/modules
+    steps:
+      - run: |
+          apt-get update
+          apt-get install -y --no-install-recommends udev kmod libinput-tools python3-evdev
+      - name: Does libinput's udev backend see a new uinput device here?
+        run: |
+          modprobe uinput || true
+          ls -l /dev/uinput
+          pgrep -a udevd || echo "no udevd in the container"
+          ls /run/udev 2>/dev/null || echo "no /run/udev in the container"
+          cat > make.py <<'PY'
+          import time
+          from evdev import AbsInfo, UInput, ecodes as e
+          axis = AbsInfo(0, 0, 32767, 0, 0, 0)
+          device = UInput({e.EV_KEY: [e.BTN_TOUCH], e.EV_ABS: [(e.ABS_X, axis), (e.ABS_Y, axis)]},
+                          name="simtouch-container touchscreen", input_props=[e.INPUT_PROP_DIRECT])
+          print("created", flush=True)
+          time.sleep(20)
+          PY
+          python3 make.py &
+          sleep 3
+          grep -l simtouch-container /sys/class/input/event*/device/name
+          node=/dev/input/$(grep -l simtouch-container /sys/class/input/event*/device/name | cut -d/ -f5)
+          ls -l "$node"
+          echo "--- udev properties"
+          udevadm info --query=property --name="$node" || true
+          echo "--- libinput list-devices"
+          libinput list-devices > list.txt 2>&1 || true
+          cat list.txt
+          if grep -q simtouch-container list.txt; then echo "RESULT: libinput sees it"; else echo "RESULT: libinput does not see it"; fi
+          wait
