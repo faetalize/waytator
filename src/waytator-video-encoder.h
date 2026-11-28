@@ -68,13 +68,16 @@ WaytatorVideoEncoder waytator_video_encoder_for_size_limit(WaytatorVideoCodec   
                                                                                              gboolean          *works));
 
 //on the gpu unless preference says the cpu or the gpu can't encode a width by height picture in codec, on
-//the cpu otherwise. fails with G_IO_ERROR_NOT_SUPPORTED when this ffmpeg can't encode codec at all. not for
-//GIFs. whatever choice held is cleared first, and it is left cleared on failure. clear it with
-//waytator_video_encoder_choice_clear once it is done with, which also lets go of the device
+//the cpu otherwise, going by has_encoder for which encoders ffmpeg has. fails with G_IO_ERROR_NOT_SUPPORTED
+//when this ffmpeg can't encode codec at all, and with G_IO_ERROR_INVALID_ARGUMENT when only the gpu encodes
+//codec and not at width by height. not for GIFs. whatever choice held is cleared first, and it is left
+//cleared on failure. clear it with waytator_video_encoder_choice_clear once it is done with, which also lets
+//go of the device
 gboolean waytator_video_encoder_choose(WaytatorVideoCodec          codec,
                                        WaytatorVideoEncoder        preference,
                                        int                         width,
                                        int                         height,
+                                       gboolean                  (*has_encoder)(const char *name),
                                        WaytatorVideoEncoderChoice *choice,
                                        GError                    **error);
 void waytator_video_encoder_choice_clear(WaytatorVideoEncoderChoice *choice);

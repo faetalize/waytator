@@ -241,6 +241,11 @@ waytator_video_encoder_probe_software(const char *const *names,
   }
 }
 
+//the size the gpu is tried at to see whether it encodes a format at all, a common one that the gpus that
+//encode anything at all encode
+#define WAYTATOR_VIDEO_ENCODER_COMMON_WIDTH 1280
+#define WAYTATOR_VIDEO_ENCODER_COMMON_HEIGHT 720
+
 void
 waytator_video_encoder_probe_hardware(const char *const *names,
                                       gboolean          *works)
@@ -250,10 +255,30 @@ waytator_video_encoder_probe_hardware(const char *const *names,
   for (guint i = 0; names[i] != NULL; i++) {
     const AVCodec *found = device != NULL ? avcodec_find_encoder_by_name(names[i]) : NULL;
 
-    //a common size, the gpus that encode anything at all encode this
-    works[i] = found != NULL && waytator_video_encoder_hardware_encodes(found, device, 1280, 720);
+    works[i] = found != NULL
+            && waytator_video_encoder_hardware_encodes(found, device, WAYTATOR_VIDEO_ENCODER_COMMON_WIDTH,
+                                                       WAYTATOR_VIDEO_ENCODER_COMMON_HEIGHT);
   }
   av_buffer_unref(&device);
+}
+
+//the first encoder on device that encodes a width by height picture in codec, NULL when none does
+static const AVCodec *
+waytator_video_encoder_find_hardware(WaytatorVideoCodec codec,
+                                     AVBufferRef       *device,
+                                     int                width,
+                                     int                height,
+                                     gboolean         (*has_encoder)(const char *name))
+{
+  const char *const *names = waytator_video_encoder_get_names(codec, TRUE);
+
+  for (guint i = 0; names[i] != NULL; i++) {
+    const AVCodec *found = has_encoder(names[i]) ? avcodec_find_encoder_by_name(names[i]) : NULL;
+
+    if (found != NULL && waytator_video_encoder_hardware_encodes(found, device, width, height))
+      return found;
+  }
+  return NULL;
 }
 
 WaytatorVideoEncoder
@@ -278,51 +303,53 @@ waytator_video_encoder_choose(WaytatorVideoCodec          codec,
                               WaytatorVideoEncoder        preference,
                               int                         width,
                               int                         height,
+                              gboolean                  (*has_encoder)(const char *name),
                               WaytatorVideoEncoderChoice *choice,
                               GError                    **error)
 {
-  const char *const *names;
-  const char *software;
+  const char *software = waytator_video_encoder_find_software(codec, has_encoder);
+  AVBufferRef *device = NULL;
+  gboolean other_sizes;
+  g_autofree char *wanted = NULL;
 
   waytator_video_encoder_choice_clear(choice);
 
-  if (preference != WAYTATOR_VIDEO_ENCODER_SOFTWARE) {
-    AVBufferRef *device = waytator_video_encoder_open_device();
-
-    if (device != NULL) {
-      names = waytator_video_encoder_get_names(codec, TRUE);
-      for (guint i = 0; names[i] != NULL; i++) {
-        const AVCodec *found = avcodec_find_encoder_by_name(names[i]);
-
-        if (found != NULL && waytator_video_encoder_hardware_encodes(found, device, width, height)) {
-          choice->codec = found;
-          choice->device = device;
-          return TRUE;
-        }
-      }
-      av_buffer_unref(&device);
+  if (preference != WAYTATOR_VIDEO_ENCODER_SOFTWARE)
+    device = waytator_video_encoder_open_device();
+  if (device != NULL) {
+    choice->codec = waytator_video_encoder_find_hardware(codec, device, width, height, has_encoder);
+    if (choice->codec != NULL) {
+      choice->device = g_steal_pointer(&device);
+      return TRUE;
     }
   }
 
-  if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE)
-    g_debug("No hardware encoder for this profile here, encoding on the cpu");
-
-  software = waytator_video_encoder_find_software(codec, waytator_video_encoder_exists);
   if (software != NULL)
     choice->codec = avcodec_find_encoder_by_name(software);
+  if (choice->codec != NULL) {
+    if (preference == WAYTATOR_VIDEO_ENCODER_HARDWARE)
+      g_debug("No hardware encoder for this profile here, encoding on the cpu");
+    av_buffer_unref(&device);
+    return TRUE;
+  }
 
-  if (choice->codec == NULL) {
-    names = waytator_video_encoder_get_names(codec, FALSE);
-
-    g_autofree char *wanted = g_strjoinv(", ", (char **) names);
-
-    g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
-                "This system's FFmpeg can't encode this profile's video, it needs one of: %s",
-                wanted);
+  //the checks try the gpu at a common size and offer codec when it encodes there, so an export of another
+  //size is told that the size is what the gpu can't take. trying again costs only this failing export
+  other_sizes = device != NULL
+             && waytator_video_encoder_find_hardware(codec, device, WAYTATOR_VIDEO_ENCODER_COMMON_WIDTH,
+                                                     WAYTATOR_VIDEO_ENCODER_COMMON_HEIGHT, has_encoder) != NULL;
+  av_buffer_unref(&device);
+  if (other_sizes) {
+    g_set_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
+                "Only the GPU encodes this profile's video here, and it can't encode a %dx%d picture",
+                width, height);
     return FALSE;
   }
 
-  return TRUE;
+  wanted = g_strjoinv(", ", (char **) waytator_video_encoder_get_names(codec, FALSE));
+  g_set_error(error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+              "This system's FFmpeg can't encode this profile's video, it needs one of: %s", wanted);
+  return FALSE;
 }
 
 void

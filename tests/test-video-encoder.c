@@ -98,6 +98,38 @@ test_software_probe(void)
   g_assert_false(works);
 }
 
+//this ffmpeg less its encoders for HEVC on the cpu
+static gboolean
+has_encoder_but_x265(const char *name)
+{
+  return !g_str_equal(name, "libx265") && waytator_video_encoder_exists(name);
+}
+
+//a gpu that encodes HEVC, though not every size of picture, with nothing for it on the cpu: the profile list
+//offers HEVC, so an export at a size the gpu can't take fails for the size and not for the format
+static void
+test_gpu_size(void)
+{
+  static const char *const hevc[] = { "hevc_vaapi", NULL };
+  WaytatorVideoEncoderChoice choice = { 0 };
+  g_autoptr(GError) error = NULL;
+  gboolean works = FALSE;
+
+  waytator_video_encoder_probe_hardware(hevc, &works);
+  if (!works) {
+    g_test_skip("No GPU here that encodes HEVC");
+    return;
+  }
+  if (waytator_video_encoder_choose(WAYTATOR_VIDEO_CODEC_HEVC, WAYTATOR_VIDEO_ENCODER_AUTO, 64, 64,
+                                    has_encoder_but_x265, &choice, &error)) {
+    waytator_video_encoder_choice_clear(&choice);
+    g_test_skip("The GPU here encodes HEVC at 64 by 64 too");
+    return;
+  }
+  g_test_message("%s", error->message);
+  g_assert_error(error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT);
+}
+
 int
 main(int   argc,
      char *argv[])
@@ -106,6 +138,7 @@ main(int   argc,
 
   g_test_add_func("/video-encoder/b-frames", test_b_frames);
   g_test_add_func("/video-encoder/software-probe", test_software_probe);
+  g_test_add_func("/video-encoder/gpu-size", test_gpu_size);
 
   return g_test_run();
 }
