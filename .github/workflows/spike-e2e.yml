@@ -90,8 +90,10 @@ jobs:
             # as a desktop user would be for visible mode: able to open /dev/uinput, not in the input group, so
             # unable to open the seat0 nodes it creates
             install -m 644 spike/e2e/inject.py /tmp/inject.py
-            sudo -u nobody -g simtouch id
-            sudo -u nobody -g simtouch "$PWD/simtouch-env/bin/python3" /tmp/inject.py --mode "$mode" < go > inject.log &
+            # setpriv, since the runner's sudoers does not let sudo pick a group
+            as_plain="sudo setpriv --reuid=nobody --regid=simtouch --clear-groups"
+            $as_plain id
+            $as_plain "$PWD/simtouch-env/bin/python3" /tmp/inject.py --mode "$mode" < go > inject.log &
             injector=$!
             exec 3> go
             timeout 20 sh -c 'until grep -qx ready inject.log; do sleep 0.1; done'
